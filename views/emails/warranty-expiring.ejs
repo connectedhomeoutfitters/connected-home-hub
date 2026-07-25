@@ -1,0 +1,13 @@
+<!doctype html>
+<html>
+<body style="font-family: 'Roboto', Arial, Helvetica, sans-serif; color: #333; max-width: 560px; margin: 0 auto;">
+  <%- include('_header') %>
+  <p>Hi <%= customerName %>,</p>
+  <p>This is a friendly reminder that the warranty on your <strong><%= item %></strong><%= provider ? ' (' + provider + ')' : '' %>
+     is set to expire on <strong><%= expires %></strong>.</p>
+  <p>If you'd like to review your coverage, renew, or schedule any service before it lapses,
+     just reply to this email and we'll be glad to help.</p>
+  <p>Thank you for choosing Connected Home Outfitters.</p>
+  <%- include('_footer') %>
+</body>
+</html>

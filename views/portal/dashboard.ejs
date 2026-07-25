@@ -70,6 +70,34 @@
     <% } %>
   </div>
 
+  <!-- Warranties -->
+  <div class="card mb-4">
+    <div class="card-header">Warranties</div>
+    <% if (!warranties.length) { %>
+      <div class="card-body text-muted">No warranties on file.</div>
+    <% } else { %>
+      <ul class="list-group list-group-flush">
+        <% warranties.forEach(w => {
+          let note = '', cls = 'bg-success', lbl = 'Active';
+          if (w.expires_on) {
+            const days = Math.round((new Date(w.expires_on).setHours(0,0,0,0) - new Date().setHours(0,0,0,0)) / 86400000);
+            if (days < 0) { cls = 'bg-danger'; lbl = 'Expired'; }
+            else if (days <= 30) { cls = 'bg-warning text-dark'; lbl = 'Expires in ' + days + 'd'; }
+            note = 'through ' + date(w.expires_on);
+          }
+        %>
+          <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+              <div class="fw-semibold"><%= w.item %></div>
+              <div class="text-muted small"><%= w.provider ? w.provider + ' · ' : '' %><%= note %></div>
+            </div>
+            <span class="badge <%= cls %>"><%= lbl %></span>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+  </div>
+
   <!-- Payment history -->
   <div class="card mb-4">
     <div class="card-header">Payment history</div>

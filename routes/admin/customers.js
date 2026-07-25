@@ -78,6 +78,7 @@ router.get('/:id', async (req, res, next) => {
     const [estimates] = await db.execute('SELECT * FROM estimates WHERE customer_id = ?', [req.params.id]);
     const [invoices] = await db.execute('SELECT * FROM invoices WHERE customer_id = ?', [req.params.id]);
     const [jobs] = await db.execute('SELECT * FROM jobs WHERE customer_id = ?', [req.params.id]);
+    const [warranties] = await db.execute('SELECT * FROM warranties WHERE customer_id = ?', [req.params.id]);
 
     const events = [];
 
@@ -139,6 +140,22 @@ router.get('/:id', async (req, res, next) => {
         date: j.created_at, icon: 'bi-list-check', type: 'Job',
         title: `Job — ${j.title}`,
         statusLabel: s.label, statusBadge: s.badge, link: `/admin/jobs/${j.id}/edit`,
+      });
+    }
+
+    const todayMid = new Date(); todayMid.setHours(0, 0, 0, 0);
+    for (const w of warranties) {
+      let statusLabel = 'Active', statusBadge = 'success';
+      if (!w.active) { statusLabel = 'Inactive'; statusBadge = 'secondary'; }
+      else if (w.expires_on) {
+        const days = Math.round((new Date(w.expires_on).setHours(0, 0, 0, 0) - todayMid) / 86400000);
+        if (days < 0) { statusLabel = 'Expired'; statusBadge = 'danger'; }
+        else if (days <= 30) { statusLabel = `Expires in ${days}d`; statusBadge = 'warning'; }
+      }
+      events.push({
+        date: w.start_date || w.created_at, icon: 'bi-shield-check', type: 'Warranty',
+        title: `Warranty — ${w.item}${w.expires_on ? ' (expires ' + new Date(w.expires_on).toLocaleDateString() + ')' : ''}`,
+        statusLabel, statusBadge, link: `/admin/warranties/${w.id}/edit`,
       });
     }
 

@@ -1,0 +1,53 @@
+<%- include('../partials/head', { title: 'Warranties' }) %>
+<%- include('../partials/nav') %>
+<%
+  const today = new Date(); today.setHours(0,0,0,0);
+  function expiryInfo(w) {
+    if (!w.expires_on) return { label: 'No expiry', cls: 'bg-secondary' };
+    const exp = new Date(w.expires_on); exp.setHours(0,0,0,0);
+    const days = Math.round((exp - today) / 86400000);
+    if (days < 0) return { label: 'Expired', cls: 'bg-danger' };
+    if (days <= 30) return { label: `Expires in ${days}d`, cls: 'bg-warning text-dark' };
+    return { label: 'Active', cls: 'bg-success' };
+  }
+  const date = (d) => d ? new Date(d).toLocaleDateString() : '';
+%>
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">Warranties</h1>
+    <div class="d-flex gap-2">
+      <a href="<%= basePath %>/admin/warranties<%= showAll ? '' : '?all=1' %>" class="btn btn-outline-secondary btn-sm">
+        <%= showAll ? 'Hide inactive' : 'Show inactive' %>
+      </a>
+      <a href="<%= basePath %>/admin/warranties/new" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> New warranty</a>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="table align-middle">
+      <thead><tr><th>Item</th><th>Customer</th><th>Type</th><th>Provider</th><th>Expires</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        <% if (!warranties.length) { %>
+          <tr><td colspan="7" class="text-muted text-center py-4">No warranties recorded yet.</td></tr>
+        <% } %>
+        <% warranties.forEach(w => { const info = expiryInfo(w); %>
+          <tr class="<%= w.active ? '' : 'text-muted' %>">
+            <td><%= w.item %><% if (!w.active) { %> <span class="badge bg-secondary">inactive</span><% } %></td>
+            <td><a href="<%= basePath %>/admin/customers/<%= w.customer_id %>" class="text-decoration-none"><%= w.customer_name %></a></td>
+            <td class="text-capitalize"><%= w.type || '' %></td>
+            <td class="small"><%= w.provider || '' %></td>
+            <td class="small text-nowrap"><%= date(w.expires_on) || '—' %></td>
+            <td><span class="badge <%= info.cls %>"><%= info.label %></span></td>
+            <td class="text-end text-nowrap">
+              <a href="<%= basePath %>/admin/warranties/<%= w.id %>/edit" class="btn btn-outline-secondary btn-sm">Edit</a>
+              <form action="<%= basePath %>/admin/warranties/<%= w.id %>/active<%= showAll ? '?all=1' : '' %>" method="POST" class="d-inline">
+                <input type="hidden" name="active" value="<%= w.active ? '0' : '1' %>">
+                <button class="btn btn-outline-<%= w.active ? 'danger' : 'success' %> btn-sm" type="submit"><%= w.active ? 'Deactivate' : 'Reactivate' %></button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<%- include('../partials/footer') %>

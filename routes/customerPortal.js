@@ -120,9 +120,14 @@ router.get('/', requireCustomer, async (req, res, next) => {
        ORDER BY p.created_at DESC`,
       [cid]
     );
+    const [warranties] = await db.execute(
+      `SELECT item, type, provider, start_date, expires_on FROM warranties
+       WHERE customer_id = ? AND active = 1 ORDER BY (expires_on IS NULL), expires_on`,
+      [cid]
+    );
     res.render('portal/dashboard', {
       portalBranded: true, bodyClass: 'portal-page', pageScript: null,
-      estimates, invoices, payments,
+      estimates, invoices, payments, warranties,
     });
   } catch (err) {
     next(err);

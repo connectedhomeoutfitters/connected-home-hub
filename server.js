@@ -11,6 +11,7 @@ const passport = require('./config/passport');
 const db = require('./config/db');
 const { setLocals } = require('./middleware/auth');
 const { sendDueReminders } = require('./services/consultationReminders');
+const { sendExpiryReminders } = require('./services/warrantyReminders');
 
 const app = express();
 const BASE_PATH = process.env.BASE_PATH || '';
@@ -103,6 +104,7 @@ app.use(`${BASE_PATH}/admin/reports`, require('./routes/admin/reports'));
 app.use(`${BASE_PATH}/admin/products`, require('./routes/admin/products'));
 app.use(`${BASE_PATH}/admin/labor-rates`, require('./routes/admin/laborRates'));
 app.use(`${BASE_PATH}/admin/subcontractors`, require('./routes/admin/subcontractors'));
+app.use(`${BASE_PATH}/admin/warranties`, require('./routes/admin/warranties'));
 app.use(`${BASE_PATH}/admin/settings`, require('./routes/admin/settings'));
 app.use(`${BASE_PATH}/portal`, require('./routes/customerPortal'));
 app.use(`${BASE_PATH}/`, require('./routes/portal'));
@@ -117,6 +119,12 @@ app.use((err, req, res, next) => {
 // reminder emailed yet — see services/consultationReminders.js.
 cron.schedule('0 * * * *', () => {
   sendDueReminders().catch((err) => console.error('sendDueReminders failed:', err.message));
+});
+
+// Daily at 9am — email customers whose warranties lapse within 30 days (see
+// services/warrantyReminders.js).
+cron.schedule('0 9 * * *', () => {
+  sendExpiryReminders().catch((err) => console.error('sendExpiryReminders failed:', err.message));
 });
 
 const PORT = process.env.PORT || 3100;

@@ -1,0 +1,69 @@
+<%- include('../partials/head', { title: isNew ? 'New Warranty' : 'Edit Warranty' }) %>
+<%- include('../partials/nav') %>
+<%
+  const val = (v) => v === undefined || v === null ? '' : v;
+  const d = (v) => v ? String(v).slice(0, 10) : ''; // DATE -> yyyy-mm-dd for <input type=date>
+%>
+<div class="container" style="max-width: 640px;">
+  <a href="<%= basePath %>/admin/warranties" class="text-decoration-none small"><i class="bi bi-arrow-left"></i> Warranties</a>
+  <h1 class="h3 mt-2 mb-4"><%= isNew ? 'New Warranty' : 'Edit Warranty' %></h1>
+
+  <% if (error) { %><div class="alert alert-danger"><%= error %></div><% } %>
+
+  <form method="POST" action="<%= basePath %>/admin/warranties<%= isNew ? '' : '/' + warranty.id %>">
+    <% if (warranty.job_id) { %><input type="hidden" name="job_id" value="<%= warranty.job_id %>"><% } %>
+
+    <div class="mb-3">
+      <label class="form-label">Customer</label>
+      <select name="customer_id" class="form-select" required>
+        <option value="">— choose —</option>
+        <% customers.forEach(c => { %>
+          <option value="<%= c.id %>" <%= String(warranty.customer_id) === String(c.id) ? 'selected' : '' %>><%= c.name %></option>
+        <% }) %>
+      </select>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">Item covered</label>
+      <input type="text" name="item" class="form-control" maxlength="255" required
+        value="<%= val(warranty.item) %>" placeholder="e.g. Lutron lighting system, or Labor">
+    </div>
+
+    <div class="row">
+      <div class="col-md-6 mb-3">
+        <label class="form-label">Type</label>
+        <select name="type" class="form-select">
+          <% ['product','labor','other'].forEach(t => { %>
+            <option value="<%= t %>" <%= (warranty.type || 'product') === t ? 'selected' : '' %>><%= t.charAt(0).toUpperCase()+t.slice(1) %></option>
+          <% }) %>
+        </select>
+      </div>
+      <div class="col-md-6 mb-3">
+        <label class="form-label">Provider <span class="text-muted">(manufacturer / installer)</span></label>
+        <input type="text" name="provider" class="form-control" maxlength="255"
+          value="<%= val(warranty.provider) %>" placeholder="e.g. Lutron, or Connected Home Outfitters">
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-6 mb-3">
+        <label class="form-label">Start date</label>
+        <input type="date" name="start_date" class="form-control" value="<%= d(warranty.start_date) %>">
+      </div>
+      <div class="col-md-6 mb-3">
+        <label class="form-label">Expires on</label>
+        <input type="date" name="expires_on" class="form-control" value="<%= d(warranty.expires_on) %>">
+        <div class="form-text">A reminder email goes out 30 days before this date.</div>
+      </div>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">Coverage notes</label>
+      <textarea name="coverage_notes" class="form-control" rows="3" placeholder="What's covered, terms, claim contact, etc."><%= val(warranty.coverage_notes) %></textarea>
+    </div>
+
+    <button type="submit" class="btn btn-primary"><%= isNew ? 'Create warranty' : 'Save' %></button>
+    <a class="btn btn-outline-secondary" href="<%= basePath %>/admin/warranties">Cancel</a>
+  </form>
+</div>
+<%- include('../partials/footer') %>

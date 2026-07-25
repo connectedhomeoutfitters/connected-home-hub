@@ -452,6 +452,18 @@ invoices.js` was a list-only stub).
   and **cancels the outstanding `estimate_followup` job** (no point chasing it). The
   `declined` status existed in the enum since day one but had no way to be set until now.
 
+**Reports & analytics** (`/admin/reports`, `routes/admin/reports.js` + `views/admin/
+reports.ejs`, nav link between Payments and Catalog) — the first Tier-2 feature. **No
+migration**: it's pure read-only aggregation over existing tables. KPI tiles (net revenue,
+outstanding A/R, open pipeline value, estimate win rate), a 12-month net-revenue bar chart,
+estimate pipeline by status, revenue mix by invoice type, and a lead funnel with conversion
+%. The bar chart is **plain CSS bars** (`style="height:X%"`), deliberately no charting
+library — inline `style` attributes are allowed (helmet's default `style-src` includes
+`'unsafe-inline'`, unlike `script-src`), so this needs no CSP change and no vendored JS.
+Missing months are gap-filled in JS so all 12 always render; win-rate = accepted ÷
+(accepted+declined+expired), null until there's at least one decision. All staff (not
+admin-only) — it's operational data.
+
 ---
 
 ## Local Dev / Test Hosting (NAS: `N:\` and `W:\` drives)
