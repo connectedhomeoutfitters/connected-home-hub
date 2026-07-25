@@ -103,6 +103,7 @@ app.use(`${BASE_PATH}/admin/products`, require('./routes/admin/products'));
 app.use(`${BASE_PATH}/admin/labor-rates`, require('./routes/admin/laborRates'));
 app.use(`${BASE_PATH}/admin/subcontractors`, require('./routes/admin/subcontractors'));
 app.use(`${BASE_PATH}/admin/settings`, require('./routes/admin/settings'));
+app.use(`${BASE_PATH}/portal`, require('./routes/customerPortal'));
 app.use(`${BASE_PATH}/`, require('./routes/portal'));
 
 app.use((req, res) => res.status(404).render('error', { message: 'Page not found' }));

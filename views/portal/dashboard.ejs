@@ -1,0 +1,93 @@
+<%- include('../partials/head', { title: 'Your Portal', portalBranded: true, bodyClass: 'portal-page' }) %>
+<%- include('../partials/portal-header') %>
+<%
+  function badge(s) {
+    const map = {
+      draft: 'bg-secondary', sent: 'bg-info text-dark', accepted: 'bg-success',
+      declined: 'bg-danger', expired: 'bg-secondary',
+      pending: 'bg-warning text-dark', paid: 'bg-success', void: 'bg-secondary',
+      refunded: 'bg-secondary', succeeded: 'bg-success',
+    };
+    return `<span class="badge ${map[s] || 'bg-secondary'}">${s}</span>`;
+  }
+  const money = (n) => '$' + Number(n).toFixed(2);
+  const date = (d) => new Date(d).toLocaleDateString();
+%>
+<div class="container py-4" style="max-width: 820px;">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h4 mb-0">Welcome<%= customer && customer.name ? ', ' + customer.name : '' %></h1>
+      <div class="text-muted small"><%= customer ? customer.email : '' %></div>
+    </div>
+    <form action="<%= basePath %>/portal/logout" method="POST">
+      <button class="btn btn-outline-secondary btn-sm" type="submit">Sign out</button>
+    </form>
+  </div>
+
+  <!-- Estimates -->
+  <div class="card mb-4">
+    <div class="card-header">Estimates</div>
+    <% if (!estimates.length) { %>
+      <div class="card-body text-muted">No estimates yet.</div>
+    <% } else { %>
+      <ul class="list-group list-group-flush">
+        <% estimates.forEach(e => { %>
+          <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+              <div class="fw-semibold"><%= e.title %></div>
+              <div class="text-muted small"><%- badge(e.status) %> · <%= money(e.total) %> · <%= date(e.created_at) %></div>
+            </div>
+            <a href="<%= basePath %>/portal/estimates/<%= e.id %>" class="btn btn-sm btn-outline-primary">
+              <%= e.status === 'sent' ? 'Review & accept' : 'View' %>
+            </a>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+  </div>
+
+  <!-- Invoices -->
+  <div class="card mb-4">
+    <div class="card-header">Invoices</div>
+    <% if (!invoices.length) { %>
+      <div class="card-body text-muted">No invoices yet.</div>
+    <% } else { %>
+      <ul class="list-group list-group-flush">
+        <% invoices.forEach(i => { %>
+          <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+              <div class="fw-semibold text-capitalize"><%= i.type %> invoice — <%= money(i.amount) %></div>
+              <div class="text-muted small"><%- badge(i.status) %><% if (i.due_date) { %> · due <%= date(i.due_date) %><% } %></div>
+            </div>
+            <% if (i.status === 'pending') { %>
+              <a href="<%= basePath %>/portal/invoices/<%= i.id %>" class="btn btn-sm btn-primary">Pay now</a>
+            <% } else { %>
+              <a href="<%= basePath %>/portal/invoices/<%= i.id %>" class="btn btn-sm btn-outline-secondary">View</a>
+            <% } %>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+  </div>
+
+  <!-- Payment history -->
+  <div class="card mb-4">
+    <div class="card-header">Payment history</div>
+    <% if (!payments.length) { %>
+      <div class="card-body text-muted">No payments yet.</div>
+    <% } else { %>
+      <ul class="list-group list-group-flush">
+        <% payments.forEach(p => { %>
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <div>
+              <div class="fw-semibold"><%= money(p.amount) %> <span class="text-muted small text-capitalize">(<%= p.invoice_type %>)</span></div>
+              <div class="text-muted small"><%= date(p.created_at) %><% if (p.card_brand) { %> · <%= p.card_brand %> ••••<%= p.card_last4 %><% } %></div>
+            </div>
+            <%- badge(p.status) %>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+  </div>
+</div>
+<%- include('../partials/footer') %>

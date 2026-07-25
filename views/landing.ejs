@@ -1,0 +1,48 @@
+<%- include('partials/head', { title: 'Connected Home Hub', portalBranded: true, bodyClass: 'portal-page landing-page' }) %>
+<%- include('partials/portal-header') %>
+<div class="container py-5" style="max-width: 760px;">
+
+  <div class="text-center mb-5">
+    <h1 class="mb-3">Connected Home Hub</h1>
+    <p class="lead" style="color: var(--cho-text);">
+      The customer &amp; operations hub for <strong>Connected Home Outfitters</strong> —
+      smart-home, low-voltage, and AV installation services.
+    </p>
+    <p style="color: var(--cho-text);">
+      Review your estimates, approve proposals, pay invoices, and track your project — all in one place.
+    </p>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-md-6">
+      <div class="card h-100 text-center">
+        <div class="card-body p-4">
+          <i class="bi bi-house-heart" style="font-size: 2rem; color: var(--cho-accent);"></i>
+          <h2 class="h5 mt-3">Customers</h2>
+          <p class="small" style="color: var(--cho-text);">
+            View your estimates, invoices, and payment history. Sign in with a secure
+            email link — no password to remember.
+          </p>
+          <a href="<%= basePath %>/portal/login" class="btn btn-primary w-100">Customer portal</a>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card h-100 text-center">
+        <div class="card-body p-4">
+          <i class="bi bi-briefcase" style="font-size: 2rem; color: var(--cho-accent);"></i>
+          <h2 class="h5 mt-3">Staff</h2>
+          <p class="small" style="color: var(--cho-text);">
+            Manage leads, consultations, estimates, jobs, invoices, and payments for the business.
+          </p>
+          <a href="<%= basePath %>/login" class="btn btn-outline-secondary w-100">Staff sign in</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="text-center small mt-5" style="color: var(--cho-text);">
+    &copy; <%= new Date().getFullYear() %> Connected Home Outfitters LLC
+  </p>
+</div>
+<%- include('partials/footer') %>

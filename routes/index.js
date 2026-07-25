@@ -1,9 +1,18 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
-const { requireAuth } = require('../middleware/auth');
 
-router.get('/', requireAuth, async (req, res, next) => {
+// Public landing for anyone not signed in as staff — explains what CHO Hub is and offers
+// the two entry points (staff login / customer portal). Logged-in staff fall through to
+// the dashboard handler below.
+router.get('/', (req, res, next) => {
+  if (req.isAuthenticated()) return next();
+  return res.render('landing', {
+    portalBranded: true, bodyClass: 'portal-page landing-page', pageScript: null,
+  });
+});
+
+router.get('/', async (req, res, next) => {
   try {
     const [[{ c: newLeads }]] = await db.execute("SELECT COUNT(*) AS c FROM leads WHERE status = 'new'");
     const [[{ c: draftConsultations }]] = await db.execute("SELECT COUNT(*) AS c FROM consultations WHERE status = 'scheduled'");

@@ -558,24 +558,77 @@ choHubProject/
 
 ---
 
-## Deployment (TODO — not yet configured)
+## Deployment — LIVE at `https://hub.connectedhomeoutfitters.com` (2026-07-25)
 
-Subdomain is settled: **`hub.connectedhomeoutfitters.com`** (created 2026-07-22).
-App/nginx/PM2/TLS deploy still needs to happen. When it's time:
-1. Confirm SSH/VPS access details for the Hostinger VPS that hosts Connected Home
-   Ledger (not recorded in this project — check with the user, do not assume the
-   `gymrProject` NAS deploy workflow applies here, this is a different box).
-2. Provision a real production MariaDB database + user (not the `192.168.4.199` test DB).
-3. Add an nginx server block for `hub.connectedhomeoutfitters.com` → reverse proxy to
-   this app's port (pick a free port, e.g. 3100 — check what's already in use on the
-   VPS first, Connected Home Ledger likely already occupies 3000-ish).
-4. Confirm the subdomain's DNS record actually points at the VPS (it was created
-   2026-07-22, but verify the A/CNAME target rather than assuming).
-5. Register the app with PM2 using `ecosystem.config.js` (`pm2 start ecosystem.config.js`).
-6. Set up TLS (Certbot/Let's Encrypt) for the subdomain.
-7. Create the real Stripe webhook endpoint pointing at
-   `https://hub.connectedhomeoutfitters.com/webhooks/stripe` and set
-   `STRIPE_WEBHOOK_SECRET` in the production `.env`.
+Deployed to the **same Hostinger VPS as Connected Home Ledger** (`2.25.186.172`,
+Ubuntu, `srv1741987`), fully isolated from it — no shared port/process/DB/server_name/
+cert. Ledger was verified untouched throughout (its `chl` PM2 process kept its uptime,
+`https://connectedhomeledger.com` stayed `200`).
+
+**VPS layout (both apps side by side):**
+
+| | Ledger (existing) | CHO Hub (this app) |
+|---|---|---|
+| App dir | `/var/www/chl` | `/var/www/cho-hub` |
+| PM2 process | `chl` | `cho-hub` |
+| Port | 3000 | **3100** |
+| nginx `server_name` | `connectedhomeledger.com` | `hub.connectedhomeoutfitters.com` |
+| DB (local MariaDB `127.0.0.1:3306`) | its own DB | `choHub` / user `choHubWeb` |
+| TLS | own certbot cert | own certbot cert |
+
+- **SSH access:** `deploy@2.25.186.172` (runs the app / PM2, **no passwordless sudo**)
+  and `root@2.25.186.172` (key-based, used for the infra: nginx, certbot, MariaDB,
+  `/var/www` dirs). Both work from the dev machine's default key. MariaDB `root` is
+  unix-socket auth (`mysql` as system root, no password).
+- **DNS:** `hub` A record → `2.25.186.172`. Originally an `ALIAS` → `…cdn.hstgr.net`
+  (Hostinger shared hosting — the WordPress apex `connectedhomeoutfitters.com` lives
+  there on `45.93.101.98`, a **different box**, not the VPS); that ALIAS was deleted and
+  replaced with the A record. If `hub` ever resolves to a `2a02:4780:…` IPv6 again, the
+  ALIAS/AAAA came back and is shadowing the A record.
+- **PM2 persistence:** `pm2 save` done and `pm2-deploy.service` is enabled, so both apps
+  resurrect on reboot. After changing which processes run, re-run `pm2 save`.
+- **nginx safety:** the one shared blast-radius surface. The server block is
+  `/etc/nginx/sites-available/hub.connectedhomeoutfitters.com` (symlinked into
+  `sites-enabled/`), with `client_max_body_size 25M` for consultation-photo / subcontractor-
+  doc uploads. **Always `nginx -t` before any reload** — a bad reload hits Ledger too.
+- **TLS:** `certbot --nginx -d hub.connectedhomeoutfitters.com` issued its own cert
+  (auto-renew task installed) + added the 443 block and 80→443 redirect. Ledger's cert
+  untouched.
+- **Deploy path (git, like Ledger):** GitHub repo
+  `github.com/connectedhomeoutfitters/connected-home-hub`. The VPS pushes/pulls it with a
+  **dedicated deploy key** — `~/.ssh/id_cho_hub` (write access) — kept separate from
+  Ledger's key via `~/.ssh/config` host aliases (`github.com` → `id_ed25519` = Ledger's
+  key; `github-cho-hub` → `id_cho_hub`, both `IdentitiesOnly yes`). The remote is
+  `git@github-cho-hub:connectedhomeoutfitters/connected-home-hub.git`. **Do not** point
+  cho-hub at plain `git@github.com` — that offers Ledger's repo-scoped deploy key and
+  fails. Redeploy = get code onto `main` → on the VPS `cd /var/www/cho-hub && git pull &&
+  npm install --omit=dev && pm2 restart cho-hub --update-env`.
+  - **Initial deploy (2026-07-25) was a tar-over-ssh push** from the dev machine, not a
+    git clone, because the dev machine has no GitHub auth (its `id_rsa` isn't registered)
+    and there's no `gh` CLI anywhere. `public/vendor/` (gitignored, 9 MB) had to ride
+    along in that tar since the VPS has no gulp/devDeps to regenerate it; a fresh `git
+    clone` would be missing it — run `gulp build`'s vendor copy, or keep the existing
+    `vendor/` in place across pulls (git won't touch the untracked dir).
+  - **Ongoing dev→prod is still a gap:** dev happens on `N:` (no GitHub auth), so there's
+    no local `git push` yet. Until the dev machine gets GitHub auth, changes reach the VPS
+    by committing/pushing from the VPS itself or another tar push.
+- **npm `allow-scripts` gotcha:** the VPS npm blocks package install scripts by default,
+  so `bcrypt`'s `node-gyp-build` postinstall is skipped with a warning. bcrypt still works
+  because its shipped **prebuilt** linux-x64 binary resolves at require time — verified
+  (`bcrypt.hashSync`) before starting PM2. If a future native dep has no prebuild, it'll
+  need `npm approve-scripts` or a manual `npm rebuild` on the VPS.
+
+**Still needed to be fully production-ready (owner actions, not blocking the app running):**
+1. **Staff login** — the prod `choHub` DB starts empty (0 users). Create an admin on the
+   VPS: `cd /var/www/cho-hub && node scripts/create-admin.js <email> <password> <name>`.
+2. **Stripe go-live** — `.env` currently holds **test** keys (carried from dev). Swap to
+   `sk_live`/`pk_live`, then register a webhook at
+   `https://hub.connectedhomeoutfitters.com/webhooks/stripe` for
+   **`payment_intent.succeeded` + `charge.refunded`**, and set that endpoint's signing
+   secret as `STRIPE_WEBHOOK_SECRET`, then `pm2 restart cho-hub --update-env`.
+3. **Google sign-in** — add `https://hub.connectedhomeoutfitters.com/google/callback` to
+   the OAuth client's authorized redirect URIs, or the "Sign in with Google" button
+   fails `redirect_uri_mismatch` (local password login is unaffected).
 
 ---
 

@@ -30,6 +30,13 @@ body.portal-page .btn-primary,
 body.portal-page .btn-success {
   background-color: var(--cho-accent);
   border-color: var(--cho-accent);
+  /* Needed because `body.portal-page a { color: accent }` above would otherwise
+     repaint anchor-styled buttons (<a class="btn-primary">) blue-on-blue. */
+  color: #fff;
+}
+body.portal-page .btn-primary:hover,
+body.portal-page .btn-success:hover {
+  color: #fff;
 }
 
 body.portal-page .btn-primary:hover,
