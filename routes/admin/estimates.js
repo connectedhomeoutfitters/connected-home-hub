@@ -5,6 +5,7 @@ const db = require('../../config/db');
 const { requireAuth } = require('../../middleware/auth');
 const { sendMail } = require('../../services/mailer');
 const { generateEstimatePdf } = require('../../services/estimatePdf');
+const { createInvoice, remainingBalanceForEstimate } = require('../../services/invoicing');
 
 router.use(requireAuth);
 
@@ -182,6 +183,16 @@ router.get('/:id/edit', async (req, res, next) => {
 router.post('/:id', async (req, res, next) => {
   const conn = await db.getConnection();
   try {
+    // Once a customer has accepted (e-signed) or declined an estimate, its line items and
+    // totals are the agreed record — editing them would silently change what was signed.
+    const [statusRows] = await conn.execute('SELECT status FROM estimates WHERE id = ?', [req.params.id]);
+    if (statusRows[0] && ['accepted', 'declined'].includes(statusRows[0].status)) {
+      conn.release();
+      return res.status(409).render('error', {
+        message: `This estimate has been ${statusRows[0].status} and can no longer be edited. Create a new estimate if changes are needed.`,
+      });
+    }
+
     const items = lineItemsFromBody(req.body);
     const subtotal = items.reduce((sum, i) => sum + i.quantity * i.unit_price, 0);
     const taxPercent = parseFloat(req.body.tax_percent) || 0;
@@ -251,6 +262,11 @@ router.post('/:id/send', async (req, res, next) => {
   try {
     const estimate = await loadEstimateWithCustomer(req.params.id);
     if (!estimate) return res.status(404).render('error', { message: 'Estimate not found' });
+    if (['accepted', 'declined'].includes(estimate.status)) {
+      return res.status(409).render('error', {
+        message: `This estimate has already been ${estimate.status} and can't be re-sent.`,
+      });
+    }
     const [items] = await db.execute(
       'SELECT * FROM estimate_line_items WHERE estimate_id = ? ORDER BY sort_order',
       [req.params.id]
@@ -297,13 +313,54 @@ router.post('/:id/send', async (req, res, next) => {
 // Marks an estimate accepted and creates the deposit invoice. Called once the customer
 // accepts via their portal link (see routes/portal.js), not directly from the admin UI.
 async function createDepositInvoice(conn, estimate) {
-  const depositAmount = (estimate.total * (estimate.deposit_percent / 100)).toFixed(2);
-  const [result] = await conn.execute(
-    'INSERT INTO invoices (estimate_id, customer_id, type, amount, status) VALUES (?, ?, ?, ?, ?)',
-    [estimate.id, estimate.customer_id, 'deposit', depositAmount, 'pending']
-  );
-  return result.insertId;
+  const depositAmount = estimate.total * (estimate.deposit_percent / 100);
+  return createInvoice(conn, {
+    estimate_id: estimate.id,
+    customer_id: estimate.customer_id,
+    type: 'deposit',
+    amount: depositAmount,
+    description: `Deposit (${estimate.deposit_percent}%) — ${estimate.title}`,
+  });
 }
+
+// "Bill final balance" — creates a `final` invoice for whatever's left on an accepted
+// estimate (total minus the deposit / any prior invoice). Staff land on the new invoice's
+// page to review and then Send it. This is the piece that closes the loop after the job's
+// done; reachable from the estimate page and from its install job.
+router.post('/:id/final-invoice', async (req, res, next) => {
+  const conn = await db.getConnection();
+  try {
+    const [rows] = await conn.execute('SELECT * FROM estimates WHERE id = ?', [req.params.id]);
+    const estimate = rows[0];
+    if (!estimate) { conn.release(); return res.status(404).render('error', { message: 'Estimate not found' }); }
+    if (estimate.status !== 'accepted') {
+      conn.release();
+      return res.status(409).render('error', { message: 'A final invoice can only be billed on an accepted estimate.' });
+    }
+
+    const remaining = await remainingBalanceForEstimate(conn, estimate.id);
+    if (remaining <= 0.005) {
+      conn.release();
+      return res.status(409).render('error', { message: 'This estimate is already fully invoiced — nothing left to bill.' });
+    }
+
+    await conn.beginTransaction();
+    const invoiceId = await createInvoice(conn, {
+      estimate_id: estimate.id,
+      customer_id: estimate.customer_id,
+      type: 'final',
+      amount: remaining,
+      description: `Final balance — ${estimate.title}`,
+    });
+    await conn.commit();
+    res.redirect(`${res.locals.basePath}/admin/invoices/${invoiceId}`);
+  } catch (err) {
+    await conn.rollback();
+    next(err);
+  } finally {
+    conn.release();
+  }
+});
 
 module.exports = router;
 module.exports.createDepositInvoice = createDepositInvoice;

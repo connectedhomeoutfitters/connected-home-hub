@@ -96,16 +96,33 @@
       </div>
     </div>
 
-    <button class="btn btn-primary mt-3" type="submit"><%= isNew ? 'Create Estimate' : 'Save' %></button>
+    <% const locked = !isNew && ['accepted', 'declined'].includes(estimate.status); %>
+    <% if (!locked) { %>
+      <button class="btn btn-primary mt-3" type="submit"><%= isNew ? 'Create Estimate' : 'Save' %></button>
+    <% } %>
     <a class="btn btn-outline-secondary mt-3" href="<%= basePath %>/admin/estimates">Cancel</a>
   </form>
 
-  <% if (!isNew) { %>
+  <% if (locked) { %>
+    <div class="alert alert-secondary mt-4">
+      <i class="bi bi-lock"></i> This estimate has been <strong><%= estimate.status %></strong> and is locked from editing —
+      it's the signed record of what was agreed. Create a new estimate if changes are needed.
+    </div>
+  <% } %>
+
+  <% if (!isNew && !locked) { %>
     <form action="<%= basePath %>/admin/estimates/<%= estimate.id %>/send" method="POST" class="mt-4" onsubmit="return confirm('Email this estimate to ' + '<%= customer.email %>' + '?');">
       <button class="btn btn-success" type="submit" <%= customer.email ? '' : 'disabled' %>>
         Send to Customer<% if (!customer.email) { %> (no email on file)<% } %>
       </button>
       <% if (estimate.sent_at) { %><span class="text-muted ms-2">Last sent <%= estimate.sent_at %></span><% } %>
+    </form>
+  <% } %>
+
+  <% if (!isNew && estimate.status === 'accepted') { %>
+    <form action="<%= basePath %>/admin/estimates/<%= estimate.id %>/final-invoice" method="POST" class="mt-3">
+      <button class="btn btn-primary" type="submit"><i class="bi bi-receipt"></i> Bill final balance</button>
+      <span class="text-muted small ms-2">Creates a final invoice for the remaining balance (total minus deposit).</span>
     </form>
   <% } %>
 </div>

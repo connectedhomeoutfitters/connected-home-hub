@@ -1,0 +1,55 @@
+<%- include('../partials/head', { title: 'New Invoice' }) %>
+<%- include('../partials/nav') %>
+<div class="container" style="max-width: 640px;">
+  <a href="<%= basePath %>/admin/invoices" class="text-decoration-none small"><i class="bi bi-arrow-left"></i> Invoices</a>
+  <h1 class="h3 mt-2 mb-4">New Invoice</h1>
+
+  <% if (error) { %><div class="alert alert-danger"><%= error %></div><% } %>
+
+  <form method="POST" action="<%= basePath %>/admin/invoices">
+    <div class="mb-3">
+      <label class="form-label">Customer</label>
+      <select name="customer_id" class="form-select" required>
+        <option value="">— choose —</option>
+        <% customers.forEach(c => { %>
+          <option value="<%= c.id %>" <%= String(preset.customer_id) === String(c.id) ? 'selected' : '' %>>
+            <%= c.name %> (<%= c.email %>)
+          </option>
+        <% }) %>
+      </select>
+    </div>
+
+    <div class="row">
+      <div class="col-md-6 mb-3">
+        <label class="form-label">Type</label>
+        <select name="type" class="form-select">
+          <option value="standalone" <%= preset.type === 'standalone' ? 'selected' : '' %>>Standalone (no estimate)</option>
+          <option value="final" <%= preset.type === 'final' ? 'selected' : '' %>>Final balance</option>
+        </select>
+        <div class="form-text">Deposit invoices are created automatically when an estimate is accepted.</div>
+      </div>
+      <div class="col-md-6 mb-3">
+        <label class="form-label">Amount</label>
+        <div class="input-group">
+          <span class="input-group-text">$</span>
+          <input type="number" step="0.01" min="0.01" name="amount" class="form-control" value="<%= preset.amount %>" required>
+        </div>
+      </div>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">Description <span class="text-muted">(shown to the customer)</span></label>
+      <input type="text" name="description" class="form-control" maxlength="500"
+        value="<%= preset.description %>" placeholder="e.g. Final balance — theater install">
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">Due date <span class="text-muted">(optional)</span></label>
+      <input type="date" name="due_date" class="form-control" value="<%= preset.due_date %>">
+    </div>
+
+    <button type="submit" class="btn btn-primary">Create invoice</button>
+    <span class="text-muted small ms-2">You'll review it before sending.</span>
+  </form>
+</div>
+<%- include('../partials/footer') %>

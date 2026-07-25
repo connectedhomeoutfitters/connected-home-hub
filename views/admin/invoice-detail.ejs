@@ -1,0 +1,97 @@
+<%- include('../partials/head', { title: 'Invoice' }) %>
+<%- include('../partials/nav') %>
+<%
+  function badge(s) {
+    const map = { pending: 'bg-warning text-dark', paid: 'bg-success', void: 'bg-secondary',
+      refunded: 'bg-secondary', succeeded: 'bg-success', failed: 'bg-danger' };
+    return `<span class="badge ${map[s] || 'bg-secondary'}">${s}</span>`;
+  }
+  const money = (n) => '$' + Number(n).toFixed(2);
+%>
+<div class="container" style="max-width: 760px;">
+  <a href="<%= basePath %>/admin/invoices" class="text-decoration-none small"><i class="bi bi-arrow-left"></i> Invoices</a>
+  <div class="d-flex justify-content-between align-items-center mt-2 mb-4">
+    <h1 class="h3 mb-0 text-capitalize"><%= invoice.type %> Invoice #<%= invoice.id %></h1>
+    <div><%- badge(invoice.status) %></div>
+  </div>
+
+  <% if (saved) { %><div class="alert alert-success">Invoice sent to the customer.</div><% } %>
+
+  <div class="card mb-4">
+    <div class="card-body">
+      <dl class="row mb-0">
+        <dt class="col-sm-4 text-muted fw-normal">Customer</dt>
+        <dd class="col-sm-8"><a href="<%= basePath %>/admin/customers/<%= invoice.customer_id %>"><%= invoice.customer_name %></a> · <%= invoice.customer_email %></dd>
+
+        <dt class="col-sm-4 text-muted fw-normal">Amount</dt>
+        <dd class="col-sm-8 fs-5 fw-semibold"><%= money(invoice.amount) %></dd>
+
+        <% if (invoice.description) { %>
+          <dt class="col-sm-4 text-muted fw-normal">Description</dt>
+          <dd class="col-sm-8"><%= invoice.description %></dd>
+        <% } %>
+
+        <% if (invoice.estimate_title) { %>
+          <dt class="col-sm-4 text-muted fw-normal">From estimate</dt>
+          <dd class="col-sm-8"><a href="<%= basePath %>/admin/estimates/<%= invoice.estimate_id %>/edit"><%= invoice.estimate_title %></a></dd>
+        <% } %>
+
+        <% if (invoice.due_date) { %>
+          <dt class="col-sm-4 text-muted fw-normal">Due</dt>
+          <dd class="col-sm-8"><%= new Date(invoice.due_date).toLocaleDateString() %></dd>
+        <% } %>
+
+        <dt class="col-sm-4 text-muted fw-normal">Sent</dt>
+        <dd class="col-sm-8"><%= invoice.sent_at ? new Date(invoice.sent_at).toLocaleString() : 'Not sent yet' %></dd>
+
+        <% if (invoice.paid_at) { %>
+          <dt class="col-sm-4 text-muted fw-normal">Paid</dt>
+          <dd class="col-sm-8"><%= new Date(invoice.paid_at).toLocaleString() %></dd>
+        <% } %>
+      </dl>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="d-flex gap-2 flex-wrap mb-4">
+    <% if (invoice.status === 'pending') { %>
+      <form method="POST" action="<%= basePath %>/admin/invoices/<%= invoice.id %>/send">
+        <button class="btn btn-primary" type="submit">
+          <i class="bi bi-send"></i> <%= invoice.sent_at ? 'Resend' : 'Send' %> to customer
+        </button>
+      </form>
+      <form method="POST" action="<%= basePath %>/admin/invoices/<%= invoice.id %>/void">
+        <button class="btn btn-outline-danger" type="submit">Void</button>
+      </form>
+    <% } %>
+    <% if (payToken) { %>
+      <a class="btn btn-outline-secondary" href="<%= basePath %>/i/<%= payToken %>" target="_blank" rel="noopener">
+        <i class="bi bi-box-arrow-up-right"></i> Open customer pay link
+      </a>
+    <% } %>
+  </div>
+
+  <!-- Payments against this invoice -->
+  <h2 class="h5 mb-3">Payments</h2>
+  <% if (!payments.length) { %>
+    <p class="text-muted">No payment attempts yet.</p>
+  <% } else { %>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle">
+        <thead><tr><th>Date</th><th class="text-end">Amount</th><th class="text-end">Refunded</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          <% payments.forEach(p => { %>
+            <tr>
+              <td class="small text-nowrap"><%= new Date(p.created_at).toLocaleDateString() %></td>
+              <td class="text-end"><%= money(p.amount) %></td>
+              <td class="text-end"><%= Number(p.amount_refunded) > 0 ? money(p.amount_refunded) : '—' %></td>
+              <td><%- badge(p.status) %></td>
+              <td class="text-end"><a href="<%= basePath %>/admin/payments/<%= p.id %>" class="small">details</a></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+<%- include('../partials/footer') %>

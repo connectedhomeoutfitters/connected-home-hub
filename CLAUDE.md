@@ -383,6 +383,44 @@ deposit flow, this is where staff *see* it and *return* it.
   (`views/emails/refund-issued.ejs`), mirroring the auto-sent `payment-receipt` — sent
   non-blocking so a mail failure never undoes a completed Stripe refund.
 
+`015_customer_portal.sql` adds the **customer self-service portal** (magic-link login) —
+a genuine **third access tier** alongside staff Passport sessions and the per-document
+`access_tokens`. It's the multi-principal step CLAUDE.md previously flagged as deferred,
+but done **without touching Passport**: customer sessions are a plain
+`req.session.customerId`, parallel to (not through) Passport, so staff `requireAuth`
+(`req.isAuthenticated()`) and customer `requireCustomer` (`middleware/customerAuth.js`)
+can never satisfy each other. That deliberately sidesteps the serialize/deserialize
+`{type,id}` rework — if the subcontractor portal ever lands, it can follow the same
+separate-session pattern rather than overloading Passport.
+
+- **No passwords, no self-signup.** `customer_auth_tokens` holds single-use, 30-min
+  magic-link tokens. `POST /portal/login` only emails a link if the address already
+  exists in `customers` (staff-created), and **always** renders the same "check your
+  email" response either way — no account enumeration. Rate-limited (10/15min).
+  `GET /portal/verify/:token` marks the token used, `req.session.regenerate()`s (session-
+  fixation guard), sets `customerId`, redirects to `/portal`. Email template
+  `views/emails/customer-magic-link.ejs`.
+- **`GET /portal`** (`routes/customerPortal.js`, mounted at `${BASE_PATH}/portal`
+  **before** `routes/portal.js` in `server.js`) is the dashboard: the customer's
+  estimates, invoices, and succeeded payments (`views/portal/dashboard.ejs`).
+- **Actions reuse the existing token flow instead of duplicating it.** "Review & accept"
+  / "Pay now" hit `GET /portal/estimates/:id` or `/portal/invoices/:id`, which
+  **ownership-check the row against `req.session.customerId`**, mint a short-lived
+  `access_tokens` row, and redirect into the already-tested `/e/:token` / `/i/:token`
+  accept/pay/Stripe pages. Zero duplication of the accept/payment logic.
+- **Landing page (`views/landing.ejs`):** `GET /` now renders a public branded landing
+  (what CHO Hub is + Customer-portal / Staff-sign-in entry points) for anyone not
+  signed in as staff; logged-in staff still fall through to the dashboard
+  (`routes/index.js` two-handler split, first checks `req.isAuthenticated()`).
+- **portal.css gotcha (found + fixed in the browser):** `body.portal-page a { color:
+  accent }` repaints **anchor-styled buttons** (`<a class="btn-primary">`) blue-on-blue —
+  invisible text. Real `<button class="btn-primary">` elements are unaffected (not `a`),
+  which is why it only bit the new landing/dashboard links, not the older portal forms.
+  Fixed by forcing `color:#fff` on `body.portal-page .btn-primary/.btn-success`. Watch
+  for this on any new anchor-button on a portal page.
+- **To test on prod:** the prod DB has no customers yet — create one via staff admin
+  (`/admin/customers`) with a real email, then that email works at `/portal/login`.
+
 ---
 
 ## Local Dev / Test Hosting (NAS: `N:\` and `W:\` drives)

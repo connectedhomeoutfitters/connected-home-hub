@@ -1,21 +1,36 @@
 <%- include('../partials/head', { title: 'Invoices' }) %>
 <%- include('../partials/nav') %>
+<%
+  function badge(s) {
+    const map = { pending: 'bg-warning text-dark', paid: 'bg-success', void: 'bg-secondary', refunded: 'bg-secondary' };
+    return `<span class="badge ${map[s] || 'bg-secondary'}">${s}</span>`;
+  }
+%>
 <div class="container">
-  <h1 class="h3 mb-4">Invoices</h1>
-  <table class="table">
-    <thead><tr><th>Customer</th><th>Type</th><th>Amount</th><th>Status</th><th>Due</th></tr></thead>
-    <tbody>
-      <% invoices.forEach(i => { %>
-        <tr>
-          <td><%= i.customer_name %></td>
-          <td><%= i.type %></td>
-          <td>$<%= i.amount %></td>
-          <td><span class="badge bg-secondary"><%= i.status %></span></td>
-          <td><%= i.due_date || '' %></td>
-        </tr>
-      <% }) %>
-    </tbody>
-  </table>
-  <!-- TODO: create standalone/final invoice, "send to customer" action -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">Invoices</h1>
+    <a href="<%= basePath %>/admin/invoices/new" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> New invoice</a>
+  </div>
+  <div class="table-responsive">
+    <table class="table align-middle">
+      <thead><tr><th>Customer</th><th>Type</th><th>Description</th><th class="text-end">Amount</th><th>Status</th><th>Sent</th><th></th></tr></thead>
+      <tbody>
+        <% if (!invoices.length) { %>
+          <tr><td colspan="7" class="text-muted text-center py-4">No invoices yet.</td></tr>
+        <% } %>
+        <% invoices.forEach(i => { %>
+          <tr>
+            <td><%= i.customer_name %></td>
+            <td class="text-capitalize"><%= i.type %></td>
+            <td class="small text-muted"><%= i.description || '' %></td>
+            <td class="text-end">$<%= Number(i.amount).toFixed(2) %></td>
+            <td><%- badge(i.status) %></td>
+            <td class="small text-nowrap"><%= i.sent_at ? new Date(i.sent_at).toLocaleDateString() : '—' %></td>
+            <td class="text-end"><a href="<%= basePath %>/admin/invoices/<%= i.id %>" class="btn btn-outline-secondary btn-sm">View</a></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
 </div>
 <%- include('../partials/footer') %>

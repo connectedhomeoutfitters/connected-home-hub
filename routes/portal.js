@@ -112,6 +112,39 @@ router.post('/e/:token/accept', resolveToken('estimate'), async (req, res, next)
   }
 });
 
+// Customer declines the estimate. Sets status + declined_at and cancels the outstanding
+// "follow up" job staff created when it was sent (no point chasing a declined estimate).
+router.post('/e/:token/decline', resolveToken('estimate'), async (req, res, next) => {
+  const conn = await db.getConnection();
+  try {
+    const [rows] = await conn.execute('SELECT * FROM estimates WHERE id = ?', [req.resourceId]);
+    const estimate = rows[0];
+    if (!estimate) return res.status(404).render('portal/expired');
+    // Only a still-open (sent) estimate can be declined; ignore double-submits.
+    if (estimate.status !== 'sent') {
+      return res.redirect(`${res.locals.basePath}/e/${req.params.token}`);
+    }
+
+    await conn.beginTransaction();
+    await conn.execute(
+      "UPDATE estimates SET status = 'declined', declined_at = NOW() WHERE id = ?",
+      [estimate.id]
+    );
+    await conn.execute(
+      "UPDATE jobs SET status = 'cancelled' WHERE estimate_id = ? AND type = 'estimate_followup' AND status IN ('pending', 'in_progress')",
+      [estimate.id]
+    );
+    await conn.commit();
+
+    res.redirect(`${res.locals.basePath}/e/${req.params.token}`);
+  } catch (err) {
+    await conn.rollback();
+    next(err);
+  } finally {
+    conn.release();
+  }
+});
+
 // PDF version of the estimate, accessible with the same customer token as the web view.
 router.get('/e/:token/pdf', resolveToken('estimate'), async (req, res, next) => {
   try {
