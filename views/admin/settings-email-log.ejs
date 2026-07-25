@@ -1,0 +1,44 @@
+<%- include('../partials/head', { title: 'Email Log' }) %>
+<%- include('../partials/nav') %>
+<%
+  function badge(s) {
+    const map = { sent: 'bg-success', failed: 'bg-danger', skipped: 'bg-secondary' };
+    return `<span class="badge ${map[s] || 'bg-secondary'}">${s}</span>`;
+  }
+%>
+<div class="container">
+  <a href="<%= basePath %>/admin/settings" class="text-decoration-none small"><i class="bi bi-arrow-left"></i> Settings</a>
+  <div class="d-flex justify-content-between align-items-center mt-2 mb-3">
+    <h1 class="h3 mb-0">Email Log</h1>
+    <a href="<%= basePath %>/admin/settings/email-log<%= failedOnly ? '' : '?failed=1' %>" class="btn btn-outline-secondary btn-sm">
+      <%= failedOnly ? 'Show all' : 'Show problems only' %>
+    </a>
+  </div>
+  <p class="text-muted small">
+    <%= counts.total %> total · <span class="text-success"><%= counts.sent || 0 %> sent</span>
+    <% if (Number(counts.problems) > 0) { %> · <span class="text-danger"><%= counts.problems %> failed/skipped</span><% } %>
+    · showing most recent 200
+  </p>
+
+  <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <thead><tr><th>When</th><th>Recipient</th><th>Template</th><th>Subject</th><th>Status</th><th>Error</th></tr></thead>
+      <tbody>
+        <% if (!rows.length) { %>
+          <tr><td colspan="6" class="text-muted text-center py-4"><%= failedOnly ? 'No email problems — everything sent.' : 'No emails sent yet.' %></td></tr>
+        <% } %>
+        <% rows.forEach(r => { %>
+          <tr>
+            <td class="small text-nowrap"><%= new Date(r.created_at).toLocaleString() %></td>
+            <td class="small"><%= r.recipient %></td>
+            <td class="small"><%= r.template || '' %></td>
+            <td class="small"><%= r.subject || '' %></td>
+            <td><%- badge(r.status) %></td>
+            <td class="small text-danger"><%= r.error || '' %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<%- include('../partials/footer') %>

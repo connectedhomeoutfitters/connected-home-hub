@@ -1,0 +1,55 @@
+<%- include('../partials/head', { title: 'Activity' }) %>
+<%- include('../partials/nav') %>
+<%
+  // action -> { icon, colour, link builder }
+  const META = {
+    'estimate.sent':     { icon: 'bi-send',              cls: 'text-info' },
+    'estimate.accepted': { icon: 'bi-file-earmark-check', cls: 'text-success' },
+    'estimate.declined': { icon: 'bi-file-earmark-x',    cls: 'text-danger' },
+    'invoice.created':   { icon: 'bi-receipt',           cls: 'text-secondary' },
+    'invoice.sent':      { icon: 'bi-send',              cls: 'text-info' },
+    'invoice.paid':      { icon: 'bi-cash-coin',         cls: 'text-success' },
+    'refund.issued':     { icon: 'bi-arrow-counterclockwise', cls: 'text-danger' },
+  };
+  function entityLink(r) {
+    if (r.entity_type === 'estimate') return `${basePath}/admin/estimates/${r.entity_id}/edit`;
+    if (r.entity_type === 'invoice') return `${basePath}/admin/invoices/${r.entity_id}`;
+    if (r.entity_type === 'payment') return `${basePath}/admin/payments/${r.entity_id}`;
+    return null;
+  }
+  function actorLabel(r) {
+    if (r.actor_type === 'staff') return r.actor_name || 'Staff';
+    if (r.actor_type === 'customer') return r.actor_name || r.customer_name || 'Customer';
+    return 'System';
+  }
+%>
+<div class="container" style="max-width: 820px;">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">Activity<% if (customer) { %> — <%= customer.name %><% } %></h1>
+    <% if (customer) { %><a href="<%= basePath %>/admin/activity" class="btn btn-outline-secondary btn-sm">All activity</a><% } %>
+  </div>
+
+  <% if (!rows.length) { %>
+    <p class="text-muted">No activity recorded yet.</p>
+  <% } else { %>
+    <div class="list-group">
+      <% rows.forEach(r => { const m = META[r.action] || { icon: 'bi-dot', cls: 'text-muted' }; const link = entityLink(r); %>
+        <div class="list-group-item d-flex gap-3 align-items-start">
+          <i class="bi <%= m.icon %> <%= m.cls %> fs-5"></i>
+          <div class="flex-grow-1">
+            <div><%= r.detail || r.action %></div>
+            <div class="text-muted small">
+              <%= actorLabel(r) %>
+              <span class="badge bg-light text-secondary border ms-1"><%= r.actor_type %></span>
+              · <%= new Date(r.created_at).toLocaleString() %>
+              <% if (!customer && r.customer_name) { %> · <a href="<%= basePath %>/admin/activity?customer_id=<%= r.customer_id %>"><%= r.customer_name %></a><% } %>
+            </div>
+          </div>
+          <% if (link) { %><a href="<%= link %>" class="btn btn-outline-secondary btn-sm align-self-center">Open</a><% } %>
+        </div>
+      <% }) %>
+    </div>
+    <p class="text-muted small mt-2">Showing most recent 200 events.</p>
+  <% } %>
+</div>
+<%- include('../partials/footer') %>

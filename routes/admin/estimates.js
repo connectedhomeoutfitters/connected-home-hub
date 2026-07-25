@@ -6,6 +6,7 @@ const { requireAuth } = require('../../middleware/auth');
 const { sendMail } = require('../../services/mailer');
 const { generateEstimatePdf } = require('../../services/estimatePdf');
 const { createInvoice, remainingBalanceForEstimate } = require('../../services/invoicing');
+const activity = require('../../services/activityLog');
 
 router.use(requireAuth);
 
@@ -374,6 +375,11 @@ router.post('/:id/send', async (req, res, next) => {
       [`Follow up: ${estimate.title}`, estimate.customer_id, estimate.id, req.user.id, followUpDue]
     );
 
+    await activity.log({
+      ...activity.staff(req), action: 'estimate.sent', entityType: 'estimate', entityId: estimate.id,
+      customerId: estimate.customer_id, detail: `Estimate "${estimate.title}" ($${estimate.total}) sent to ${estimate.customer_email}`,
+    });
+
     res.redirect(`${res.locals.basePath}/admin/estimates/${estimate.id}/edit`);
   } catch (err) {
     next(err);
@@ -423,6 +429,10 @@ router.post('/:id/final-invoice', async (req, res, next) => {
       description: `Final balance — ${estimate.title}`,
     });
     await conn.commit();
+    await activity.log({
+      ...activity.staff(req), action: 'invoice.created', entityType: 'invoice', entityId: invoiceId,
+      customerId: estimate.customer_id, detail: `Final invoice ($${remaining.toFixed(2)}) created from estimate "${estimate.title}"`,
+    });
     res.redirect(`${res.locals.basePath}/admin/invoices/${invoiceId}`);
   } catch (err) {
     await conn.rollback();

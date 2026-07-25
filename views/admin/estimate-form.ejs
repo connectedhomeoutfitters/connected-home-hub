@@ -149,7 +149,7 @@
   <% } %>
 
   <% if (!isNew && !locked) { %>
-    <form action="<%= basePath %>/admin/estimates/<%= estimate.id %>/send" method="POST" class="mt-4" onsubmit="return confirm('Email this estimate to ' + '<%= customer.email %>' + '?');">
+    <form action="<%= basePath %>/admin/estimates/<%= estimate.id %>/send" method="POST" class="mt-4" id="send-estimate-form" data-email="<%= customer.email %>">
       <button class="btn btn-success" type="submit" <%= customer.email ? '' : 'disabled' %>>
         Send to Customer<% if (!customer.email) { %> (no email on file)<% } %>
       </button>
@@ -169,5 +169,12 @@
     products: <%- JSON.stringify(products) %>,
     laborRates: <%- JSON.stringify(laborRates) %>,
   };
+  // Confirm before emailing the estimate (inline onsubmit is blocked by the CSP).
+  const sendForm = document.getElementById('send-estimate-form');
+  if (sendForm) {
+    sendForm.addEventListener('submit', (e) => {
+      if (!confirm('Email this estimate to ' + (sendForm.dataset.email || 'the customer') + '?')) e.preventDefault();
+    });
+  }
 </script>
 <%- include('../partials/footer') %>

@@ -5,6 +5,7 @@ const stripe = require('../../config/stripe');
 const { requireAuth, requireAdmin } = require('../../middleware/auth');
 const { reconcileRefunds } = require('../../services/paymentsSync');
 const { sendMail } = require('../../services/mailer');
+const activity = require('../../services/activityLog');
 
 router.use(requireAuth);
 
@@ -209,12 +210,16 @@ router.post('/:id/refund', requireAdmin, async (req, res, next) => {
     // failure never undoes a completed Stripe refund.
     if (refund.status === 'succeeded') {
       const [[info]] = await db.execute(
-        `SELECT c.name AS customer_name, c.email AS customer_email, i.type AS invoice_type
+        `SELECT c.id AS customer_id, c.name AS customer_name, c.email AS customer_email, i.type AS invoice_type
          FROM payments p JOIN invoices i ON i.id = p.invoice_id
          JOIN customers c ON c.id = i.customer_id WHERE p.id = ?`,
         [payment.id]
       );
       if (info) {
+        await activity.log({
+          ...activity.staff(req), action: 'refund.issued', entityType: 'payment', entityId: payment.id,
+          customerId: info.customer_id, detail: `Refunded $${amount.toFixed(2)} to ${info.customer_name}${result && result.fullyRefunded ? ' (full)' : ''}`,
+        });
         await sendMail({
           to: info.customer_email,
           subject: 'Refund issued — Connected Home Outfitters',

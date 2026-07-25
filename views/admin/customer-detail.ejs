@@ -5,6 +5,7 @@
     <h1 class="h3 mb-0"><%= customer.name %></h1>
     <div>
       <a class="btn btn-sm btn-outline-secondary" href="<%= basePath %>/admin/customers/<%= customer.id %>/edit?returnTo=<%= encodeURIComponent(basePath + '/admin/customers/' + customer.id) %>">Edit</a>
+      <a class="btn btn-sm btn-outline-secondary" href="<%= basePath %>/admin/activity?customer_id=<%= customer.id %>">Activity</a>
       <a class="btn btn-sm btn-outline-primary" href="<%= basePath %>/admin/consultations/new?customer_id=<%= customer.id %>">New Consultation</a>
       <a class="btn btn-sm btn-outline-primary" href="<%= basePath %>/admin/estimates/new?customer_id=<%= customer.id %>">New Estimate</a>
     </div>

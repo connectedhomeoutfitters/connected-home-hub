@@ -4,6 +4,7 @@ const db = require('../config/db');
 const stripe = require('../config/stripe');
 const { sendMail } = require('../services/mailer');
 const { reconcileRefunds } = require('../services/paymentsSync');
+const activity = require('../services/activityLog');
 
 // Stripe requires the raw, unparsed body to verify the webhook signature.
 router.post('/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
@@ -63,6 +64,10 @@ router.post('/stripe', express.raw({ type: 'application/json' }), async (req, re
       );
       const invoice = invoiceRows[0];
       if (invoice) {
+        await activity.log({
+          actorType: 'system', action: 'invoice.paid', entityType: 'invoice', entityId: invoice.id,
+          customerId: invoice.customer_id, detail: `Payment of $${invoice.amount} received (${invoice.type})`,
+        });
         await sendMail({
           to: invoice.customer_email,
           subject: 'Payment received — Connected Home Outfitters',

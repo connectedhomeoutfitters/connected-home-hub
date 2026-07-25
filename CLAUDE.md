@@ -496,6 +496,29 @@ use existing columns):
   the customer. Both sections only render when there's data (unlike the always-shown
   Estimates/Invoices/Warranties cards), to keep a new customer's portal uncluttered.
 
+`018_line_item_catalog_links.sql` adds **catalog-linked line items** (final Tier-2 piece) —
+`estimate_line_items.product_id`/`labor_rate_id` (both nullable; both NULL = custom line).
+The line keeps its own description/unit_price **snapshot** — the link is for reporting,
+never a live join, so editing a product later can't rewrite an accepted estimate.
+- **Builder wiring:** the Source `<select>` now has `name="line_source"` (submits parallel
+  to `line_description[]` etc., value `''`/`product:<id>`/`labor:<id>`), parsed back in
+  `lineItemsFromBody`. On edit the row carries `data-source` and `page-estimate-form.js`
+  restores the dropdown. **Bug fixed in passing:** the builder cloned
+  `querySelector('.line-item-row')`, which is `null` on a new estimate (zero
+  server-rendered rows) — it now clones an inert **`<template id="line-row-template">`**,
+  so new-estimate line entry actually works.
+- **Job costing** (`computeCosting` in estimates.js, shown on the estimate edit page):
+  margin is only computed on **materials** (product `vendor_cost` × qty vs. what's charged)
+  — labor/custom lines have no cost basis and are revenue-only. Needs items joined with
+  `products.vendor_cost AS product_cost` (see `GET /:id/edit`).
+- **Material list** (`GET /admin/estimates/:id/materials`, `estimate-materials.ejs`):
+  product lines aggregated by product (SUM qty), with vendor + extended vendor cost, for
+  purchasing — printable. Custom/labor lines excluded (not physical stock). Foundation for
+  future material-ordering / inventory.
+- **Test gotcha (my own):** driving the estimate form via `document.querySelector('form')`
+  in the browser grabs the **sidebar logout form** (first in DOM) — target the real form
+  via `getElementById('line-items-body').closest('form')` or `form[action$=...]`.
+
 ---
 
 ## Local Dev / Test Hosting (NAS: `N:\` and `W:\` drives)

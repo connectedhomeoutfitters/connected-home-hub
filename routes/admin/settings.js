@@ -12,6 +12,26 @@ router.get('/', (req, res) => {
   res.render('admin/settings-index', { pageScript: null });
 });
 
+// Email delivery log — last 200 send attempts, optionally filtered to failures.
+router.get('/email-log', async (req, res, next) => {
+  try {
+    const failedOnly = req.query.failed === '1';
+    const [rows] = await db.execute(
+      `SELECT * FROM email_log ${failedOnly ? "WHERE status <> 'sent'" : ''}
+       ORDER BY created_at DESC LIMIT 200`
+    );
+    const [[counts]] = await db.execute(
+      `SELECT COUNT(*) AS total,
+              SUM(status = 'sent') AS sent,
+              SUM(status <> 'sent') AS problems
+       FROM email_log`
+    );
+    res.render('admin/settings-email-log', { pageScript: null, rows, counts, failedOnly });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get('/company', async (req, res, next) => {
   try {
     const [rows] = await db.execute('SELECT * FROM company_settings WHERE id = 1');

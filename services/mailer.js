@@ -3,6 +3,7 @@ require('dotenv').config();
 const nodemailer = require('nodemailer');
 const ejs = require('ejs');
 const path = require('path');
+const db = require('./../config/db');
 
 const APP_NAME = 'Connected Home Outfitters';
 const APP_URL = process.env.BASE_URL || '';
@@ -30,9 +31,22 @@ if (process.env.SMTP_HOST) {
 // failure or if SMTP isn't configured — never throws, so a down/misconfigured mail
 // server never blocks the underlying action (e.g. accepting an estimate still works,
 // it just won't also email a confirmation).
+// Records every send attempt. Wrapped so a logging failure never affects the send itself.
+async function logEmail(recipient, template, subject, status, error) {
+  try {
+    await db.execute(
+      'INSERT INTO email_log (recipient, template, subject, status, error) VALUES (?, ?, ?, ?, ?)',
+      [recipient || '', template || null, subject || null, status, error ? String(error).slice(0, 500) : null]
+    );
+  } catch (err) {
+    console.error('email_log insert failed:', err.message);
+  }
+}
+
 async function sendMail({ to, subject, template, data = {}, attachments, icalEvent }) {
   if (!transporter) {
     console.warn(`sendMail('${template}') skipped — SMTP not configured`);
+    await logEmail(to, template, subject, 'skipped', 'SMTP not configured');
     return false;
   }
 
@@ -50,9 +64,11 @@ async function sendMail({ to, subject, template, data = {}, attachments, icalEve
       attachments,
       icalEvent, // { filename, method: 'REQUEST', content } — see services/calendarInvite.js
     });
+    await logEmail(to, template, subject, 'sent', null);
     return true;
   } catch (err) {
     console.error(`Email send failed (${template} -> ${to}):`, err.message);
+    await logEmail(to, template, subject, 'failed', err.message);
     return false;
   }
 }

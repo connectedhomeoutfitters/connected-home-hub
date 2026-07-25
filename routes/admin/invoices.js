@@ -5,6 +5,7 @@ const db = require('../../config/db');
 const { requireAuth } = require('../../middleware/auth');
 const { sendMail } = require('../../services/mailer');
 const { createInvoice } = require('../../services/invoicing');
+const activity = require('../../services/activityLog');
 
 router.use(requireAuth);
 
@@ -56,6 +57,10 @@ router.post('/', async (req, res, next) => {
       customer_id, type, amount: amt,
       description: (description || '').trim() || null,
       due_date: due_date || null,
+    });
+    await activity.log({
+      ...activity.staff(req), action: 'invoice.created', entityType: 'invoice', entityId: invoiceId,
+      customerId: Number(customer_id), detail: `${type} invoice ($${amt.toFixed(2)}) created`,
     });
     res.redirect(`${res.locals.basePath}/admin/invoices/${invoiceId}`);
   } catch (err) {
@@ -136,6 +141,11 @@ router.post('/:id/send', async (req, res, next) => {
         description: invoice.description,
         payUrl,
       },
+    });
+
+    await activity.log({
+      ...activity.staff(req), action: 'invoice.sent', entityType: 'invoice', entityId: invoice.id,
+      customerId: invoice.customer_id, detail: `${invoice.type} invoice ($${invoice.amount}) sent to ${invoice.customer_email}`,
     });
 
     res.redirect(`${res.locals.basePath}/admin/invoices/${invoice.id}?sent=1`);

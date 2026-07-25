@@ -8,6 +8,7 @@ const { createDepositInvoice } = require('./admin/estimates');
 const { sendMail } = require('../services/mailer');
 const { generateEstimatePdf } = require('../services/estimatePdf');
 const estimateTerms = require('../config/estimateTerms');
+const activity = require('../services/activityLog');
 
 const TOKEN_TTL_DAYS = 30;
 
@@ -94,6 +95,17 @@ router.post('/e/:token/accept', resolveToken('estimate'), async (req, res, next)
 
     await conn.commit();
 
+    await activity.log({
+      actorType: 'customer', actorId: estimate.customer_id, actorName: estimate.customer_name,
+      action: 'estimate.accepted', entityType: 'estimate', entityId: estimate.id, customerId: estimate.customer_id,
+      detail: `Accepted estimate "${estimate.title}" (signed: ${signatureName})`,
+    });
+    await activity.log({
+      actorType: 'customer', actorId: estimate.customer_id, actorName: estimate.customer_name,
+      action: 'invoice.created', entityType: 'invoice', entityId: invoiceId, customerId: estimate.customer_id,
+      detail: `Deposit invoice ($${estimate.deposit_amount}) created on acceptance`,
+    });
+
     const basePath = process.env.BASE_PATH || '';
     const payUrl = `${process.env.BASE_URL || ''}${basePath}/i/${invoiceToken}`;
     await sendMail({
@@ -135,6 +147,12 @@ router.post('/e/:token/decline', resolveToken('estimate'), async (req, res, next
       [estimate.id]
     );
     await conn.commit();
+
+    await activity.log({
+      actorType: 'customer', actorId: estimate.customer_id,
+      action: 'estimate.declined', entityType: 'estimate', entityId: estimate.id, customerId: estimate.customer_id,
+      detail: `Declined estimate "${estimate.title}"`,
+    });
 
     res.redirect(`${res.locals.basePath}/e/${req.params.token}`);
   } catch (err) {

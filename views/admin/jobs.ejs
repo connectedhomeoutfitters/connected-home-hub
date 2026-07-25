@@ -65,7 +65,7 @@
           <td><%= j.scheduled_at || j.due_date || '' %></td>
           <td>
             <form action="<%= basePath %>/admin/jobs/<%= j.id %>/status<%= showAll ? '?all=1' : '' %>" method="POST" class="d-inline">
-              <select name="status" class="form-select form-select-sm d-inline w-auto" onchange="this.form.submit()">
+              <select name="status" class="form-select form-select-sm d-inline w-auto js-autosubmit">
                 <% ['pending','in_progress','done','cancelled'].forEach(s => { %>
                   <option value="<%= s %>" <%= j.status === s ? 'selected' : '' %>><%= s.replace('_',' ') %></option>
                 <% }) %>
@@ -83,4 +83,8 @@
     </tbody>
   </table>
 </div>
+<script nonce="<%= cspNonce %>">
+  // Auto-submit status changes (inline onchange is blocked by the CSP's script-src-attr).
+  document.querySelectorAll('.js-autosubmit').forEach((el) => el.addEventListener('change', () => el.form.submit()));
+</script>
 <%- include('../partials/footer') %>

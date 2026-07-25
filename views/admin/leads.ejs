@@ -99,7 +99,7 @@
               Converted &rarr; <a href="<%= basePath %>/admin/customers"><%= l.customer_name %></a>
             <% } else { %>
               <form action="<%= basePath %>/admin/leads/<%= l.id %>/status" method="POST" class="d-inline">
-                <select name="status" class="form-select form-select-sm d-inline w-auto" onchange="this.form.submit()">
+                <select name="status" class="form-select form-select-sm d-inline w-auto js-autosubmit">
                   <% ['new','contacted','scheduled','lost'].forEach(s => { %>
                     <option value="<%= s %>" <%= l.status === s ? 'selected' : '' %>><%= s %></option>
                   <% }) %>
@@ -129,4 +129,8 @@
     </tbody>
   </table>
 </div>
+<script nonce="<%= cspNonce %>">
+  // Auto-submit status changes (inline onchange is blocked by the CSP's script-src-attr).
+  document.querySelectorAll('.js-autosubmit').forEach((el) => el.addEventListener('change', () => el.form.submit()));
+</script>
 <%- include('../partials/footer') %>
