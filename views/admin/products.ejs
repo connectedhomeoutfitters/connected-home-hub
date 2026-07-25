@@ -1,0 +1,104 @@
+<%- include('../partials/head', { title: 'Product Catalog' }) %>
+<%- include('../partials/nav') %>
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">Product Catalog</h1>
+    <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#addProduct">
+      + Add Product
+    </button>
+  </div>
+
+  <div class="collapse mb-4" id="addProduct">
+    <div class="card card-body">
+      <form action="<%= basePath %>/admin/products" method="POST">
+        <div class="row g-2">
+          <div class="col-md-3">
+            <label class="form-label">Category</label>
+            <input type="text" name="category" class="form-control" required>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Vendor</label>
+            <input type="text" name="vendor" class="form-control">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Product Line</label>
+            <input type="text" name="product_line" class="form-control">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Name</label>
+            <input type="text" name="name" class="form-control" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Description</label>
+            <input type="text" name="description" class="form-control">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Part Number</label>
+            <input type="text" name="part_number" class="form-control">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Unit of Measure</label>
+            <input type="text" name="unit_of_measure" class="form-control" value="Each">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Vendor Cost</label>
+            <input type="number" step="0.01" name="vendor_cost" class="form-control" required>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Markup %</label>
+            <input type="number" step="0.01" name="markup_percent" class="form-control">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Retail Price (if markup disabled)</label>
+            <input type="number" step="0.01" name="retail_price" class="form-control">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Reference URL</label>
+            <input type="url" name="reference_url" class="form-control">
+          </div>
+          <div class="col-md-3 d-flex align-items-end gap-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="markup_enabled" id="markup_enabled" checked>
+              <label class="form-check-label" for="markup_enabled">Auto markup</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="taxable" id="taxable" checked>
+              <label class="form-check-label" for="taxable">Taxable</label>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary mt-3" type="submit">Save Product</button>
+      </form>
+    </div>
+  </div>
+
+  <table class="table table-sm align-middle">
+    <thead>
+      <tr>
+        <th>Category</th><th>Vendor / Line</th><th>Name</th><th>Cost</th><th>Retail</th>
+        <th>Unit</th><th>Taxable</th><th>Status</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% products.forEach(p => { %>
+        <tr class="<%= p.active ? '' : 'text-muted' %>">
+          <td><%= p.category %></td>
+          <td><%= [p.vendor, p.product_line].filter(Boolean).join(' / ') %></td>
+          <td><%= p.name %></td>
+          <td>$<%= Number(p.vendor_cost).toFixed(2) %></td>
+          <td>$<%= Number(p.retail_price).toFixed(2) %></td>
+          <td><%= p.unit_of_measure %></td>
+          <td><%= p.taxable ? 'Yes' : 'No' %></td>
+          <td><%= p.active ? 'Active' : 'Inactive' %></td>
+          <td class="text-end">
+            <a class="btn btn-sm btn-outline-secondary" href="<%= basePath %>/admin/products/<%= p.id %>/edit">Edit</a>
+            <form action="<%= basePath %>/admin/products/<%= p.id %>/toggle-active" method="POST" class="d-inline">
+              <button class="btn btn-sm btn-outline-secondary" type="submit"><%= p.active ? 'Deactivate' : 'Reactivate' %></button>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+<%- include('../partials/footer') %>

@@ -1,0 +1,25 @@
+<%- include('../partials/head', { title: 'Customers' }) %>
+<%- include('../partials/nav') %>
+<div class="container">
+  <h1 class="h3 mb-4">Customers</h1>
+  <table class="table">
+    <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Added</th><th></th></tr></thead>
+    <tbody>
+      <% customers.forEach(c => { %>
+        <tr>
+          <td><a href="<%= basePath %>/admin/customers/<%= c.id %>" class="text-decoration-none"><%= c.name %></a></td>
+          <td><%= c.email %></td>
+          <td><%= c.phone || '' %></td>
+          <td><%= c.created_at %></td>
+          <td class="text-end">
+            <a class="btn btn-sm btn-outline-secondary" href="<%= basePath %>/admin/customers/<%= c.id %>/edit">Edit</a>
+            <a class="btn btn-sm btn-outline-primary" href="<%= basePath %>/admin/consultations/new?customer_id=<%= c.id %>">New Consultation</a>
+            <a class="btn btn-sm btn-outline-primary" href="<%= basePath %>/admin/estimates/new?customer_id=<%= c.id %>">New Estimate</a>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+  <!-- TODO: add-customer form/modal -->
+</div>
+<%- include('../partials/footer') %>

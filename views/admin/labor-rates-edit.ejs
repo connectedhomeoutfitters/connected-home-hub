@@ -1,0 +1,22 @@
+<%- include('../partials/head', { title: 'Edit Labor Rate' }) %>
+<%- include('../partials/nav') %>
+<div class="container" style="max-width: 600px;">
+  <h1 class="h3 mb-4">Edit Labor Rate</h1>
+  <form action="<%= basePath %>/admin/labor-rates/<%= laborRate.id %>" method="POST">
+    <div class="mb-3">
+      <label class="form-label">Name</label>
+      <input type="text" name="name" class="form-control" value="<%= laborRate.name %>" required>
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Hourly Rate</label>
+      <input type="number" step="0.01" name="hourly_rate" class="form-control" value="<%= laborRate.hourly_rate %>" required>
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Notes</label>
+      <input type="text" name="notes" class="form-control" value="<%= laborRate.notes || '' %>">
+    </div>
+    <button class="btn btn-primary" type="submit">Save</button>
+    <a class="btn btn-outline-secondary" href="<%= basePath %>/admin/labor-rates">Cancel</a>
+  </form>
+</div>
+<%- include('../partials/footer') %>

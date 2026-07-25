@@ -1,0 +1,8 @@
+node_modules/
+public/vendor/
+.env
+*.log
+npm-debug.log*
+.DS_Store
+uploads/
+db-backup*.sql

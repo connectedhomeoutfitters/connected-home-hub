@@ -1,0 +1,24 @@
+<%- include('../partials/head', { title: 'Invoice', portalBranded: true, bodyClass: 'portal-page' }) %>
+<%- include('../partials/portal-header') %>
+<div class="container py-5" style="max-width: 500px;">
+  <h1 class="h3">Invoice — <%= invoice.type %></h1>
+  <p>Amount due: <strong>$<%= invoice.amount %></strong></p>
+
+  <% if (invoice.status === 'paid') { %>
+    <div class="alert alert-success">Paid on <%= invoice.paid_at %>. Thank you!</div>
+  <% } else { %>
+    <div id="payment-element"></div>
+    <button id="pay-button" class="btn btn-primary mt-3">Pay $<%= invoice.amount %></button>
+    <div id="payment-message" class="text-danger mt-2"></div>
+    <script src="https://js.stripe.com/v3/"></script>
+    <script nonce="<%= cspNonce %>">
+      window.CHO_HUB = {
+        publishableKey: "<%= stripePublishableKey %>",
+        token: "<%= token %>",
+        basePath: "<%= basePath %>",
+        nextStepsUrl: "<%= basePath %>/i/<%= token %>/next-steps",
+      };
+    </script>
+  <% } %>
+</div>
+<%- include('../partials/footer') %>

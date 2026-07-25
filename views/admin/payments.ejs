@@ -1,0 +1,117 @@
+<%- include('../partials/head', { title: 'Payments' }) %>
+<%- include('../partials/nav') %>
+<%
+  function statusBadge(s) {
+    const map = { succeeded: 'bg-success', pending: 'bg-warning text-dark', failed: 'bg-danger',
+      paid: 'bg-success', refunded: 'bg-secondary', void: 'bg-secondary' };
+    return `<span class="badge ${map[s] || 'bg-secondary'}">${s}</span>`;
+  }
+  const qs = new URLSearchParams(filters).toString();
+%>
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">Payments</h1>
+    <a class="btn btn-outline-secondary btn-sm" href="<%= basePath %>/admin/payments/export.csv<%= qs ? '?' + qs : '' %>">
+      <i class="bi bi-download"></i> Export sales journal (CSV)
+    </a>
+  </div>
+
+  <!-- Sales-journal summary — reflects the current filter -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+      <div class="card h-100"><div class="card-body">
+        <i class="bi bi-cash-stack text-success"></i>
+        <div class="fs-4 fw-semibold text-body">$<%= Number(summary.gross).toFixed(2) %></div>
+        <div class="text-muted small">Collected</div>
+      </div></div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card h-100"><div class="card-body">
+        <i class="bi bi-arrow-counterclockwise text-danger"></i>
+        <div class="fs-4 fw-semibold text-body">$<%= Number(summary.refunded).toFixed(2) %></div>
+        <div class="text-muted small">Refunded</div>
+      </div></div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card h-100"><div class="card-body">
+        <i class="bi bi-graph-up-arrow text-primary"></i>
+        <div class="fs-4 fw-semibold text-body">$<%= Number(summary.net).toFixed(2) %></div>
+        <div class="text-muted small">Net revenue</div>
+      </div></div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card h-100"><div class="card-body">
+        <i class="bi bi-receipt text-muted"></i>
+        <div class="fs-4 fw-semibold text-body"><%= summary.succeeded_count %></div>
+        <div class="text-muted small"><%= summary.pending_count %> pending</div>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <form method="GET" class="row g-2 align-items-end mb-4">
+    <div class="col-6 col-md-2">
+      <label class="form-label small mb-1">Status</label>
+      <select name="status" class="form-select form-select-sm">
+        <option value="">All</option>
+        <% ['succeeded','pending','failed'].forEach(s => { %>
+          <option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= s %></option>
+        <% }) %>
+      </select>
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small mb-1">Type</label>
+      <select name="type" class="form-select form-select-sm">
+        <option value="">All</option>
+        <% ['deposit','final','standalone'].forEach(t => { %>
+          <option value="<%= t %>" <%= filters.type === t ? 'selected' : '' %>><%= t %></option>
+        <% }) %>
+      </select>
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small mb-1">From</label>
+      <input type="date" name="from" value="<%= filters.from || '' %>" class="form-control form-control-sm">
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small mb-1">To</label>
+      <input type="date" name="to" value="<%= filters.to || '' %>" class="form-control form-control-sm">
+    </div>
+    <div class="col-8 col-md-3">
+      <label class="form-label small mb-1">Customer</label>
+      <input type="text" name="q" value="<%= filters.q || '' %>" placeholder="name or email" class="form-control form-control-sm">
+    </div>
+    <div class="col-4 col-md-1">
+      <button class="btn btn-primary btn-sm w-100" type="submit">Filter</button>
+    </div>
+  </form>
+
+  <div class="table-responsive">
+    <table class="table align-middle">
+      <thead><tr>
+        <th>Date</th><th>Customer</th><th>Type</th><th class="text-end">Amount</th>
+        <th class="text-end">Refunded</th><th>Card</th><th>Status</th><th></th>
+      </tr></thead>
+      <tbody>
+        <% if (!payments.length) { %>
+          <tr><td colspan="8" class="text-muted text-center py-4">No payments match these filters.</td></tr>
+        <% } %>
+        <% payments.forEach(p => { %>
+          <tr>
+            <td class="small text-nowrap"><%= new Date(p.created_at).toLocaleDateString() %></td>
+            <td>
+              <a href="<%= basePath %>/admin/payments/<%= p.id %>" class="text-decoration-none"><%= p.customer_name %></a>
+              <div class="text-muted small"><%= p.customer_email %></div>
+            </td>
+            <td><%= p.invoice_type %></td>
+            <td class="text-end">$<%= Number(p.amount).toFixed(2) %></td>
+            <td class="text-end"><%= Number(p.amount_refunded) > 0 ? '$' + Number(p.amount_refunded).toFixed(2) : '—' %></td>
+            <td class="small text-nowrap"><%= p.card_brand ? p.card_brand + ' ••••' + (p.card_last4 || '') : '—' %></td>
+            <td><%- statusBadge(p.status) %><% if (Number(p.amount_refunded) > 0 && p.status === 'succeeded') { %> <span class="badge bg-secondary">refunded</span><% } %></td>
+            <td class="text-end"><a href="<%= basePath %>/admin/payments/<%= p.id %>" class="btn btn-outline-secondary btn-sm">View</a></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<%- include('../partials/footer') %>

@@ -1,0 +1,126 @@
+/* Connected Home Outfitters brand — colors/fonts pulled from the WordPress site's
+   Elementor global kit (see CLAUDE.md "Common Gotchas" #9). Applies sitewide (staff
+   admin + customer portal) so both share one identity; views/portal/*.ejs layer
+   portal.css on top for the customer-facing header/logo treatment specifically. */
+
+:root {
+  --cho-accent: #0799D6;   /* Elementor "Accent" — primary buttons/links */
+  --cho-primary: #6EC1E4;  /* Elementor "Primary" — lighter accent */
+  --cho-dark: #54595F;     /* Elementor "Secondary" — headings */
+  --cho-text: #7A7A7A;     /* Elementor "Text" — body copy */
+
+  --bs-primary: var(--cho-accent);
+  --bs-primary-rgb: 7, 153, 214;
+  --bs-link-color: var(--cho-accent);
+  --bs-link-color-rgb: 7, 153, 214;
+  --bs-link-hover-color: #067bb0;
+  --bs-link-hover-color-rgb: 6, 123, 176;
+}
+
+body {
+  background-color: #f8f9fa;
+  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+}
+
+/* !important because these override a precompiled, unmodified vendor bootstrap.min.css
+   (see gotcha #7 — self-hosted but not recompiled from our own SCSS), so CSS variable
+   inheritance alone doesn't reach every component that hardcodes the default blue. */
+.btn-primary {
+  background-color: var(--cho-accent) !important;
+  border-color: var(--cho-accent) !important;
+}
+.btn-primary:hover,
+.btn-primary:focus {
+  background-color: var(--bs-link-hover-color) !important;
+  border-color: var(--bs-link-hover-color) !important;
+}
+.btn-outline-primary {
+  color: var(--cho-accent) !important;
+  border-color: var(--cho-accent) !important;
+}
+.btn-outline-primary:hover {
+  background-color: var(--cho-accent) !important;
+  border-color: var(--cho-accent) !important;
+}
+.text-primary { color: var(--cho-accent) !important; }
+.bg-primary { background-color: var(--cho-accent) !important; }
+.border-primary { border-color: var(--cho-accent) !important; }
+
+.navbar .nav-link:hover,
+.navbar .nav-link:focus {
+  color: var(--cho-accent) !important;
+}
+
+/* --- Admin nav: fixed left sidebar on desktop, offcanvas (hamburger) on mobile ---
+   The sidebar element is always in the DOM (display:none below lg via Bootstrap's
+   d-none/d-lg-flex), so body:has(.cho-sidebar) reliably detects "this is an admin page"
+   and offsets the content — but only inside the lg+ media query, so mobile keeps the
+   full-width top bar + offcanvas instead. Portal/login pages don't include nav.ejs, so
+   they never get the offset. */
+.cho-sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 220px;
+  background: #fff;
+  border-right: 1px solid #e5e7eb;
+  padding: 1rem 0.75rem;
+  overflow-y: auto;
+  z-index: 1030;
+}
+.cho-brand {
+  display: block;
+  padding: 0.25rem 0.5rem 1rem;
+}
+.cho-brand img {
+  max-width: 100%;
+  height: 34px;
+}
+.cho-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.cho-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  color: var(--cho-dark);
+  text-decoration: none;
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+.cho-nav-link i {
+  font-size: 1.05rem;
+  opacity: 0.85;
+}
+.cho-nav-link:hover,
+.cho-nav-link:focus {
+  background: rgba(7, 153, 214, 0.08);
+  color: var(--cho-accent);
+}
+.cho-nav-link.active {
+  background: var(--cho-accent);
+  color: #fff;
+}
+.cho-nav-link.active i {
+  opacity: 1;
+}
+.cho-logout {
+  padding-top: 0.75rem;
+  margin-top: 0.5rem;
+  border-top: 1px solid #eee;
+}
+.cho-offcanvas {
+  max-width: 78vw;
+}
+
+@media (min-width: 992px) {
+  body:has(.cho-sidebar) {
+    padding-left: 220px;
+    padding-top: 1.5rem;
+  }
+}

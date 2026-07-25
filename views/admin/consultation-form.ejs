@@ -1,0 +1,293 @@
+<%- include('../partials/head', { title: 'Consultation' }) %>
+<%- include('../partials/nav') %>
+<%
+  const c = consultation || {};
+  const arr = (v) => Array.isArray(v) ? v : (v || []);
+  const formAction = isNew ? `${basePath}/admin/consultations` : `${basePath}/admin/consultations/${c.id}`;
+  const status = c.status || 'scheduled';
+  const statusLabels = { scheduled: 'Scheduled', completed: 'Completed', on_hold: 'On Hold', cancelled: 'Cancelled' };
+  const statusBadges = { scheduled: 'secondary', completed: 'success', on_hold: 'warning', cancelled: 'dark' };
+  const saveLabel = isNew ? 'Schedule Consultation' : (status === 'scheduled' ? 'Complete Site Visit' : 'Save Changes');
+
+  function selectField(label, name, options, value) {
+    let html = `<div class="col-md-4 mb-3"><label class="form-label">${label}</label>`;
+    html += `<select name="${name}" class="form-select"><option value="">--</option>`;
+    for (const o of options) {
+      html += `<option value="${o}" ${value === o ? 'selected' : ''}>${o}</option>`;
+    }
+    html += `</select></div>`;
+    return html;
+  }
+
+  function textField(label, name, value, colClass = 'col-md-4') {
+    return `<div class="${colClass} mb-3"><label class="form-label">${label}</label>
+      <input type="text" name="${name}" class="form-control" value="${value ? String(value).replace(/"/g, '&quot;') : ''}"></div>`;
+  }
+
+  function checkboxGroup(label, name, options, selected) {
+    let html = `<div class="col-12 mb-3"><label class="form-label d-block">${label}</label>`;
+    for (const o of options) {
+      const checked = selected.includes(o) ? 'checked' : '';
+      const id = `${name}_${o.replace(/\W+/g, '_')}`;
+      html += `<div class="form-check form-check-inline">
+        <input class="form-check-input" type="checkbox" name="${name}" value="${o}" id="${id}" ${checked}>
+        <label class="form-check-label" for="${id}">${o}</label></div>`;
+    }
+    html += `</div>`;
+    return html;
+  }
+%>
+<div class="container" style="max-width: 900px;">
+  <h1 class="h3 mb-1">Consultation &mdash; <%= customer.name %></h1>
+  <p class="text-muted mb-2">
+    Status: <span class="badge bg-<%= statusBadges[status] || 'secondary' %>"><%= statusLabels[status] || status %></span>
+  </p>
+
+  <% if (!isNew && status === 'completed') { %>
+    <div class="mb-3 d-flex flex-wrap gap-2">
+      <a class="btn btn-sm btn-primary" href="<%= basePath %>/admin/estimates/new?customer_id=<%= customer.id %>&consultation_id=<%= c.id %>">
+        <i class="bi bi-file-earmark-plus"></i> Create Estimate from this Consultation
+      </a>
+      <button type="submit" form="holdForm" class="btn btn-sm btn-outline-warning">
+        <i class="bi bi-pause-circle"></i> Put on Hold
+      </button>
+      <button type="submit" form="cancelForm" class="btn btn-sm btn-outline-danger">
+        <i class="bi bi-x-circle"></i> Cancel Consultation
+      </button>
+    </div>
+  <% } else if (!isNew && status === 'on_hold') { %>
+    <div class="mb-3 d-flex flex-wrap gap-2">
+      <button type="submit" form="resumeForm" class="btn btn-sm btn-outline-success">
+        <i class="bi bi-play-circle"></i> Resume
+      </button>
+      <button type="submit" form="cancelForm" class="btn btn-sm btn-outline-danger">
+        <i class="bi bi-x-circle"></i> Cancel Consultation
+      </button>
+    </div>
+  <% } %>
+
+  <div class="card card-body mb-3 bg-light">
+    <strong>Confirm contact info</strong>
+    <p class="small text-muted mb-2">Fix any typo carried over from the original lead before the visit — this updates the customer record directly.</p>
+    <form action="<%= basePath %>/admin/customers/<%= customer.id %>" method="POST">
+      <input type="hidden" name="return_to" value="<%= isNew ? `${basePath}/admin/consultations/new?customer_id=${customer.id}` : `${basePath}/admin/consultations/${c.id}/edit` %>">
+      <div class="row">
+        <div class="col-md-3 mb-2">
+          <label class="form-label small text-muted mb-0">Name</label>
+          <input type="text" name="name" class="form-control form-control-sm" value="<%= (customer.name || '').replace(/"/g, '&quot;') %>" required>
+        </div>
+        <div class="col-md-3 mb-2">
+          <label class="form-label small text-muted mb-0">Email</label>
+          <input type="email" name="email" class="form-control form-control-sm" value="<%= (customer.email || '').replace(/"/g, '&quot;') %>" required>
+        </div>
+        <div class="col-md-3 mb-2">
+          <label class="form-label small text-muted mb-0">Phone</label>
+          <input type="text" name="phone" class="form-control form-control-sm" value="<%= (customer.phone || '').replace(/"/g, '&quot;') %>">
+        </div>
+        <div class="col-md-3 mb-2">
+          <label class="form-label small text-muted mb-0">Address</label>
+          <input type="text" name="address" class="form-control form-control-sm" value="<%= (customer.address || '').replace(/"/g, '&quot;') %>">
+        </div>
+        <div class="col-12 mb-2">
+          <label class="form-label small text-muted mb-0">Site / Arrival Notes</label>
+          <textarea name="notes" class="form-control form-control-sm" rows="2" placeholder="Gate code, parking instructions, dog on property, etc."><%= customer.notes || '' %></textarea>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-sm btn-outline-secondary">Save Contact Info</button>
+    </form>
+  </div>
+
+  <% if (lead) { %>
+    <div class="card card-body mb-3 border-info">
+      <strong>What they told us initially (from the website inquiry)</strong>
+      <p class="small text-muted mb-2">Option wording differs slightly between the inquiry form and this survey, so matching answers below were pre-filled where unambiguous &mdash; verify the rest against what's shown here rather than assuming a blank field means "no."</p>
+      <div class="row small">
+        <div class="col-md-3"><span class="text-muted">Home Type</span><br><%= lead.home_type || '—' %></div>
+        <div class="col-md-3"><span class="text-muted">Home Size</span><br><%= lead.home_size || '—' %></div>
+        <div class="col-md-3"><span class="text-muted">Budget</span><br><%= lead.budget || '—' %></div>
+        <div class="col-md-3"><span class="text-muted">Timeline</span><br><%= lead.timeline || '—' %></div>
+        <div class="col-md-6 mt-2"><span class="text-muted">Interested In</span><br><%= (lead.interests || []).join(', ') || '—' %></div>
+        <div class="col-md-6 mt-2"><span class="text-muted">Additional Details</span><br><%= lead.additional_details || '—' %></div>
+      </div>
+    </div>
+  <% } %>
+
+  <form action="<%= formAction %>" method="POST" enctype="application/x-www-form-urlencoded">
+    <input type="hidden" name="customer_id" value="<%= customer.id %>">
+
+    <h2 class="h5 mt-4">Section 1: Consultation Details</h2>
+    <div class="row">
+      <%- textField('Consultation Date & Time', 'consultation_date', c.consultation_date ? c.consultation_date.replace(' ', 'T').slice(0, 16) : '').replace('type="text"', 'type="datetime-local"') %>
+      <%- textField('Duration (minutes)', 'duration_minutes', c.duration_minutes || 60).replace('type="text"', 'type="number"') %>
+      <%- selectField('Referral Source', 'referral_source', opts.referralSources, c.referral_source) %>
+    </div>
+    <% if (!isNew) { %>
+      <%
+        // NOTE: nested <form> elements are invalid HTML — a browser un-nests them, so a
+        // button "inside" another form actually submits the outer one. These controls
+        // live visually inside the big survey form's markup, so they use the form="id"
+        // attribute to target separate top-level <form>s (defined after the survey form
+        // closes below) instead of wrapping themselves in their own nested <form> tag.
+      %>
+      <div class="mb-3 d-flex align-items-center flex-wrap gap-2">
+        <button type="submit" form="sendInviteForm" class="btn btn-sm btn-outline-primary" <%= c.consultation_date ? '' : 'disabled' %>>
+          <i class="bi bi-calendar-event"></i> Send Calendar Invite
+        </button>
+        <% if (c.calendar_invite_sent_at) { %>
+          <span class="text-muted small">Last sent <%= c.calendar_invite_sent_at %></span>
+        <% } %>
+        <% if (!c.consultation_date) { %>
+          <span class="text-muted small">Set a date/time and save first</span>
+        <% } %>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#rescheduleBox">
+          <i class="bi bi-clock-history"></i> Reschedule
+        </button>
+      </div>
+      <div class="collapse mb-3" id="rescheduleBox">
+        <div class="card card-body">
+          <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+              <label class="form-label small">New Date &amp; Time</label>
+              <input type="datetime-local" name="consultation_date" form="rescheduleForm" class="form-control form-control-sm"
+                value="<%= c.consultation_date ? c.consultation_date.replace(' ', 'T').slice(0, 16) : '' %>" required>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small">Duration (minutes)</label>
+              <input type="number" name="duration_minutes" form="rescheduleForm" class="form-control form-control-sm" value="<%= c.duration_minutes || 60 %>">
+            </div>
+            <div class="col-md-3">
+              <button type="submit" form="rescheduleForm" class="btn btn-sm btn-warning">Reschedule &amp; Notify</button>
+            </div>
+          </div>
+          <p class="small text-muted mb-0 mt-2">Updates the appointment time and immediately emails a fresh calendar invite to both the customer and the consultant.</p>
+        </div>
+      </div>
+    <% } %>
+
+    <% if (!isNew) { %>
+      <h2 class="h5 mt-4">Section 2: Property Information</h2>
+      <div class="row">
+        <%- selectField('Home Type', 'home_type', opts.homeTypes, c.home_type) %>
+        <%- selectField('Square Footage', 'square_footage', opts.squareFootages, c.square_footage) %>
+        <%- selectField('Number of Stories', 'number_of_stories', opts.storyCounts, c.number_of_stories) %>
+        <%- textField('Year Built', 'year_built', c.year_built) %>
+      </div>
+
+      <h2 class="h5 mt-4">Section 3: Customer Goals</h2>
+      <div class="row">
+        <%- checkboxGroup('What services are you interested in?', 'services_interested', opts.servicesInterested, arr(c.services_interested)) %>
+        <div class="col-12 mb-3">
+          <label class="form-label">Biggest technology frustration today</label>
+          <textarea name="biggest_frustration" class="form-control" rows="2"><%= c.biggest_frustration || '' %></textarea>
+        </div>
+        <%- checkboxGroup('Top priorities', 'priorities', opts.priorities, arr(c.priorities)) %>
+      </div>
+
+      <h2 class="h5 mt-4">Section 4: Existing Technology</h2>
+      <div class="row">
+        <%- textField('Current Internet Provider', 'internet_provider', c.internet_provider) %>
+        <%- selectField('Internet Speed Package', 'internet_speed', opts.internetSpeeds, c.internet_speed) %>
+        <%- selectField('Existing Mesh Wi-Fi System?', 'has_mesh_wifi', opts.yesNoNotSure, c.has_mesh_wifi) %>
+        <%- selectField('Existing Security Cameras?', 'has_security_cameras', opts.yesNo, c.has_security_cameras) %>
+        <%- checkboxGroup('Existing Smart Devices', 'existing_smart_devices', opts.existingSmartDevices, arr(c.existing_smart_devices)) %>
+      </div>
+
+      <h2 class="h5 mt-4">Section 5: Wi-Fi Assessment</h2>
+      <div class="row">
+        <% const ratings = c.wifi_coverage_ratings || {}; %>
+        <% opts.wifiCoverageLocations.forEach(loc => { %>
+          <%- selectField(loc, `wifi_rating[${loc}]`, opts.wifiCoverageRatings, ratings[loc]) %>
+        <% }) %>
+        <%- checkboxGroup('Areas with Connectivity Issues', 'connectivity_issue_areas', opts.connectivityIssueAreas, arr(c.connectivity_issue_areas)) %>
+      </div>
+
+      <h2 class="h5 mt-4">Section 6: Security &amp; Camera Assessment</h2>
+      <div class="row">
+        <%- checkboxGroup('Desired Camera Locations', 'desired_camera_locations', opts.cameraLocations, arr(c.desired_camera_locations)) %>
+        <%- selectField('Existing Camera Wiring Present?', 'camera_wiring_present', opts.yesNoUnknown, c.camera_wiring_present) %>
+        <%- selectField('Interested in Video Doorbell?', 'interested_video_doorbell', opts.yesNoAlreadyInstalled, c.interested_video_doorbell) %>
+        <%- selectField('Interested in Remote Monitoring?', 'interested_remote_monitoring', opts.yesNo, c.interested_remote_monitoring) %>
+      </div>
+
+      <h2 class="h5 mt-4">Section 7: Smart Home Opportunities</h2>
+      <div class="row">
+        <%- checkboxGroup('Interested In', 'smart_home_interests', opts.smartHomeInterests, arr(c.smart_home_interests)) %>
+        <%- selectField('Preferred Smart Platform', 'preferred_smart_platform', opts.smartPlatforms, c.preferred_smart_platform) %>
+      </div>
+
+      <h2 class="h5 mt-4">Section 8: Project Details</h2>
+      <div class="row">
+        <%- selectField('Desired Timeline', 'desired_timeline', opts.timelines, c.desired_timeline) %>
+        <%- selectField('Budget Range', 'budget_range', opts.budgetRanges, c.budget_range) %>
+        <%- selectField('Interested in Financing?', 'interested_financing', opts.yesNoMaybe, c.interested_financing) %>
+      </div>
+
+      <h2 class="h5 mt-4">Section 10: Consultant Notes</h2>
+      <div class="row">
+        <%- selectField('Installation Complexity', 'installation_complexity', opts.installationComplexities, c.installation_complexity) %>
+        <%- selectField('Recommended Package', 'recommended_package', opts.recommendedPackages, c.recommended_package) %>
+        <%- checkboxGroup('Recommended Add-ons', 'recommended_addons', opts.recommendedAddons, arr(c.recommended_addons)) %>
+        <div class="col-12 mb-3">
+          <label class="form-label">Consultant Notes</label>
+          <textarea name="consultant_notes" class="form-control" rows="3"><%= c.consultant_notes || '' %></textarea>
+        </div>
+      </div>
+    <% } %>
+
+    <% if (!isNew && status === 'scheduled') { %>
+      <p class="small text-muted">Saving will mark this consultation as completed and unlock the estimate / hold / cancel options above.</p>
+    <% } %>
+    <button class="btn btn-primary" type="submit"><%= saveLabel %></button>
+    <a class="btn btn-outline-secondary" href="<%= basePath %>/admin/consultations">Cancel</a>
+  </form>
+
+  <% if (!isNew) { %>
+    <form id="sendInviteForm" action="<%= basePath %>/admin/consultations/<%= c.id %>/send-invite" method="POST"></form>
+    <form id="rescheduleForm" action="<%= basePath %>/admin/consultations/<%= c.id %>/reschedule" method="POST"></form>
+    <form id="holdForm" action="<%= basePath %>/admin/consultations/<%= c.id %>/hold" method="POST"></form>
+    <form id="resumeForm" action="<%= basePath %>/admin/consultations/<%= c.id %>/resume" method="POST"></form>
+    <form id="cancelForm" action="<%= basePath %>/admin/consultations/<%= c.id %>/cancel" method="POST"></form>
+    <script nonce="<%= cspNonce %>">
+      // bootstrap.bundle.min.js loads later, in partials/footer.ejs — wait for the
+      // window load event so window.bootstrap actually exists by the time this runs.
+      window.addEventListener('load', function () {
+        if (window.location.hash === '#rescheduleBox') {
+          var rescheduleBoxEl = document.getElementById('rescheduleBox');
+          if (rescheduleBoxEl && window.bootstrap) new bootstrap.Collapse(rescheduleBoxEl, { show: true });
+        }
+      });
+    </script>
+  <% } %>
+
+  <% if (!isNew) { %>
+    <h2 class="h5 mt-5">Section 9: Site Photos</h2>
+    <form action="<%= basePath %>/admin/consultations/<%= c.id %>/photos" method="POST" enctype="multipart/form-data" class="row g-2 mb-4">
+      <div class="col-md-4">
+        <select name="category" class="form-select">
+          <option value="">-- category (optional) --</option>
+          <% opts.photoCategories.forEach(cat => { %><option value="<%= cat %>"><%= cat %></option><% }) %>
+        </select>
+      </div>
+      <div class="col-md-6">
+        <input type="file" name="photos" class="form-control" multiple accept="image/*">
+      </div>
+      <div class="col-md-2">
+        <button class="btn btn-outline-primary w-100" type="submit">Upload</button>
+      </div>
+    </form>
+
+    <div class="row">
+      <% photos.forEach(p => { %>
+        <div class="col-md-3 mb-3">
+          <img src="<%= basePath %>/admin/consultations/<%= c.id %>/photos/<%= p.id %>" class="img-fluid rounded border">
+          <div class="small text-muted"><%= p.category || '' %></div>
+          <form action="<%= basePath %>/admin/consultations/<%= c.id %>/photos/<%= p.id %>/delete" method="POST">
+            <button class="btn btn-sm btn-link text-danger p-0" type="submit">Delete</button>
+          </form>
+        </div>
+      <% }) %>
+      <% if (photos.length === 0) { %><p class="text-muted">No photos uploaded yet.</p><% } %>
+    </div>
+  <% } %>
+</div>
+<%- include('../partials/footer') %>

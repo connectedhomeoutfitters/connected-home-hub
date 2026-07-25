@@ -1,0 +1,127 @@
+<%- include('partials/head', { title: 'Dashboard' }) %>
+<%- include('partials/nav') %>
+<%
+  function statTile(icon, count, label, href, money) {
+    const needsAttention = count > 0;
+    const iconClass = needsAttention ? 'text-warning' : 'text-muted';
+    return `
+      <div class="col-6 col-md-3">
+        <a href="${href}" class="card text-decoration-none h-100">
+          <div class="card-body">
+            <i class="bi ${icon} ${iconClass}"></i>
+            <div class="fs-3 fw-semibold text-body">${count}</div>
+            <div class="text-muted small">${label}</div>
+            ${money !== undefined ? `<div class="text-muted small">$${Number(money).toFixed(2)}</div>` : ''}
+          </div>
+        </a>
+      </div>`;
+  }
+%>
+<div class="container">
+  <h1 class="h3 mb-4">Dashboard</h1>
+
+  <div class="row g-3 mb-4">
+    <%- statTile('bi-person-plus', stats.newLeads, 'New Leads', `${basePath}/admin/leads`) %>
+    <%- statTile('bi-clipboard-check', stats.draftConsultations, 'Consultations Scheduled', `${basePath}/admin/consultations`) %>
+    <%- statTile('bi-file-earmark-text', stats.sentEstimates, 'Estimates Awaiting Response', `${basePath}/admin/estimates`, stats.sentEstimatesTotal) %>
+    <%- statTile('bi-receipt', stats.pendingInvoices, 'Invoices Awaiting Payment', `${basePath}/admin/invoices`, stats.pendingInvoicesTotal) %>
+    <%- statTile('bi-list-check', stats.openJobs, 'Open Jobs', `${basePath}/admin/jobs`) %>
+  </div>
+  <p class="text-muted small mb-4"><i class="bi bi-people"></i> <%= stats.totalCustomers %> total customers</p>
+
+  <% if (recentLeads.length || recentEstimates.length || recentConsultations.length) { %>
+    <h2 class="h5 mb-3">Needs Attention</h2>
+    <div class="row g-3 mb-4">
+      <% if (recentLeads.length) { %>
+        <div class="col-md-4">
+          <div class="card h-100">
+            <div class="card-header">New Leads</div>
+            <ul class="list-group list-group-flush">
+              <% recentLeads.forEach(l => { %>
+                <li class="list-group-item">
+                  <a href="<%= basePath %>/admin/leads" class="text-decoration-none"><%= l.name %></a>
+                  <div class="text-muted small"><%= l.email %></div>
+                </li>
+              <% }) %>
+            </ul>
+          </div>
+        </div>
+      <% } %>
+      <% if (recentEstimates.length) { %>
+        <div class="col-md-4">
+          <div class="card h-100">
+            <div class="card-header">Estimates Awaiting Response</div>
+            <ul class="list-group list-group-flush">
+              <% recentEstimates.forEach(e => { %>
+                <li class="list-group-item">
+                  <a href="<%= basePath %>/admin/estimates/<%= e.id %>/edit" class="text-decoration-none"><%= e.customer_name %> &mdash; <%= e.title %></a>
+                  <div class="text-muted small">$<%= e.total %> &middot; sent <%= e.sent_at %></div>
+                </li>
+              <% }) %>
+            </ul>
+          </div>
+        </div>
+      <% } %>
+      <% if (recentConsultations.length) { %>
+        <div class="col-md-4">
+          <div class="card h-100">
+            <div class="card-header">Consultations Scheduled</div>
+            <ul class="list-group list-group-flush">
+              <% recentConsultations.forEach(co => { %>
+                <li class="list-group-item">
+                  <a href="<%= basePath %>/admin/consultations/<%= co.id %>/edit" class="text-decoration-none"><%= co.customer_name %></a>
+                  <div class="text-muted small">scheduled <%= co.created_at %></div>
+                </li>
+              <% }) %>
+            </ul>
+          </div>
+        </div>
+      <% } %>
+    </div>
+  <% } %>
+
+  <h2 class="h5 mb-3">Quick Links</h2>
+  <div class="row g-3">
+    <div class="col-6 col-md-3">
+      <a href="<%= basePath %>/admin/leads" class="card text-decoration-none">
+        <div class="card-body"><i class="bi bi-person-plus"></i> <span class="fw-semibold">Leads</span></div>
+      </a>
+    </div>
+    <div class="col-6 col-md-3">
+      <a href="<%= basePath %>/admin/customers" class="card text-decoration-none">
+        <div class="card-body"><i class="bi bi-people"></i> <span class="fw-semibold">Customers</span></div>
+      </a>
+    </div>
+    <div class="col-6 col-md-3">
+      <a href="<%= basePath %>/admin/consultations" class="card text-decoration-none">
+        <div class="card-body"><i class="bi bi-clipboard-check"></i> <span class="fw-semibold">Consultations</span></div>
+      </a>
+    </div>
+    <div class="col-6 col-md-3">
+      <a href="<%= basePath %>/admin/estimates" class="card text-decoration-none">
+        <div class="card-body"><i class="bi bi-file-earmark-text"></i> <span class="fw-semibold">Estimates</span></div>
+      </a>
+    </div>
+    <div class="col-6 col-md-3">
+      <a href="<%= basePath %>/admin/invoices" class="card text-decoration-none">
+        <div class="card-body"><i class="bi bi-receipt"></i> <span class="fw-semibold">Invoices</span></div>
+      </a>
+    </div>
+    <div class="col-6 col-md-3">
+      <a href="<%= basePath %>/admin/products" class="card text-decoration-none">
+        <div class="card-body"><i class="bi bi-box-seam"></i> <span class="fw-semibold">Catalog</span></div>
+      </a>
+    </div>
+    <div class="col-6 col-md-3">
+      <a href="<%= basePath %>/admin/labor-rates" class="card text-decoration-none">
+        <div class="card-body"><i class="bi bi-clock"></i> <span class="fw-semibold">Labor Rates</span></div>
+      </a>
+    </div>
+    <div class="col-6 col-md-3">
+      <a href="<%= basePath %>/admin/subcontractors" class="card text-decoration-none">
+        <div class="card-body"><i class="bi bi-tools"></i> <span class="fw-semibold">Subcontractors</span></div>
+      </a>
+    </div>
+  </div>
+</div>
+<%- include('partials/footer') %>

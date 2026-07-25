@@ -1,0 +1,24 @@
+<%- include('../partials/head', { title: 'Settings' }) %>
+<%- include('../partials/nav') %>
+<div class="container">
+  <h1 class="h3 mb-4">Settings</h1>
+  <div class="row g-3" style="max-width: 700px;">
+    <div class="col-md-6">
+      <a class="card text-decoration-none text-body h-100" href="<%= basePath %>/admin/settings/company">
+        <div class="card-body">
+          <h2 class="h5"><i class="bi bi-building"></i> Company Settings</h2>
+          <p class="text-muted mb-0 small">Company name, tax ID, default sales tax rate, contact info.</p>
+        </div>
+      </a>
+    </div>
+    <div class="col-md-6">
+      <a class="card text-decoration-none text-body h-100" href="<%= basePath %>/admin/settings/users">
+        <div class="card-body">
+          <h2 class="h5"><i class="bi bi-people"></i> Staff Users</h2>
+          <p class="text-muted mb-0 small">Add staff accounts, promote/demote admin, deactivate access.</p>
+        </div>
+      </a>
+    </div>
+  </div>
+</div>
+<%- include('../partials/footer') %>

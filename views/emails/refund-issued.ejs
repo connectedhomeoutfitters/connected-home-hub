@@ -1,0 +1,12 @@
+<!doctype html>
+<html>
+<body style="font-family: 'Roboto', Arial, Helvetica, sans-serif; color: #333; max-width: 560px; margin: 0 auto;">
+  <%- include('_header') %>
+  <p>Hi <%= customerName %>,</p>
+  <p>We've issued a refund to your card:</p>
+  <p style="font-size: 18px; font-weight: bold; color: #0799D6;">$<%= amount %> (<%= invoiceType %><%= fullyRefunded ? ' — refunded in full' : '' %>)</p>
+  <p>Depending on your bank, it can take 5&ndash;10 business days to appear on your statement.</p>
+  <p>Questions? Just reply to this email.</p>
+  <%- include('_footer') %>
+</body>
+</html>

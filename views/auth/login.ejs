@@ -1,0 +1,21 @@
+<%- include('../partials/head', { title: 'Log in' }) %>
+<div class="container py-5" style="max-width: 400px;">
+  <h1 class="h4 mb-4">CHO Hub — Staff Login</h1>
+  <% if (error) { %><div class="alert alert-danger"><%= error %></div><% } %>
+  <form action="<%= basePath %>/login" method="POST">
+    <div class="mb-3">
+      <label class="form-label">Email</label>
+      <input type="email" name="email" class="form-control" required>
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Password</label>
+      <input type="password" name="password" class="form-control" required>
+    </div>
+    <button class="btn btn-primary w-100" type="submit">Log in</button>
+  </form>
+  <% if (googleEnabled) { %>
+    <div class="text-center my-3 text-muted">or</div>
+    <a class="btn btn-outline-secondary w-100" href="<%= basePath %>/google">Sign in with Google</a>
+  <% } %>
+</div>
+<%- include('../partials/footer') %>

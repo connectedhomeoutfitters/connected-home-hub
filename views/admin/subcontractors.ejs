@@ -1,0 +1,78 @@
+<%- include('../partials/head', { title: 'Subcontractors' }) %>
+<%- include('../partials/nav') %>
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">Subcontractors</h1>
+    <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#addSub">
+      + Add Subcontractor
+    </button>
+  </div>
+
+  <div class="collapse mb-4" id="addSub">
+    <div class="card card-body">
+      <form action="<%= basePath %>/admin/subcontractors" method="POST">
+        <div class="row g-2">
+          <div class="col-md-4">
+            <label class="form-label">Name</label>
+            <input type="text" name="name" class="form-control" required>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Trade</label>
+            <input type="text" name="trade" class="form-control" placeholder="e.g. Low Voltage Electrician" required>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Contact Name</label>
+            <input type="text" name="contact_name" class="form-control">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Phone</label>
+            <input type="text" name="phone" class="form-control">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Email</label>
+            <input type="email" name="email" class="form-control">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Hourly Rate</label>
+            <input type="number" step="0.01" name="hourly_rate" class="form-control">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">License Number</label>
+            <input type="text" name="license_number" class="form-control">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Notes</label>
+            <input type="text" name="notes" class="form-control">
+          </div>
+        </div>
+        <button class="btn btn-primary mt-3" type="submit">Save Subcontractor</button>
+      </form>
+    </div>
+  </div>
+
+  <table class="table table-sm align-middle">
+    <thead><tr><th>Name</th><th>Trade</th><th>Contact</th><th>Rate</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+      <% subcontractors.forEach(s => { %>
+        <tr class="<%= s.active ? '' : 'text-muted' %>">
+          <td><%= s.name %></td>
+          <td><%= s.trade %></td>
+          <td>
+            <% if (s.contact_name) { %><%= s.contact_name %><br><% } %>
+            <% if (s.phone) { %><%= s.phone %><br><% } %>
+            <% if (s.email) { %><%= s.email %><% } %>
+          </td>
+          <td><%= s.hourly_rate ? '$' + Number(s.hourly_rate).toFixed(2) + '/hr' : '' %></td>
+          <td><%= s.active ? 'Active' : 'Inactive' %></td>
+          <td class="text-end">
+            <a class="btn btn-sm btn-outline-secondary" href="<%= basePath %>/admin/subcontractors/<%= s.id %>/edit">Edit</a>
+            <form action="<%= basePath %>/admin/subcontractors/<%= s.id %>/toggle-active" method="POST" class="d-inline">
+              <button class="btn btn-sm btn-outline-secondary" type="submit"><%= s.active ? 'Deactivate' : 'Reactivate' %></button>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+<%- include('../partials/footer') %>

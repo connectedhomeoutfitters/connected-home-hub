@@ -1,0 +1,86 @@
+<%- include('../partials/head', { title: 'Jobs' }) %>
+<%- include('../partials/nav') %>
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">Jobs</h1>
+    <div>
+      <a class="btn btn-outline-secondary btn-sm" href="<%= basePath %>/admin/jobs<%= showAll ? '' : '?all=1' %>">
+        <%= showAll ? 'Show open only' : 'Show all (incl. done/cancelled)' %>
+      </a>
+      <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#newJob">
+        + New Job
+      </button>
+    </div>
+  </div>
+
+  <div class="collapse mb-4" id="newJob">
+    <div class="card card-body">
+      <% if (customers.length === 0) { %>
+        <p class="text-muted mb-0">No customers yet — <a href="<%= basePath %>/admin/customers">add one</a> first.</p>
+      <% } else { %>
+        <form action="<%= basePath %>/admin/jobs" method="POST" class="row g-2">
+          <div class="col-md-3">
+            <select name="customer_id" class="form-select" required>
+              <option value="">Customer&hellip;</option>
+              <% customers.forEach(c => { %><option value="<%= c.id %>"><%= c.name %></option><% }) %>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <select name="type" class="form-select">
+              <option value="other">Other / Reminder</option>
+              <option value="consultation">Consultation</option>
+              <option value="estimate_followup">Estimate Follow-up</option>
+              <option value="install">Install</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <input type="text" name="title" class="form-control" placeholder="Title" required>
+          </div>
+          <div class="col-md-2">
+            <input type="date" name="due_date" class="form-control" placeholder="Due date">
+          </div>
+          <div class="col-md-2">
+            <select name="assigned_to" class="form-select">
+              <option value="">Unassigned</option>
+              <% staff.forEach(s => { %><option value="<%= s.id %>"><%= s.name %></option><% }) %>
+            </select>
+          </div>
+          <div class="col-12">
+            <button class="btn btn-primary mt-2" type="submit">Save Job</button>
+          </div>
+        </form>
+      <% } %>
+    </div>
+  </div>
+
+  <table class="table table-sm align-middle">
+    <thead><tr><th>Type</th><th>Title</th><th>Customer</th><th>Assigned</th><th>Due / Scheduled</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+      <% jobs.forEach(j => { %>
+        <tr class="<%= j.status === 'done' || j.status === 'cancelled' ? 'text-muted' : '' %>">
+          <td><span class="badge bg-light text-dark border"><%= j.type.replace('_', ' ') %></span></td>
+          <td><a href="<%= basePath %>/admin/jobs/<%= j.id %>/edit" class="text-decoration-none"><%= j.title %></a></td>
+          <td><%= j.customer_name %></td>
+          <td><%= j.assigned_name || '' %></td>
+          <td><%= j.scheduled_at || j.due_date || '' %></td>
+          <td>
+            <form action="<%= basePath %>/admin/jobs/<%= j.id %>/status<%= showAll ? '?all=1' : '' %>" method="POST" class="d-inline">
+              <select name="status" class="form-select form-select-sm d-inline w-auto" onchange="this.form.submit()">
+                <% ['pending','in_progress','done','cancelled'].forEach(s => { %>
+                  <option value="<%= s %>" <%= j.status === s ? 'selected' : '' %>><%= s.replace('_',' ') %></option>
+                <% }) %>
+              </select>
+            </form>
+          </td>
+          <td class="text-end">
+            <a class="btn btn-sm btn-outline-secondary" href="<%= basePath %>/admin/jobs/<%= j.id %>/edit">Edit</a>
+          </td>
+        </tr>
+      <% }) %>
+      <% if (jobs.length === 0) { %>
+        <tr><td colspan="7" class="text-muted">No <%= showAll ? '' : 'open ' %>jobs.</td></tr>
+      <% } %>
+    </tbody>
+  </table>
+</div>
+<%- include('../partials/footer') %>

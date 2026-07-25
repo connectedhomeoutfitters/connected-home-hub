@@ -1,0 +1,51 @@
+<%- include('../partials/head', { title: customer.name }) %>
+<%- include('../partials/nav') %>
+<div class="container" style="max-width: 800px;">
+  <div class="d-flex justify-content-between align-items-start mb-3">
+    <h1 class="h3 mb-0"><%= customer.name %></h1>
+    <div>
+      <a class="btn btn-sm btn-outline-secondary" href="<%= basePath %>/admin/customers/<%= customer.id %>/edit?returnTo=<%= encodeURIComponent(basePath + '/admin/customers/' + customer.id) %>">Edit</a>
+      <a class="btn btn-sm btn-outline-primary" href="<%= basePath %>/admin/consultations/new?customer_id=<%= customer.id %>">New Consultation</a>
+      <a class="btn btn-sm btn-outline-primary" href="<%= basePath %>/admin/estimates/new?customer_id=<%= customer.id %>">New Estimate</a>
+    </div>
+  </div>
+
+  <div class="card card-body mb-4">
+    <div class="row">
+      <div class="col-md-3"><span class="text-muted small">Email</span><br>
+        <% if (customer.email) { %><a href="mailto:<%= customer.email %>"><%= customer.email %></a><% } else { %>&mdash;<% } %>
+      </div>
+      <div class="col-md-3"><span class="text-muted small">Phone</span><br>
+        <% if (customer.phone) { %><a href="tel:<%= customer.phone %>"><%= customer.phone %></a><% } else { %>&mdash;<% } %>
+      </div>
+      <div class="col-md-4"><span class="text-muted small">Address</span><br>
+        <% if (customer.address) { %>
+          <a href="https://www.google.com/maps/search/?api=1&query=<%= encodeURIComponent(customer.address) %>" target="_blank" rel="noopener"><%= customer.address %></a>
+        <% } else { %>&mdash;<% } %>
+      </div>
+      <div class="col-md-2"><span class="text-muted small">Customer Since</span><br><%= customer.created_at %></div>
+      <% if (customer.notes) { %>
+        <div class="col-12 mt-2"><span class="text-muted small">Notes</span><br><%= customer.notes %></div>
+      <% } %>
+    </div>
+  </div>
+
+  <h2 class="h5 mb-3">History</h2>
+  <% if (events.length === 0) { %>
+    <p class="text-muted">No activity yet — start a consultation or estimate above.</p>
+  <% } else { %>
+    <ul class="list-group">
+      <% events.forEach(ev => { %>
+        <li class="list-group-item d-flex align-items-start gap-3">
+          <i class="bi <%= ev.icon %> text-muted mt-1"></i>
+          <div class="flex-grow-1">
+            <a href="<%= basePath %><%= ev.link %>" class="text-decoration-none"><%= ev.title %></a>
+            <div class="text-muted small"><%= ev.type %> &middot; <%= ev.date %></div>
+          </div>
+          <span class="badge bg-<%= ev.statusBadge %>"><%= ev.statusLabel %></span>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+</div>
+<%- include('../partials/footer') %>

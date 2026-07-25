@@ -1,0 +1,97 @@
+<%- include('../partials/head', { title: 'Edit Subcontractor' }) %>
+<%- include('../partials/nav') %>
+<div class="container" style="max-width: 700px;">
+  <h1 class="h3 mb-4">Edit Subcontractor</h1>
+  <form action="<%= basePath %>/admin/subcontractors/<%= subcontractor.id %>" method="POST">
+    <div class="row g-2">
+      <div class="col-md-6">
+        <label class="form-label">Name</label>
+        <input type="text" name="name" class="form-control" value="<%= subcontractor.name %>" required>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Trade</label>
+        <input type="text" name="trade" class="form-control" value="<%= subcontractor.trade %>" required>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Contact Name</label>
+        <input type="text" name="contact_name" class="form-control" value="<%= subcontractor.contact_name || '' %>">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Phone</label>
+        <input type="text" name="phone" class="form-control" value="<%= subcontractor.phone || '' %>">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Email</label>
+        <input type="email" name="email" class="form-control" value="<%= subcontractor.email || '' %>">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Hourly Rate</label>
+        <input type="number" step="0.01" name="hourly_rate" class="form-control" value="<%= subcontractor.hourly_rate || '' %>">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">License Number</label>
+        <input type="text" name="license_number" class="form-control" value="<%= subcontractor.license_number || '' %>">
+      </div>
+      <div class="col-12">
+        <label class="form-label">Address</label>
+        <input type="text" name="address" class="form-control" value="<%= subcontractor.address || '' %>">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Insurance Provider</label>
+        <input type="text" name="insurance_provider" class="form-control" value="<%= subcontractor.insurance_provider || '' %>">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Insurance (COI) Expires</label>
+        <input type="date" name="insurance_expires_on" class="form-control"
+          value="<%= subcontractor.insurance_expires_on ? String(subcontractor.insurance_expires_on).slice(0, 10) : '' %>">
+      </div>
+      <div class="col-12">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="w9_on_file" id="w9_on_file" <%= subcontractor.w9_on_file ? 'checked' : '' %>>
+          <label class="form-check-label" for="w9_on_file">W-9 on file</label>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Notes</label>
+        <input type="text" name="notes" class="form-control" value="<%= subcontractor.notes || '' %>">
+      </div>
+    </div>
+    <div class="mt-3">
+      <button class="btn btn-primary" type="submit">Save</button>
+      <a class="btn btn-outline-secondary" href="<%= basePath %>/admin/subcontractors">Cancel</a>
+    </div>
+  </form>
+
+  <h2 class="h5 mt-5">Documents</h2>
+  <p class="text-muted small">W-9s, certificates of insurance, signed agreements, etc.</p>
+  <form action="<%= basePath %>/admin/subcontractors/<%= subcontractor.id %>/documents" method="POST" enctype="multipart/form-data" class="row g-2 mb-4">
+    <div class="col-md-4">
+      <input type="text" name="category" class="form-control" placeholder="Category (optional) — e.g. W9, COI, Contract">
+    </div>
+    <div class="col-md-6">
+      <input type="file" name="documents" class="form-control" multiple>
+    </div>
+    <div class="col-md-2">
+      <button class="btn btn-outline-primary w-100" type="submit">Upload</button>
+    </div>
+  </form>
+
+  <ul class="list-group mb-4">
+    <% documents.forEach(d => { %>
+      <li class="list-group-item d-flex justify-content-between align-items-center">
+        <div>
+          <a href="<%= basePath %>/admin/subcontractors/<%= subcontractor.id %>/documents/<%= d.id %>"><%= d.original_name || d.filename %></a>
+          <% if (d.category) { %><span class="badge bg-light text-dark border ms-2"><%= d.category %></span><% } %>
+          <span class="text-muted small ms-2"><%= d.created_at %></span>
+        </div>
+        <form action="<%= basePath %>/admin/subcontractors/<%= subcontractor.id %>/documents/<%= d.id %>/delete" method="POST">
+          <button class="btn btn-sm btn-link text-danger p-0" type="submit">Delete</button>
+        </form>
+      </li>
+    <% }) %>
+    <% if (documents.length === 0) { %>
+      <li class="list-group-item text-muted">No documents uploaded yet.</li>
+    <% } %>
+  </ul>
+</div>
+<%- include('../partials/footer') %>

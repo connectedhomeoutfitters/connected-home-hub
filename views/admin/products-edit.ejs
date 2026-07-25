@@ -1,0 +1,68 @@
+<%- include('../partials/head', { title: 'Edit Product' }) %>
+<%- include('../partials/nav') %>
+<div class="container" style="max-width: 700px;">
+  <h1 class="h3 mb-4">Edit Product</h1>
+  <form action="<%= basePath %>/admin/products/<%= product.id %>" method="POST">
+    <div class="row g-2">
+      <div class="col-md-4">
+        <label class="form-label">Category</label>
+        <input type="text" name="category" class="form-control" value="<%= product.category %>" required>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Vendor</label>
+        <input type="text" name="vendor" class="form-control" value="<%= product.vendor || '' %>">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Product Line</label>
+        <input type="text" name="product_line" class="form-control" value="<%= product.product_line || '' %>">
+      </div>
+      <div class="col-12">
+        <label class="form-label">Name</label>
+        <input type="text" name="name" class="form-control" value="<%= product.name %>" required>
+      </div>
+      <div class="col-12">
+        <label class="form-label">Description</label>
+        <input type="text" name="description" class="form-control" value="<%= product.description || '' %>">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Part Number</label>
+        <input type="text" name="part_number" class="form-control" value="<%= product.part_number || '' %>">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Unit of Measure</label>
+        <input type="text" name="unit_of_measure" class="form-control" value="<%= product.unit_of_measure %>">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Vendor Cost</label>
+        <input type="number" step="0.01" name="vendor_cost" class="form-control" value="<%= product.vendor_cost %>" required>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Markup %</label>
+        <input type="number" step="0.01" name="markup_percent" class="form-control" value="<%= product.markup_percent || '' %>">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Retail Price (if markup disabled)</label>
+        <input type="number" step="0.01" name="retail_price" class="form-control" value="<%= product.retail_price %>">
+      </div>
+      <div class="col-12">
+        <label class="form-label">Reference URL</label>
+        <input type="url" name="reference_url" class="form-control" value="<%= product.reference_url || '' %>">
+      </div>
+      <div class="col-12 d-flex gap-3">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="markup_enabled" id="markup_enabled" <%= product.markup_enabled ? 'checked' : '' %>>
+          <label class="form-check-label" for="markup_enabled">Auto markup</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="taxable" id="taxable" <%= product.taxable ? 'checked' : '' %>>
+          <label class="form-check-label" for="taxable">Taxable</label>
+        </div>
+      </div>
+    </div>
+    <div class="mt-3">
+      <button class="btn btn-primary" type="submit">Save</button>
+      <a class="btn btn-outline-secondary" href="<%= basePath %>/admin/products">Cancel</a>
+    </div>
+  </form>
+</div>
+<%- include('../partials/footer') %>

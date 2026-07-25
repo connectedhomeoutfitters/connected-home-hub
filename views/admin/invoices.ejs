@@ -1,0 +1,21 @@
+<%- include('../partials/head', { title: 'Invoices' }) %>
+<%- include('../partials/nav') %>
+<div class="container">
+  <h1 class="h3 mb-4">Invoices</h1>
+  <table class="table">
+    <thead><tr><th>Customer</th><th>Type</th><th>Amount</th><th>Status</th><th>Due</th></tr></thead>
+    <tbody>
+      <% invoices.forEach(i => { %>
+        <tr>
+          <td><%= i.customer_name %></td>
+          <td><%= i.type %></td>
+          <td>$<%= i.amount %></td>
+          <td><span class="badge bg-secondary"><%= i.status %></span></td>
+          <td><%= i.due_date || '' %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+  <!-- TODO: create standalone/final invoice, "send to customer" action -->
+</div>
+<%- include('../partials/footer') %>

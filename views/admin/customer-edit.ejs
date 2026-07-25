@@ -1,0 +1,31 @@
+<%- include('../partials/head', { title: 'Edit Customer' }) %>
+<%- include('../partials/nav') %>
+<div class="container" style="max-width: 700px;">
+  <h1 class="h3 mb-4">Edit Customer</h1>
+  <form action="<%= basePath %>/admin/customers/<%= customer.id %>" method="POST">
+    <% if (returnTo) { %><input type="hidden" name="return_to" value="<%= returnTo %>"><% } %>
+    <div class="mb-3">
+      <label class="form-label">Name</label>
+      <input type="text" name="name" class="form-control" value="<%= customer.name || '' %>" required>
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Email</label>
+      <input type="email" name="email" class="form-control" value="<%= customer.email || '' %>" required>
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Phone</label>
+      <input type="text" name="phone" class="form-control" value="<%= customer.phone || '' %>">
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Address</label>
+      <input type="text" name="address" class="form-control" value="<%= customer.address || '' %>">
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Site / Arrival Notes</label>
+      <textarea name="notes" class="form-control" rows="3" placeholder="Gate code, parking instructions, dog on property, etc."><%= customer.notes || '' %></textarea>
+    </div>
+    <button class="btn btn-primary" type="submit">Save</button>
+    <a class="btn btn-outline-secondary" href="<%= returnTo || (basePath + '/admin/customers') %>">Cancel</a>
+  </form>
+</div>
+<%- include('../partials/footer') %>

@@ -1,0 +1,132 @@
+<%- include('../partials/head', { title: 'Leads' }) %>
+<%- include('../partials/nav') %>
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">Leads</h1>
+    <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#addLead">
+      + Add Lead
+    </button>
+  </div>
+
+  <div class="collapse mb-4" id="addLead">
+    <div class="card card-body">
+      <form action="<%= basePath %>/admin/leads" method="POST">
+        <div class="row g-2">
+          <div class="col-md-4">
+            <label class="form-label">Name</label>
+            <input type="text" name="name" class="form-control" required>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Email</label>
+            <input type="email" name="email" class="form-control" required>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Phone</label>
+            <input type="text" name="phone" class="form-control">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Property Address</label>
+            <input type="text" name="property_address" class="form-control">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Home Type</label>
+            <select name="home_type" class="form-select">
+              <option value="">--</option>
+              <% opts.homeTypes.forEach(o => { %><option value="<%= o %>"><%= o %></option><% }) %>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Home Size</label>
+            <select name="home_size" class="form-select">
+              <option value="">--</option>
+              <% opts.homeSizes.forEach(o => { %><option value="<%= o %>"><%= o %></option><% }) %>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Budget</label>
+            <select name="budget" class="form-select">
+              <option value="">--</option>
+              <% opts.budgets.forEach(o => { %><option value="<%= o %>"><%= o %></option><% }) %>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Timeline</label>
+            <select name="timeline" class="form-select">
+              <option value="">--</option>
+              <% opts.timelines.forEach(o => { %><option value="<%= o %>"><%= o %></option><% }) %>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Notes</label>
+            <textarea name="additional_details" class="form-control" rows="2"></textarea>
+          </div>
+        </div>
+        <button class="btn btn-primary mt-3" type="submit">Save Lead</button>
+      </form>
+    </div>
+  </div>
+
+  <table class="table table-sm align-middle">
+    <thead>
+      <tr>
+        <th>Name</th><th>Contact</th><th>Property</th><th>Interested In</th>
+        <th>Budget / Timeline</th><th>Status</th><th>Received</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% leads.forEach(l => { %>
+        <tr>
+          <td>
+            <%= l.name %>
+            <% if (l.source === 'manual') { %><span class="badge bg-light text-dark border">manual</span><% } %>
+          </td>
+          <td>
+            <a href="mailto:<%= l.email %>"><%= l.email %></a>
+            <% if (l.phone) { %><br><a href="tel:<%= l.phone %>"><%= l.phone %></a><% } %>
+          </td>
+          <td>
+            <% if (l.property_address) { %>
+              <a href="https://www.google.com/maps/search/?api=1&query=<%= encodeURIComponent(l.property_address) %>" target="_blank" rel="noopener"><%= l.property_address %></a>
+            <% } %>
+            <% if (l.home_type || l.home_size) { %>
+              <br><span class="text-muted small"><%= [l.home_type, l.home_size].filter(Boolean).join(' · ') %></span>
+            <% } %>
+          </td>
+          <td><%= (l.interests || []).join(', ') %></td>
+          <td><%= [l.budget, l.timeline].filter(Boolean).join(' / ') %></td>
+          <td>
+            <% if (l.status === 'converted') { %>
+              Converted &rarr; <a href="<%= basePath %>/admin/customers"><%= l.customer_name %></a>
+            <% } else { %>
+              <form action="<%= basePath %>/admin/leads/<%= l.id %>/status" method="POST" class="d-inline">
+                <select name="status" class="form-select form-select-sm d-inline w-auto" onchange="this.form.submit()">
+                  <% ['new','contacted','scheduled','lost'].forEach(s => { %>
+                    <option value="<%= s %>" <%= l.status === s ? 'selected' : '' %>><%= s %></option>
+                  <% }) %>
+                </select>
+              </form>
+            <% } %>
+          </td>
+          <td><%= l.created_at %></td>
+          <td class="text-end">
+            <% if (l.status !== 'converted') { %>
+              <form action="<%= basePath %>/admin/leads/<%= l.id %>/convert" method="POST" class="d-inline">
+                <button class="btn btn-sm btn-primary" type="submit">Convert to Customer</button>
+              </form>
+            <% } %>
+          </td>
+        </tr>
+        <% if (l.additional_details) { %>
+          <tr>
+            <td></td>
+            <td colspan="7" class="text-muted small pb-3"><em><%= l.additional_details %></em></td>
+          </tr>
+        <% } %>
+      <% }) %>
+      <% if (leads.length === 0) { %>
+        <tr><td colspan="8" class="text-muted">No leads yet.</td></tr>
+      <% } %>
+    </tbody>
+  </table>
+</div>
+<%- include('../partials/footer') %>

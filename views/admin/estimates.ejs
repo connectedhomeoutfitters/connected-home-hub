@@ -1,0 +1,54 @@
+<%- include('../partials/head', { title: 'Estimates' }) %>
+<%- include('../partials/nav') %>
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">Estimates</h1>
+    <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#newEstimate">
+      + New Estimate
+    </button>
+  </div>
+
+  <div class="collapse mb-4" id="newEstimate">
+    <div class="card card-body">
+      <% if (customers.length === 0) { %>
+        <p class="text-muted mb-0">No customers yet — <a href="<%= basePath %>/admin/customers">add one</a> first (or convert a lead) before creating an estimate.</p>
+      <% } else { %>
+        <form action="<%= basePath %>/admin/estimates/new" method="GET" class="row g-2">
+          <div class="col-md-8">
+            <select name="customer_id" class="form-select" required>
+              <option value="">Select a customer&hellip;</option>
+              <% customers.forEach(c => { %>
+                <option value="<%= c.id %>"><%= c.name %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <button class="btn btn-primary w-100" type="submit">Start</button>
+          </div>
+        </form>
+      <% } %>
+    </div>
+  </div>
+
+  <table class="table">
+    <thead><tr><th>Customer</th><th>Title</th><th>Status</th><th>Total</th><th>Deposit</th><th></th></tr></thead>
+    <tbody>
+      <% estimates.forEach(e => { %>
+        <tr>
+          <td><%= e.customer_name %></td>
+          <td><%= e.title %></td>
+          <td><span class="badge bg-secondary"><%= e.status %></span></td>
+          <td>$<%= e.total %></td>
+          <td>$<%= e.deposit_amount %> (<%= e.deposit_percent %>%)</td>
+          <td class="text-end">
+            <a class="btn btn-sm btn-outline-secondary" href="<%= basePath %>/admin/estimates/<%= e.id %>/edit">Open</a>
+          </td>
+        </tr>
+      <% }) %>
+      <% if (estimates.length === 0) { %>
+        <tr><td colspan="6" class="text-muted">No estimates yet.</td></tr>
+      <% } %>
+    </tbody>
+  </table>
+</div>
+<%- include('../partials/footer') %>

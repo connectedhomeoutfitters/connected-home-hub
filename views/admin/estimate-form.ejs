@@ -1,0 +1,118 @@
+<%- include('../partials/head', { title: 'Estimate' }) %>
+<%- include('../partials/nav') %>
+<div class="container" style="max-width: 900px;">
+  <h1 class="h3 mb-1">Estimate &mdash; <%= customer.name %></h1>
+  <% if (!isNew) { %>
+    <p class="text-muted">
+      Status: <span class="badge bg-secondary"><%= estimate.status %></span>
+      &middot; <a href="<%= basePath %>/admin/estimates/<%= estimate.id %>/pdf" target="_blank">View PDF</a>
+    </p>
+  <% } %>
+  <% if (!isNew && estimate.accepted_at) { %>
+    <div class="card card-body bg-light mb-3 small">
+      <strong>Acceptance Record</strong>
+      <div>Signed by: <strong><%= estimate.signature_name || '—' %></strong></div>
+      <div>Accepted: <%= estimate.accepted_at %></div>
+      <div>IP address: <%= estimate.accepted_ip || '—' %></div>
+      <div class="text-truncate">Browser: <%= estimate.accepted_user_agent || '—' %></div>
+    </div>
+  <% } %>
+  <% if (consultation) { %>
+    <p class="text-muted small">
+      <i class="bi bi-clipboard-check"></i> Seeded from the
+      <a href="<%= basePath %>/admin/consultations/<%= consultation.id %>/edit">consultation</a>
+      on <%= consultation.consultation_date || consultation.created_at %>
+    </p>
+  <% } %>
+
+  <div class="card card-body mb-3 bg-light">
+    <strong>Customer</strong>
+    <div class="row mt-1">
+      <div class="col-md-3"><span class="text-muted small">Name</span><br><%= customer.name %></div>
+      <div class="col-md-3"><span class="text-muted small">Email</span><br><%= customer.email || '' %></div>
+      <div class="col-md-3"><span class="text-muted small">Phone</span><br><%= customer.phone || '' %></div>
+      <div class="col-md-3"><span class="text-muted small">Address</span><br><%= customer.address || '' %></div>
+    </div>
+  </div>
+
+  <form action="<%= isNew ? `${basePath}/admin/estimates` : `${basePath}/admin/estimates/${estimate.id}` %>" method="POST" id="estimate-form">
+    <input type="hidden" name="customer_id" value="<%= customer.id %>">
+    <input type="hidden" name="consultation_id" value="<%= estimate && estimate.consultation_id ? estimate.consultation_id : '' %>">
+
+    <div class="row mb-3">
+      <div class="col-md-8">
+        <label class="form-label">Title</label>
+        <input type="text" name="title" class="form-control" value="<%= estimate ? estimate.title : '' %>" required>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Deposit %</label>
+        <input type="number" step="0.01" name="deposit_percent" class="form-control" id="deposit_percent" value="<%= estimate ? estimate.deposit_percent : 50 %>">
+      </div>
+      <div class="col-12 mt-3">
+        <label class="form-label">Description</label>
+        <textarea name="description" class="form-control" rows="2"><%= estimate ? (estimate.description || '') : '' %></textarea>
+      </div>
+    </div>
+
+    <h2 class="h5">Line Items</h2>
+    <table class="table table-sm" id="line-items-table">
+      <thead>
+        <tr><th style="width:22%">Source</th><th>Description</th><th style="width:10%">Qty</th><th style="width:14%">Unit Price</th><th style="width:14%">Line Total</th><th></th></tr>
+      </thead>
+      <tbody id="line-items-body">
+        <% items.forEach(item => { %>
+          <tr class="line-item-row">
+            <td>
+              <select class="form-select form-select-sm line-source">
+                <option value="">Custom</option>
+              </select>
+            </td>
+            <td><input type="text" name="line_description" class="form-control form-control-sm line-description" value="<%= item.description %>" required></td>
+            <td><input type="number" step="0.01" name="line_quantity" class="form-control form-control-sm line-quantity" value="<%= item.quantity %>"></td>
+            <td><input type="number" step="0.01" name="line_unit_price" class="form-control form-control-sm line-price" value="<%= item.unit_price %>"></td>
+            <td class="line-total">$0.00</td>
+            <td><button type="button" class="btn btn-sm btn-link text-danger remove-line">&times;</button></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+    <button type="button" class="btn btn-sm btn-outline-primary mb-3" id="add-line">+ Add Line</button>
+
+    <div class="row justify-content-end">
+      <div class="col-md-4">
+        <div class="d-flex justify-content-between">
+          <span>Subtotal</span><span id="summary-subtotal">$0.00</span>
+        </div>
+        <div class="d-flex justify-content-between align-items-center">
+          <span>Tax %</span>
+          <input type="number" step="0.01" name="tax_percent" id="tax_percent" class="form-control form-control-sm w-50 text-end" value="<%= estimate ? estimate.tax_percent : 0 %>">
+        </div>
+        <div class="d-flex justify-content-between">
+          <span>Tax</span><span id="summary-tax">$0.00</span>
+        </div>
+        <div class="d-flex justify-content-between fs-5">
+          <strong>Total</strong><strong id="summary-total">$0.00</strong>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn btn-primary mt-3" type="submit"><%= isNew ? 'Create Estimate' : 'Save' %></button>
+    <a class="btn btn-outline-secondary mt-3" href="<%= basePath %>/admin/estimates">Cancel</a>
+  </form>
+
+  <% if (!isNew) { %>
+    <form action="<%= basePath %>/admin/estimates/<%= estimate.id %>/send" method="POST" class="mt-4" onsubmit="return confirm('Email this estimate to ' + '<%= customer.email %>' + '?');">
+      <button class="btn btn-success" type="submit" <%= customer.email ? '' : 'disabled' %>>
+        Send to Customer<% if (!customer.email) { %> (no email on file)<% } %>
+      </button>
+      <% if (estimate.sent_at) { %><span class="text-muted ms-2">Last sent <%= estimate.sent_at %></span><% } %>
+    </form>
+  <% } %>
+</div>
+<script nonce="<%= cspNonce %>">
+  window.CHO_HUB_CATALOG = {
+    products: <%- JSON.stringify(products) %>,
+    laborRates: <%- JSON.stringify(laborRates) %>,
+  };
+</script>
+<%- include('../partials/footer') %>

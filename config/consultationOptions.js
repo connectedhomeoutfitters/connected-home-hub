@@ -1,0 +1,30 @@
+// Static option lists for the consultation form — mirrors the Google Form this
+// replaces (see CLAUDE.md). Shared between the new/edit views so the two forms can't
+// drift out of sync with each other.
+module.exports = {
+  referralSources: ['Google Search', 'Facebook', 'Builder Referral', 'Realtor Referral', 'Friend/Family', 'Website', 'Other'],
+  homeTypes: ['Existing Home', 'New Construction', 'Remodel', 'Moving into New Home'],
+  squareFootages: ['Under 2,000 sq ft', '2,000 - 3,500 sq ft', '3,500 - 5,000 sq ft', '5,000+ sq ft'],
+  storyCounts: ['1 Story', '2 Story', '3+ Story'],
+  servicesInterested: ['Whole Home WiFi', 'Network Optimization', 'Security Cameras', 'Smart Doorbell', 'Smart Locks', 'Smart Lighting', 'Home Automation', 'Structured Wiring', 'TV Mounting', 'Audio / Home Theater', 'Network Rack Cleanup', 'Not Sure Yet'],
+  priorities: ['Better WiFi Coverage', 'Faster Speeds', 'Home Security', 'Remote Monitoring', 'Convenience', 'Energy Efficiency', 'Future-Proofing', 'Increased Home Value'],
+  internetSpeeds: ['500 Mbps', '1 Gig', '2 Gig', 'Other'],
+  yesNoNotSure: ['Yes', 'No', 'Not Sure'],
+  yesNo: ['Yes', 'No'],
+  existingSmartDevices: ['Smart Thermostat', 'Smart Lighting', 'Smart Locks', 'Video Doorbell', 'Voice Assistant', 'Smart Plugs', 'None'],
+  wifiCoverageLocations: ['Living Room', 'Primary Bedroom', 'Office', 'Garage', 'Patio', 'Upstairs'],
+  wifiCoverageRatings: ['Excellent', 'Good', 'Fair', 'Poor'],
+  connectivityIssueAreas: ['Office', 'Bedroom', 'Garage', 'Patio', 'Backyard', 'Upstairs', 'Other'],
+  cameraLocations: ['Front Door', 'Driveway', 'Backyard', 'Side Yard', 'Garage', 'Pool Area', 'Interior Monitoring'],
+  yesNoUnknown: ['Yes', 'No', 'Unknown'],
+  yesNoAlreadyInstalled: ['Yes', 'No', 'Already Installed'],
+  smartHomeInterests: ['Smart Lighting', 'Smart Switches', 'Smart Outlets', 'Smart Locks', 'Automated Scenes', 'Voice Control', 'Whole Home Automation'],
+  smartPlatforms: ['Apple HomeKit', 'Google Home', 'Amazon Alexa', 'No Preference', 'Not Sure'],
+  timelines: ['ASAP', 'Within 30 Days', 'Within 90 Days', '3–6 Months', 'Just Researching'],
+  budgetRanges: ['Under $1,000', '$1,000–$3,000', '$3,000–$6,000', '$6,000–$10,000', '$10,000+'],
+  yesNoMaybe: ['Yes', 'No', 'Maybe'],
+  photoCategories: ['Network panel', 'Router location', 'Exterior front', 'Exterior rear', 'Camera locations', 'Equipment closet'],
+  installationComplexities: ['Easy', 'Moderate', 'Difficult'],
+  recommendedPackages: ['Connected Home Starter', 'Smart Home Pro', 'Connected Home Premium', 'Custom Solution'],
+  recommendedAddons: ['Additional Cameras', 'Outdoor WiFi', 'Smart Lighting', 'Smart Locks', 'Rack Cleanup', 'Maintenance Plan'],
+};

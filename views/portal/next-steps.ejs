@@ -1,0 +1,25 @@
+<%- include('../partials/head', { title: 'Thank You', portalBranded: true, bodyClass: 'portal-page' }) %>
+<%- include('../partials/portal-header') %>
+<div class="container py-5" style="max-width: 600px;">
+  <h1 class="h3">Thank You!</h1>
+  <div class="alert alert-success">Your payment of $<%= invoice.amount %> has been received.</div>
+
+  <h2 class="h5 mt-4">What Happens Next</h2>
+  <% if (invoice.type === 'deposit') { %>
+    <ul>
+      <li>Our team will confirm your project details and get your installation scheduled, if it isn't already.</li>
+      <li>You'll receive a calendar invite once a date is set.</li>
+      <li>We'll reach out if anything else is needed from you before the visit.</li>
+      <li>The remaining balance will be due upon completion of the installation.</li>
+    </ul>
+  <% } else { %>
+    <ul>
+      <li>Your project is now paid in full — thank you for choosing Connected Home Outfitters!</li>
+      <li>You'll receive your warranty documentation separately.</li>
+      <li>Reach out any time if you have questions about your new system.</li>
+    </ul>
+  <% } %>
+
+  <p class="text-muted mt-4">Questions? Just reply to any of our emails or reach out directly.</p>
+</div>
+<%- include('../partials/footer') %>

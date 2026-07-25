@@ -1,0 +1,667 @@
+# Connected Home Hub
+## Claude Code Project Brief
+
+Internal business-operations platform for **Connected Home Outfitters LLC**'s home
+services business (repo/process name `choHubProject` / `cho-hub` — "CHO Hub" and
+"Connected Home Hub" refer to the same thing). Sister project to `choProject` (the
+WordPress marketing site, local copy at `C:\Users\cmasi\choProject` — outside the NAS,
+unlike this project and gymrProject) and `gymrProject` / Connected Home Ledger (a
+separate household-finance SaaS product). Do not mix concerns across the three:
+
+| Project | Purpose | Users |
+|---|---|---|
+| `choProject` | WordPress marketing/lead-gen site — **no business logic belongs here** | public visitors |
+| `gymrProject` (Connected Home Ledger) | Household Financial Command Center, subscription SaaS | GYMR subscribers |
+| `choHubProject` (this project, Connected Home Hub) | Full customer-lifecycle ops platform for CHO's home-automation business | CHO staff (login) + CHO's customers (token links, no login) |
+
+All three are owned by the same LLC (Connected Home Outfitters) and **share one Stripe
+account** — see "Stripe" below for how this app stays distinguishable within it.
+
+**Production URL:** `hub.connectedhomeoutfitters.com` — subdomain created (2026-07-22).
+Deploys to the same Hostinger VPS that hosts Connected Home Ledger, but as its **own
+PM2 process, own nginx server block, and own database**. DNS exists; nginx/PM2/TLS/app
+deploy still not done (see "Deployment" below).
+
+---
+
+## Product vision (scope is bigger than what's currently built)
+
+Per the CHO product-ecosystem vision (2026-07-22): Connected Home Hub is meant to
+become the **full CRM/ops platform** for the home-services business — eventually
+replacing multiple third-party tools — covering:
+
+CRM & customer management · consultation forms · digital site surveys · photo uploads
+· estimate generation · proposal management · e-approval · Stripe payments/invoice
+tracking · job scheduling · material lists · job costing · inventory · builder
+relationship management · reporting · document storage · warranty tracking · maps/GPS
+· customer history · (future) a mobile field app.
+
+**Target end-to-end workflow:**
+lead submitted on the Outfitters WordPress site → lead created in Hub → consultation
+completed digitally → photos/notes uploaded → estimate generated → customer approves
+online → Stripe collects deposit → job scheduled → installation completed → final
+payment collected → customer receives warranty documentation.
+
+**What's actually scaffolded so far (this session) is only one slice of that**:
+customers, estimates + line items, deposit/final invoices, Stripe payment collection,
+and staff/customer access. CRM lead intake, consultation forms, site surveys, photo
+uploads, job scheduling, material lists, job costing, inventory, builder relationship
+management, document storage, warranty tracking, and maps/GPS are **not built** —
+treat the current schema/routes as phase 1 (billing), not the finished data model.
+Expect to extend the `customers`/`estimates` tables (or add new ones: `leads`, `jobs`,
+`site_surveys`, `photos`, `materials`, `documents`) as later phases land — don't design
+new features as if billing is the whole app.
+
+**Long-term positioning:** initially internal-only, but deliberately meant to be
+architected as though it could become a commercial SaaS for other low-voltage/smart-
+home/AV contractors later. Practical implication for how to build features here: keep
+business logic modular, avoid hard-coding Connected-Home-Outfitters-specific
+assumptions into the data model where it's not costly to avoid, and prefer data-driven
+configuration over hard-coded values (e.g. job types, material categories, proposal
+templates) — without over-engineering phase-1 features for a multi-tenant future that
+isn't being built yet.
+
+**Shared-architecture aspiration across all three CHO products** (Node.js + Express +
+MariaDB + JWT auth + Bootstrap + Stripe + REST APIs, with shared user accounts/email/
+notifications/PDF generation/Stripe integration/logging/reporting/config reused across
+apps): this is a **future direction, not current reality**. Ledger uses Passport local-
+strategy + session cookies, and this app was scaffolded the same way for consistency
+with Ledger's proven pattern rather than the vision doc's JWT recommendation. Don't
+retrofit JWT or extract shared services unprompted — flag the gap when relevant, but
+treat each app's current auth/session approach as the working baseline until asked to
+change it.
+
+---
+
+## Why a separate app instead of extending Connected Home Ledger
+
+Ledger already has working Passport auth, Stripe billing, and a proven Node/EJS/MariaDB
+stack — this project's config/passport.js, config/stripe.js, config/db.js, and overall
+layout **deliberately copy those patterns** (same tech stack, same conventions). But it
+is a separate codebase and database because:
+- The domain model is unrelated (customers/estimates/invoices vs. households/accounts/bills).
+- A bug or deploy in one must not be able to take down or corrupt data in the other.
+
+**Stripe account: shared, not separate.** Both apps bill through the same Stripe
+account (Connected Home Outfitters LLC is the account holder for both GYMR's SaaS
+subscriptions and CHO's contracting income) — a deliberate choice, not an oversight.
+Because of that, every PaymentIntent this app creates is tagged
+`metadata.source = 'cho-hub'` (see `routes/portal.js`), and the webhook handler
+(`routes/webhooks.js`) checks that tag before acting — otherwise it would also try to
+react to Ledger's subscription-payment webhook events, since Stripe delivers a given
+event type to every registered endpoint on the account regardless of which app created
+the underlying object. Register **this app's own webhook endpoint** in the Stripe
+dashboard (its own URL, its own signing secret) rather than reusing Ledger's.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Runtime | Node.js + Express |
+| Templates | EJS (server-side rendering) |
+| Staff auth | Passport.js — local strategy (bcrypt) always on; Google OAuth optional, enabled when `GOOGLE_CLIENT_ID` is set |
+| Customer access | Signed, expiring tokens (`access_tokens` table) — no customer accounts/passwords |
+| Database | MariaDB |
+| Session store | express-mysql-session |
+| Payments | Stripe (PaymentIntents + Payment Element, webhook-driven reconciliation) |
+| Process manager | PM2 (once deployed) |
+
+---
+
+## Database (test environment)
+
+- **Host:** `192.168.4.199` (LAN — Synology NAS, same box class as gymrProject's MariaDB)
+- **Port:** `3307`
+- **DB name:** `choHub`
+- **User:** `choHubWeb`
+- Credentials live in `.env` (gitignored) — see `.env.example` for the shape.
+- `config/db.js` — mysql2 promise pool. `db.execute()` returns `[rows, fields]`,
+  always destructure: `const [rows] = await db.execute(...)`.
+- For multi-step writes (e.g. marking an invoice paid + logging a payment), use a
+  transaction: `const conn = await db.getConnection()` → `beginTransaction()` →
+  `commit()`/`rollback()` → always `release()` in a `finally`. See
+  `routes/webhooks.js` for the pattern.
+
+### Migrations
+Plain numbered `.sql` files in `migrations/`, tracked in a `schema_migrations` table.
+```bash
+npm run migrate
+```
+`001_initial_schema.sql` has the full initial schema: `users`, `customers`, `estimates`,
+`estimate_line_items`, `invoices`, `payments`, `access_tokens`. `002_google_auth.sql`
+adds Google OAuth support to `users` (`google_id`, `avatar_url`, `last_login`; makes
+`password_hash` nullable for Google-only staff). `003_catalog_labor_subcontractors.sql`
+adds `products` (the material catalog — `category`/`vendor`/`product_line` instead of
+literally replicating the source spreadsheet's sparse `subcategory_1..10` columns;
+`retail_price` is the field estimates read from, recomputed from `vendor_cost` +
+`markup_percent` when `markup_enabled` is on, otherwise manually set), `labor_rates`,
+and `subcontractors` (`trade` is free text, not an ENUM, since the roster of trades
+isn't fixed). Staff CRUD for all three lives under `/admin/products`,
+`/admin/labor-rates`, `/admin/subcontractors` — `routes/admin/products.js` /
+`laborRates.js` / `subcontractors.js`. Rows are soft-deactivated (`active` flag), never
+hard-deleted, since estimate line items will eventually reference them.
+
+`005_leads_elementor_fields.sql` adds `leads` (replacing an earlier, wrong `004` version
+built against a WPForms form that turned out to be dead/unused content on the
+choProject site — see that project's own CLAUDE.md "Relationship to Connected Home
+Hub" section for the full story). Leads arrive via `POST /webhooks/lead-intake`
+(`routes/webhooks.js`, shared-secret auth via `LEAD_WEBHOOK_SECRET`, not a signature
+scheme) from a WordPress mu-plugin hooked to the real lead form — an Elementor Pro
+form, "FreeConsultForm". Staff work leads at `/admin/leads` (`routes/admin/leads.js`):
+change `status`, or "Convert to Customer" (creates a `customers` row, links
+`leads.customer_id`, lead stays around as history rather than being deleted).
+
+`006_consultations.sql` adds `consultations` (the native on-site survey, replacing the
+Google Form — see "Product vision" above) and `consultation_photos`. Explicit typed
+columns for single-value fields, `JSON` columns for multi-select/checkbox fields and
+the Wi-Fi coverage rating grid. `lead_id` is nullable, set automatically when a
+consultation is started for a customer that came from a lead — `config/
+leadToConsultationMapping.js` best-effort pre-fills the consultation's dropdowns from
+that lead's answers (only where the two forms' option wording is unambiguous; the
+consultation form also always shows the lead's raw answers in a reference panel, so
+nothing from the lead is ever silently lost even when a field can't be auto-mapped).
+Staff work: `/admin/consultations` (`routes/admin/consultations.js`), launched via
+"New Consultation" on a customer row or the page's own customer picker. Site photos
+(Section 9) are **never served through `express.static`** — private customer property
+photos, stored under `uploads/consultations/<id>/` (excluded from the `N:`→`W:` gulp
+sync — see "Local Dev / Test Hosting" below) and streamed only through an authenticated
+route.
+
+`007_estimate_acceptance.sql` / `008_estimate_tax_percent.sql` add `estimates.
+accepted_ip` and `estimates.tax_percent`. The estimate builder
+(`routes/admin/estimates.js`, `views/admin/estimate-form.ejs` +
+`public/js/page-estimate-form.js`) has a dynamic line-item table that can pull from
+the `products`/`labor_rates` catalog (auto-fills description/price, still editable) or
+take fully custom lines — **the line-item input fields are named `line_description`/
+`line_quantity`/`line_unit_price`, deliberately not `description`/`quantity`/
+`unit_price`**: same-named form fields merge into one array on submit, and reusing the
+estimate's own `description` field name for the line items silently corrupted both the
+first time this was built (caught in testing, not a live incident, but don't reuse
+those plain names elsewhere in this form).
+
+**Send → accept → deposit flow, fully wired:** staff "Send to Customer"
+(`POST /admin/estimates/:id/send`) creates an `access_tokens` row, emails the `/e/:token`
+link with the estimate PDF attached (`services/estimatePdf.js` — pdfkit, a coded
+layout, not a screenshot of the web view), and sets `status='sent'`. The customer's
+`/e/:token` page shows `config/estimateTerms.js` — **real Terms & Conditions provided
+by the business owner (2026-07-23), replacing the earlier non-legal placeholder**,
+authored as HTML and rendered unescaped (safe: fully author-controlled content, never
+user input) — with a required checkbox plus a **typed e-signature name field**
+(`estimates.signature_name`). `POST /e/:token/accept` (`routes/portal.js`) rejects the
+request if either the checkbox or the signature name is missing, otherwise sets
+`status='accepted'` + `accepted_at`/`accepted_ip`/`signature_name`/
+`accepted_user_agent` (added in `012_estimate_esignature.sql`) — staff can see this
+full acceptance record on the estimate's admin page. It then calls
+`createDepositInvoice()` (exported from `routes/admin/estimates.js`), creates a new
+`access_tokens` row for that invoice, emails the `/i/:token` pay link
+(`views/emails/deposit-invoice.ejs`), and redirects the customer straight there.
+Payment itself was already scaffolded (Stripe PaymentIntent + Payment Element) and is
+now exercised end-to-end by this flow — Stripe's Payment Element `return_url` sends
+the customer to `GET /i/:token/next-steps` (`views/portal/next-steps.ejs`) once
+confirmed; that route re-checks `invoices.status === 'paid'` before showing it (the
+webhook, not the client redirect, is the source of truth) and bounces back to the pay
+page otherwise. The webhook also emails a `payment-receipt` template on success.
+**Final invoice creation is still the old manual staff action** — accepting an
+estimate now auto-creates an `install`-type job (see "Jobs" below) as a placeholder
+for that work, but nothing yet turns "job done" into "send the final invoice."
+
+**Gotcha (found and fixed 2026-07-23): default Helmet CSP silently broke every inline
+`<script>` block in the app, including Stripe payments entirely.** `helmet()`'s
+default `script-src 'self'` blocks both inline `<script>` content (no nonce) and
+cross-origin `<script src>` — meaning `views/portal/invoice.ejs`'s `window.CHO_HUB`
+data (so `page-pay.js` never got a publishable key), `views/admin/estimate-form.ejs`'s
+`window.CHO_HUB_CATALOG` (so the line-item catalog picker and live total silently
+broke), and `js.stripe.com/v3` itself (so `Stripe()` never loaded, and the Payment
+Element's iframes/API calls were blocked by the default `frame-src`/`connect-src`
+fallback to `default-src 'self'`) were **all silently broken — nobody could actually
+pay a deposit through this app**. No visible error banner; just an empty payment
+area. Fixed in `server.js`: a per-request `res.locals.cspNonce` (set *before* `helmet()`
+runs, since helmet reads it while building that same request's CSP header) plus
+explicit `scriptSrc`/`frameSrc`/`connectSrc` exceptions for `js.stripe.com`/
+`api.stripe.com`/`hooks.stripe.com`. Every inline `<script>` block in the app must
+carry `nonce="<%= cspNonce %>"` or it silently no-ops under this CSP — check for this
+first if a new inline script "does nothing" with no console error explaining why
+(Chrome does log a `securitypolicyviolation` event, but nothing prints to the console
+by default unless you listen for it). **Not fixed, flagged for later:** the same CSP's
+`script-src-attr 'none'` also silently blocks inline event-handler attributes like
+estimate-form.ejs's `onsubmit="return confirm(...)"` on "Send to Customer" — staff
+never actually see that confirmation dialog, the form just submits immediately. Low
+severity (no functional break, just a missing confirmation step) so left alone; fix
+would be moving it to an addEventListener in a real script file rather than an inline
+attribute.
+
+`009_jobs_and_scheduling.sql` adds three things together, since they were asked for
+as one connected phase:
+
+- **`consultations.consultation_date`** changed from `DATE` to `DATETIME` (a real
+  appointment time, not just "the date it happened"), plus `duration_minutes` and
+  `calendar_invite_sent_at`. "Send Calendar Invite" on the consultation form
+  (`POST /admin/consultations/:id/send-invite`) emails an `.ics` file to **both** the
+  consultant (whoever's logged in — no per-staff Google account linkage, matches
+  "for myself to use") and the customer — `services/calendarInvite.js` (the `ics`
+  npm package), attached via nodemailer's `icalEvent` option (not a generic
+  attachment — this is what makes calendar apps recognize and offer to add it).
+  Deliberately **not** a real Google Calendar API integration — that would need
+  re-consenting the Google OAuth login with Calendar scope and storing/refreshing a
+  token per staff member; an `.ics` invite email needs neither.
+- **`estimates.consultation_id`** (nullable) links an estimate back to the
+  consultation it was built from. "Create Estimate from this Consultation" on the
+  consultation form pre-fills the new estimate's title from
+  `consultation.recommended_package` and description from `consultant_notes` — see
+  `mapLeadToConsultation`-style reasoning in `routes/admin/estimates.js`'s `GET /new`.
+- **`jobs`** — a general lifecycle task list, not just "installation jobs": `type`
+  is `consultation` / `estimate_followup` / `install` / `other`, assignable to a
+  staff member (`assigned_to`, per explicit decision — this app is single-user today
+  but jobs are assignable from day one). Staff work jobs at `/admin/jobs`
+  (`routes/admin/jobs.js`) — status changes, reassignment, due dates. **Auto-created**
+  at three points, each reflecting who has (or doesn't have) a staff session at that
+  moment:
+  - Creating a consultation → a `consultation`-type job, assigned to whoever created it.
+  - Sending an estimate → an `estimate_followup`-type job due 5 days out, assigned to
+    whoever sent it.
+  - A customer accepting an estimate (`routes/portal.js`, no staff session exists in
+    that customer-facing route) → an `install`-type job, **left unassigned** for
+    staff to claim from the Jobs list.
+
+**Email: outbound SMTP is Google Workspace, confirmed working end-to-end** (as of
+2026-07-23) — `services/mailer.js` (mirrors `N:\gymrProject\services\mailer.js`)
+no-ops safely with a console warning if `SMTP_HOST` is ever unset, so nothing crashes
+if this gets misconfigured later, but both `.env` and `W:\choHubProject\.env`
+currently have real credentials: `smtp.gmail.com`, authenticated as
+`chris@connectedhomeoutfitters.com` (an actual Workspace login — App Password
+generated on that account), sending as its `Billing@connectedhomeoutfitters.com`
+alias via `MAIL_FROM`. Since `connectedhomeoutfitters.com` is a real verified
+Workspace domain, there's no sandbox/recipient restriction — confirmed by sending to
+addresses unrelated to the sending account and having them actually arrive.
+
+**Gotcha: Gmail's alias matching for "Send mail as" is case-sensitive.** The alias is
+configured in Gmail (Settings → Accounts → "Send mail as") as
+`Billing@connectedhomeoutfitters.com` (capital B) — `MAIL_FROM` using lowercase
+`billing@` sent successfully (`250 OK`, no error) but Gmail silently rewrote the
+visible From address back to `chris@connectedhomeoutfitters.com` instead of honoring
+the alias, with nothing in the SMTP response indicating this happened. `MAIL_FROM`
+must match the alias's exact casing as configured in Gmail, not just its lowercase
+email-address equivalent.
+
+**Earlier attempts, for context on why this ended up as the final choice:**
+- **Brevo** (reusing `N:\zodiacpb2026`'s account): accepted and "queued" every test
+  message (valid auth, full SMTP conversation succeeded) but never delivered anything
+  and never appeared in Brevo's own transactional logs — even sent directly from the
+  NAS's own IP. Likely an account-level block specific to zodiacpb2026's Brevo
+  account. Don't reintroduce without solving that first.
+- **Resend**: worked, but its sandbox mode restricts the *recipient*, not just the
+  sender — email to any address other than the Resend account owner's own got
+  rejected with `550 You can only send testing emails to your own email address`.
+  Fine for verifying flow logic, not for testing real customer-facing delivery,
+  without paying to verify a domain there.
+
+**Production DB has not been provisioned yet** — only the test DB above exists. Get
+real prod credentials before deploying, and never point production at the LAN test DB.
+
+`013_settings_rbac_subcontractor_docs.sql` adds admin-only RBAC, company-wide settings,
+and expanded subcontractor profiles/documents — a genuinely new access tier distinction,
+not just another CRUD screen:
+
+- **`users.active`** + **`middleware/auth.js`'s `requireAdmin`** (checks
+  `req.user.role === 'admin'`, 403s otherwise) — the whole `/admin/settings/*` area is
+  gated with `requireAuth, requireAdmin` together. `config/passport.js`'s local and
+  Google strategies both now also reject `!user.active`, so deactivating staff actually
+  blocks login, not just hides a nav link. **All 3 pre-existing `users` rows are
+  `role='admin'`** (an artifact of `scripts/create-admin.js` always hardcoding
+  `'admin'` — there was no other way to create a staff row before this) — flagged to
+  the user 2026-07-24, not changed unilaterally since demoting an account is a real
+  access change, not a formatting cleanup.
+- **`company_settings`** is a single always-`id=1` row (`routes/admin/settings.js`
+  upserts via `ON DUPLICATE KEY UPDATE`, never a real multi-row table) — company name,
+  tax ID, address/phone/email, and `default_tax_percent`. The tax default actually
+  does something: `routes/admin/estimates.js`'s `GET /new` reads it and pre-fills the
+  new estimate's `tax_percent` field (still editable per estimate, same as always).
+  Deliberately **not** wired into `services/estimatePdf.js` or `config/estimateTerms.js`
+  (both still hardcode "Connected Home Outfitters LLC") — that would touch 3 call
+  sites across `routes/portal.js`/`routes/admin/estimates.js` for a cosmetic win, out
+  of scope for what was asked.
+- **Staff management UI** (`/admin/settings/users`) replaces `scripts/create-admin.js`
+  for day-to-day use (the CLI script still works, treat it as a break-glass fallback).
+  New staff can be created with **no password** (`password_hash` stays `NULL`) for a
+  Google-only account — matches how `config/passport.js`'s Google strategy already
+  only ever attaches to an existing `users` row by email, never creates one.
+  **Last-admin lockout protection**: `countOtherActiveAdmins()` in
+  `routes/admin/settings.js` blocks any role/active change that would leave zero
+  active admins, checked *before* the update is applied.
+- **Subcontractor profiles** gained `address`, `insurance_provider`,
+  `insurance_expires_on`, and `w9_on_file` columns, plus a **`subcontractor_documents`**
+  table (W-9s, certificates of insurance, signed agreements — uploaded files, not a
+  generated e-signature flow) — directly mirrors the `consultation_photos` pattern:
+  multer disk storage under `uploads/subcontractors/<id>/`, never served via
+  `express.static`, streamed only through an authenticated
+  `GET /admin/subcontractors/:id/documents/:docId` route.
+- **Explicitly deferred** (per 2026-07-24 scoping decision): a real subcontractor
+  login/portal is a third access tier beyond staff sessions and token-linked customers,
+  and would need Passport's `serializeUser`/`deserializeUser` to discriminate on a
+  `{type, id}` shape rather than assuming one principal type — planned as its own
+  follow-up session, not started here. `jobs.subcontractor_id` (linking a job to a sub)
+  was deferred alongside it for the same reason — design it together with whatever
+  the portal's job-assignment model ends up needing.
+
+`014_payments_refunds.sql` adds the **Payments section** (`/admin/payments`,
+`routes/admin/payments.js`, nav link between Invoices and Catalog) — a read layer over
+the existing `payments` table plus Stripe refund support. It's a reporting/reconciliation
+view, not a new billing path: money still gets *collected* through the estimate→accept→
+deposit flow, this is where staff *see* it and *return* it.
+
+- **List + sales-journal summary** (`GET /`): all payments joined to invoice/customer,
+  with filters (payment status, invoice type, from/to date, customer search) shared by a
+  single `buildFilters()` helper across the list, the summary tiles, and the CSV export
+  so all three always agree. Summary tiles = collected / refunded / net / counts over the
+  *filtered* set. **`GET /export.csv`** streams the same filtered set as a sales-journal
+  CSV (hand-rolled escaping, no dep) for accounting.
+- **Refunds** (`POST /:id/refund`, **`requireAdmin` — moves money out, admins only**,
+  matching the Settings gate; the refund form in `payment-detail.ejs` is also hidden for
+  non-admins). Supports partial refunds (blank amount = remaining balance). New
+  **`refunds`** table (one row per Stripe refund; `payments.amount_refunded` is a cached
+  running total; `invoices.status` gained **`'refunded'`** for the fully-refunded case).
+- **`services/paymentsSync.js`'s `reconcileRefunds({chargeId, paymentIntentId})`** is the
+  single reconciliation path, called by *both* the refund route and the webhook. It
+  **re-lists the charge's refunds from Stripe** and recomputes `amount_refunded` as
+  `SUM(succeeded refunds)` rather than incrementing — so it's idempotent no matter which
+  path runs first or twice. It finds the payment by charge/PI id in our own table; a
+  charge that isn't ours (e.g. a Ledger charge on the shared account) returns `null` and
+  is ignored. **This is why the refund webhook can't use the `metadata.source` filter the
+  payment-success handler uses** — the Stripe *charge* object doesn't inherit the
+  PaymentIntent's metadata, so the DB lookup *is* the cho-hub filter.
+- **Webhook changes (`routes/webhooks.js`):** `payment_intent.succeeded` now also
+  retrieves the charge to cache `stripe_charge_id`/`card_brand`/`card_last4`/`receipt_url`
+  on the payment (best-effort — a charge-lookup failure still marks the invoice paid), so
+  the Payments list shows "Visa ••••4242" + a receipt link without a live API call per
+  row. A new **`charge.refunded`** handler catches refunds issued straight from the Stripe
+  dashboard (or async status changes) and runs the same `reconcileRefunds`. **Register
+  `charge.refunded` on this app's Stripe webhook endpoint** alongside
+  `payment_intent.succeeded`.
+- On a successful refund the customer gets a **`refund-issued`** email
+  (`views/emails/refund-issued.ejs`), mirroring the auto-sent `payment-receipt` — sent
+  non-blocking so a mail failure never undoes a completed Stripe refund.
+
+---
+
+## Local Dev / Test Hosting (NAS: `N:\` and `W:\` drives)
+
+This repo's source lives on the mapped `N:\choHubProject` NAS drive (same NAS as
+`N:\gymrProject`), which is the **real path `/volume1/NPM/choHubProject`** on the NAS
+itself. `W:\choHubProject` is a genuinely separate folder — **real path
+`/volume1/web/choHubProject`** — not the same directory under a different name;
+verified directly (a marker file written to one side does not appear on the other).
+Do not assume `/volume1/npm` (lowercase) or `/volume1/NPM` are interchangeable with
+`/volume1/web` — confusing the two once already caused an accidental `npm install
+--omit=dev` against the dev source (`N:\`), which pruned devDependencies out of the
+working local `node_modules` (fixed by re-running plain `npm install`).
+
+- **`N:\`** — source/dev drive; this repo is edited directly here.
+- **`W:\`** — the NAS's test-hosting share. `gulp build` (see `gulpfile.js`) pushes
+  the whole app there (minus `node_modules`/`.git`/`.env`), mirroring gymrProject's
+  `N:\gymrProject\gulpfile.js` pattern but simplified: this app has no separate
+  `src/` front-end authoring layer, so there's nothing to bundle, just a full mirror.
+- This `N:\`/`W:\` NAS flow is **test-only** — it's unrelated to the production deploy
+  target (the Hostinger VPS covered under "Deployment" below).
+- **`W:\choHubProject` needs its own `.env`, created directly on the NAS** (never
+  synced by gulp) — different `PORT` (`3001`), `BASE_PATH` (`/choHubProject`), and
+  `GOOGLE_CALLBACK_URL` (`https://masinet.synology.me/choHubProject/google/callback` — note
+  no `/auth` prefix, unlike the `passport-google-oauth20` README's example convention;
+  this app's routes mount `/google/callback` directly, not under `/auth`)
+  than local dev, though same DB/Stripe/SMTP secrets as the shared test DB setup.
+- **`node_modules` on `W:\` must be installed on the NAS itself** (Linux) inside
+  `/volume1/web/choHubProject` — native modules like `bcrypt` need to build for the
+  NAS's own architecture, not Windows, and must stay isolated from `N:\`'s own
+  Windows-built `node_modules`.
+
+**PM2 on the NAS runs in watch mode** (`ecosystem.nas-test.config.js`, process name
+`cho-hub-test`, port `3001` — gymr already occupies `3000` on this NAS) — it watches
+its own `cwd` (`/volume1/web/choHubProject`) and restarts itself whenever `gulp build`
+lands new files there. No flag file, no DSM Task Scheduler cron job needed (unlike
+gymrProject's `nas-pm2-watcher.sh` pattern) — just run `deploy-nas-test.bat` (or
+`npx gulp build`) after making changes and PM2 picks it up on its own.
+
+**NAS SSH access** (needed for the npm-install/pm2-restart steps in the gotcha below,
+and for the one-time setup that follows): port **2222**, not the default 22. Either
+`masinet.synology.me` or its LAN IP `192.168.4.199` works (each pins its own host key
+the first time you connect to it — accept both). User `nostrus`, password
+`9axrN54Pi9yrHzD`. Two PATH gotchas once connected, both from Node.js being a Package
+Center package rather than a system one:
+- **Neither `node`/`npm` nor `pm2` are on the default PATH**
+  (`/usr/bin:/bin:/usr/sbin:/sbin` only). There's no bare `npm` binary at all — only
+  `node`/`npx`/`corepack` — so `npm` has to be invoked explicitly through `node`:
+  `/var/packages/Node.js_v20/target/usr/local/bin/node
+  /var/packages/Node.js_v20/target/usr/local/lib/node_modules/npm/bin/npm-cli.js
+  install --omit=dev` (run from `/volume1/web/choHubProject`). `pm2` itself lives at
+  `/usr/local/bin/pm2`.
+- **`pm2` requires `sudo`, and `sudo` resets PATH again** — its `secure_path` doesn't
+  include the Node.js package's bin dir either, so a bare `sudo pm2 restart ...` fails
+  with `env: node: No such file or directory`. Re-inject the path inside the sudo
+  shell: `sudo sh -c 'PATH=/var/packages/Node.js_v20/target/usr/local/bin:$PATH
+  /usr/local/bin/pm2 restart cho-hub-test --update-env'`.
+
+**One-time NAS setup** (needs NAS shell/DSM UI access, not doable from a mapped
+drive): `npm install` inside `/volume1/web/choHubProject`; `pm2 start
+ecosystem.nas-test.config.js`; place `nginx/www.chohub.conf` at
+`/etc/nginx/conf.d/` and `nginx -t && nginx -s reload` (mirrors
+`N:\gymrProject\nginx\www.gymr.conf`) — validate with `nginx -t` before reloading,
+since a bad reload affects every other site this NAS hosts, not just this one.
+
+**Gotcha: new npm dependencies crash-loop the NAS instance until installed there
+too.** PM2 watch mode restarts `cho-hub-test` the instant `gulp build` lands new
+files — including a `require()` of a package that only exists in `N:\`'s
+`node_modules`, not yet in `/volume1/web/choHubProject`'s. In practice watch mode
+reacts faster than an SSH `npm install` can complete, so it *will* burn through PM2's
+restart attempts and land in `errored` state even if you run the install right after
+the `gulp build` — don't bother racing it. Just always run, in order: `gulp build` →
+`npm install --omit=dev` over SSH → `sudo pm2 restart cho-hub-test --update-env`
+(manual restart is required, `errored` processes don't resume on their own).
+
+---
+
+## Project Structure
+
+```
+choHubProject/
+├── server.js                  — Express app entry
+├── ecosystem.config.js        — PM2 config (name: cho-hub)
+├── gulpfile.js                — Mirrors this app to W:\choHubProject for NAS test hosting
+├── ecosystem.nas-test.config.js — PM2 config for the NAS test instance (BASE_PATH=/choHubProject)
+├── deploy-nas-test.bat        — gulp build + drop NAS PM2-restart flag
+├── nginx/www.chohub.conf      — NAS nginx reverse-proxy snippet for /choHubProject (place manually)
+├── .env                       — Secrets (never commit)
+├── config/
+│   ├── db.js                  — MariaDB pool
+│   ├── passport.js            — Local strategy for staff login
+│   └── stripe.js              — Stripe client (shared account, see below)
+├── middleware/
+│   ├── auth.js                — requireAuth, redirectIfAuth, setLocals (staff)
+│   └── customerAccess.js      — resolveToken (customer portal links)
+├── routes/
+│   ├── index.js                — Staff dashboard
+│   ├── auth.js                  — Staff login/logout
+│   ├── portal.js                — Customer-facing: view/accept estimate, view/pay invoice
+│   ├── webhooks.js              — Stripe webhook (payment_intent.succeeded → mark invoice paid)
+│   └── admin/
+│       ├── customers.js         — Staff CRUD
+│       ├── estimates.js         — Staff CRUD + createDepositInvoice() helper
+│       └── invoices.js          — Staff CRUD
+├── views/
+│   ├── partials/                — head, footer, nav
+│   ├── admin/                   — staff-facing pages
+│   ├── portal/                  — customer-facing pages (estimate, invoice, expired)
+│   └── auth/login.ejs
+├── public/
+│   ├── css/app.css
+│   └── js/page-pay.js           — Stripe Payment Element mount + confirm
+├── migrations/
+└── scripts/create-admin.js      — CLI to create/reset a staff login
+```
+
+---
+
+## Key Architecture Decisions
+
+### Two access models, one app
+- **Staff** (CHO employees) log in via Passport, same session-cookie pattern as
+  gymrProject. Two strategies: local (email/password, bcrypt) and Google OAuth
+  (`config/passport.js`). Unlike gymrProject's public-signup Google flow, this app's
+  Google strategy **never creates a user** — it only attaches `google_id` to an
+  existing `users` row matched by email. Staff accounts must be provisioned first via
+  `scripts/create-admin.js`; an unrecognized Google account is rejected, not signed up.
+  The Google strategy only registers if `GOOGLE_CLIENT_ID` is set — unset in an
+  environment, the login page just shows the local form (see `.env.example` for the
+  `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_CALLBACK_URL` vars). Routes under
+  `/admin/*` require `requireAuth`.
+- **Customers** never get a password. Every estimate/invoice they need to see or pay
+  gets a row in `access_tokens` (random token, `expires_at`, single resource). They
+  visit `/e/:token` (estimate) or `/i/:token` (invoice). `middleware/customerAccess.js`
+  resolves the token; an expired/missing token renders `views/portal/expired.ejs`.
+  This mirrors how Stripe's own hosted invoice links work — no signup friction for
+  a customer who's paying a contractor once or twice a year.
+
+### Deposit flow (not yet wired end-to-end — see README "Not built yet")
+1. Staff creates an `estimate` with `estimate_line_items`, sets `deposit_percent`
+   (defaults 50%). Status `draft` → `sent` (generates an `access_tokens` row, emails
+   the customer the `/e/:token` link).
+2. Customer opens the link, clicks Accept → status becomes `accepted`, and a deposit
+   `invoice` (`type = 'deposit'`) is created for `total * deposit_percent / 100`
+   (see `createDepositInvoice()` in `routes/admin/estimates.js`, currently exported
+   but not called by any route — hook it up when building "accept").
+3. A new `access_tokens` row is created for that invoice; customer gets emailed the
+   `/i/:token` pay link.
+4. Customer pays via Stripe Payment Element (`public/js/page-pay.js` +
+   `POST /i/:token/pay` creates the PaymentIntent).
+5. `routes/webhooks.js` receives `payment_intent.succeeded`, marks the `payments` row
+   `succeeded` and the `invoices` row `paid` — **the webhook is the source of truth**,
+   not the client-side confirm callback (client can close the tab mid-payment).
+6. When the job is complete, staff creates a `final` invoice the same way (no
+   estimate-accept step needed — invoices can also stand alone, `type = 'standalone'`,
+   for e.g. small jobs with no formal estimate).
+
+### Stripe
+- `config/stripe.js` reads `STRIPE_SECRET_KEY` — same Stripe account as
+  ConnectedHomeLedger (Connected Home Outfitters LLC), used by both apps.
+- Every PaymentIntent this app creates carries `metadata.source = 'cho-hub'`
+  (`routes/portal.js`) plus a `statement_descriptor_suffix` so charges are
+  identifiable in the Stripe dashboard/bank statement even though the account is shared.
+- Webhook endpoint `/webhooks/stripe` needs the **raw body** for signature verification
+  — mounted with `express.raw()` in `routes/webhooks.js`, before any `express.json()`
+  parsing would consume the stream for that path.
+- The handler only acts on events tagged `metadata.source === 'cho-hub'` — Ledger's
+  subscription-payment events will also arrive at this endpoint if it's subscribed to
+  `payment_intent.succeeded`, and must be ignored rather than mis-reconciled.
+- `STRIPE_WEBHOOK_SECRET` comes from **this app's own webhook endpoint** registration
+  in the Stripe Dashboard (not Ledger's) — each registered endpoint gets its own
+  signing secret even on a shared account.
+
+---
+
+## Deployment (TODO — not yet configured)
+
+Subdomain is settled: **`hub.connectedhomeoutfitters.com`** (created 2026-07-22).
+App/nginx/PM2/TLS deploy still needs to happen. When it's time:
+1. Confirm SSH/VPS access details for the Hostinger VPS that hosts Connected Home
+   Ledger (not recorded in this project — check with the user, do not assume the
+   `gymrProject` NAS deploy workflow applies here, this is a different box).
+2. Provision a real production MariaDB database + user (not the `192.168.4.199` test DB).
+3. Add an nginx server block for `hub.connectedhomeoutfitters.com` → reverse proxy to
+   this app's port (pick a free port, e.g. 3100 — check what's already in use on the
+   VPS first, Connected Home Ledger likely already occupies 3000-ish).
+4. Confirm the subdomain's DNS record actually points at the VPS (it was created
+   2026-07-22, but verify the A/CNAME target rather than assuming).
+5. Register the app with PM2 using `ecosystem.config.js` (`pm2 start ecosystem.config.js`).
+6. Set up TLS (Certbot/Let's Encrypt) for the subdomain.
+7. Create the real Stripe webhook endpoint pointing at
+   `https://hub.connectedhomeoutfitters.com/webhooks/stripe` and set
+   `STRIPE_WEBHOOK_SECRET` in the production `.env`.
+
+---
+
+## Common Gotchas
+
+1. **Customer routes take no auth session** — never gate `/e/:token` or `/i/:token`
+   behind `requireAuth`; they're deliberately public-but-token-gated.
+2. **Webhook route must stay before any global JSON body parser** for that path, or
+   signature verification breaks (Stripe needs the exact raw bytes).
+3. **`db.getConnection()`** for multi-table writes — remember `conn.release()` in a
+   `finally` block (see `routes/webhooks.js`).
+4. **One Stripe account serves both apps** (GYMR SaaS billing and CHO's contracting
+   income) — always tag PaymentIntents `metadata.source = 'cho-hub'` and never remove
+   the source check in `routes/webhooks.js`, or this app will start reacting to
+   Ledger's subscription payments too.
+5. **`BASE_PATH`** — unlike gymrProject (served under a subpath `/gymrProject` on
+   shared infra), this app is meant to own its own subdomain, so `BASE_PATH` defaults
+   to `''`. Only set it if this ever needs to be reverse-proxied under a subpath instead.
+6. **Every `app.use()` mount in `server.js` must carry `` `${BASE_PATH}/...` ``,
+   including `express.static`.** Fixed 2026-07-23 — `express.static` was mounted
+   bare (no `BASE_PATH` prefix) while every route mount already had it, so under the
+   NAS's `/choHubProject` subpath every static asset (CSS, JS, vendor files) 404'd
+   silently. This went undetected all session because local dev's `BASE_PATH=''`
+   never exposed it, and testing only ever checked HTML page HTTP status via `curl`,
+   never an actual browser rendering a page's sub-resources on the NAS. **Test real
+   UI changes in an actual browser on the actual target environment**, not just via
+   `curl` status codes — this bug and the two below were only caught by finally doing
+   that (via `claude-in-chrome`) after a user report that a button "did nothing."
+7. **Bootstrap CSS/JS is self-hosted, not loaded from a CDN.** Was
+   `cdn.jsdelivr.net` originally; switched 2026-07-23 after `bootstrap.bundle.min.js`
+   returned a transient `503` from jsdelivr, silently breaking every
+   collapse/dropdown/toggle sitewide (the CSS loaded fine, so pages still looked
+   right — only interactive JS-driven behavior was dead). `bootstrap`/
+   `bootstrap-icons` are **devDependencies only** — nothing server-side
+   `require()`s them, so the NAS doesn't need them in its own `node_modules`.
+   `gulpfile.js`'s `copy_vendor` task copies their pre-built `dist`/`font` files into
+   `public/vendor/` (gitignored, regenerate with `gulp build`) as part of every
+   `build`/`default` run; `views/partials/head.ejs`/`footer.ejs` reference
+   `` `${basePath}/vendor/...` ``.
+8. **Admin nav is a fixed left sidebar on desktop, hamburger→offcanvas on mobile
+   (2026-07-25).** `views/partials/nav.ejs` was a top navbar that got too crowded on
+   desktop as sections were added; it's now a fixed 220px left sidebar (`.cho-sidebar`,
+   `d-none d-lg-flex`) with a mobile top bar + Bootstrap offcanvas (`d-lg-none`) below
+   `lg`. The nav-item list is defined **once** in the partial and looped into both the
+   sidebar and the offcanvas so they can't drift — add new sections to that one array.
+   Content is offset via **`body:has(.cho-sidebar) { padding-left: 220px }`** inside an
+   `@media (min-width: 992px)` block in `app.css` — this works because the sidebar
+   element is always in the DOM (Bootstrap just `display:none`s it below `lg`, and
+   `:has()` matches on presence, not display), and because **only admin pages include
+   `nav.ejs`** — portal (`body.portal-page`, uses `portal-header.ejs`) and login pages
+   have no `.cho-sidebar`, so they never get the offset. Active-section highlighting
+   uses `res.locals.currentPath` (set in `middleware/auth.js`'s `setLocals` = `req.path`,
+   which includes `BASE_PATH` on the NAS) via a substring match, so a detail page like
+   `/admin/payments/3` still lights up its section. Verified at desktop + forced-mobile
+   widths via `claude-in-chrome` (note: that tool's screenshot viewport is pinned ~1531px
+   and doesn't follow `resize_window`, so the mobile breakpoint had to be forced with a
+   temporary style override rather than by shrinking the window).
+9. **Branding (2026-07-24)** — `public/img/logo.png` and `public/img/favicon.png` are
+   Connected Home Outfitters' real brand assets, pulled from the live WordPress site
+   (`choProject`'s Elementor global kit — colors
+   `#0799D6`/`#6EC1E4`/`#54595F`/`#7A7A7A`, fonts Roboto/Roboto Slab via Google Fonts).
+   Applied everywhere: `views/portal/*.ejs` (via `views/partials/head.ejs`'s
+   `portalBranded`/`bodyClass` params, plus `public/css/portal.css` for the
+   customer-facing header/Roboto Slab headings specifically), all 6
+   `views/emails/*.ejs` templates (via shared `views/emails/_header.ejs`/`_footer.ejs`
+   includes and `services/mailer.js`'s `logoUrl` template local),
+   `services/estimatePdf.js`, **and the staff admin shell** (`views/partials/nav.ejs`
+   — light navbar with the real logo instead of "CHO Hub" text — plus
+   `public/css/app.css` overriding Bootstrap's `--bs-primary`/`.btn-primary` etc. with
+   the brand accent blue sitewide, since app.css loads unconditionally on every page,
+   admin included).
+   **Gotcha: pdfkit renders a PNG's fully-transparent pixels as solid black instead of
+   honoring alpha**, for reasons unrelated to the PNG's own alpha encoding being
+   correct or not (confirmed via raw zlib/chunk-level decoding, not just a rendering
+   guess) — if a logo/image embedded via `doc.image()` shows a black box behind it,
+   this is why. Worse, the actual root cause turned out to be a *second*, unrelated
+   problem stacked on top: the source logo file itself had a genuinely opaque black
+   background baked into its pixels (RGBA `(0,0,0,255)`, not `alpha=0`) despite
+   rendering as if transparent in every normal image viewer/browser — only caught by
+   decoding raw PNG bytes independently via two different methods (manual zlib inflate
+   math and .NET `Bitmap.GetPixel`) and finding they agreed. Fixed by chroma-keying the
+   real logo file (hard-transparent below a low brightness threshold, smooth alpha
+   ramp between low/high thresholds to avoid a hard edge fringe, colors left untouched
+   above the high threshold) — a plain de-matte-from-black divide (`true_color =
+   displayed/alpha`) does **not** work here since this image has fully-opaque
+   (`alpha=255`) dark design colors like navy text, which a de-matte divide incorrectly
+   washes out along with the real transparent background. One shared `logo.png` now
+   works for web, email, and the PDF — no separate flattened variant needed once the
+   file itself was actually fixed.

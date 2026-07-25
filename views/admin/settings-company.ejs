@@ -1,0 +1,40 @@
+<%- include('../partials/head', { title: 'Company Settings' }) %>
+<%- include('../partials/nav') %>
+<div class="container" style="max-width: 600px;">
+  <h1 class="h3 mb-4">Company Settings</h1>
+  <% if (saved) { %><div class="alert alert-success">Settings saved.</div><% } %>
+  <form action="<%= basePath %>/admin/settings/company" method="POST">
+    <div class="mb-3">
+      <label class="form-label">Company Name</label>
+      <input type="text" name="company_name" class="form-control" value="<%= settings.company_name || '' %>">
+    </div>
+    <div class="row g-2 mb-3">
+      <div class="col-md-6">
+        <label class="form-label">Tax ID (EIN)</label>
+        <input type="text" name="tax_id" class="form-control" value="<%= settings.tax_id || '' %>">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Default Sales Tax Rate (%)</label>
+        <input type="number" step="0.01" name="default_tax_percent" class="form-control" value="<%= settings.default_tax_percent || 0 %>">
+        <div class="form-text">Pre-fills the Tax % field on new estimates — still editable per estimate.</div>
+      </div>
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Address</label>
+      <input type="text" name="address" class="form-control" value="<%= settings.address || '' %>">
+    </div>
+    <div class="row g-2 mb-3">
+      <div class="col-md-6">
+        <label class="form-label">Phone</label>
+        <input type="text" name="phone" class="form-control" value="<%= settings.phone || '' %>">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Email</label>
+        <input type="email" name="email" class="form-control" value="<%= settings.email || '' %>">
+      </div>
+    </div>
+    <button class="btn btn-primary" type="submit">Save</button>
+    <a class="btn btn-outline-secondary" href="<%= basePath %>/admin/settings">Cancel</a>
+  </form>
+</div>
+<%- include('../partials/footer') %>

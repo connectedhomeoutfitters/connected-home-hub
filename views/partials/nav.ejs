@@ -1,0 +1,78 @@
+<%
+  // Single source of truth for the nav — rendered into both the desktop sidebar and the
+  // mobile offcanvas so the two never drift.
+  const navItems = [
+    { href: '/admin/leads',        icon: 'bi-person-plus',        label: 'Leads' },
+    { href: '/admin/customers',    icon: 'bi-people',             label: 'Customers' },
+    { href: '/admin/consultations',icon: 'bi-clipboard-check',    label: 'Consultations' },
+    { href: '/admin/jobs',         icon: 'bi-list-check',         label: 'Jobs' },
+    { href: '/admin/estimates',    icon: 'bi-file-earmark-text',  label: 'Estimates' },
+    { href: '/admin/invoices',     icon: 'bi-receipt',            label: 'Invoices' },
+    { href: '/admin/payments',     icon: 'bi-cash-stack',         label: 'Payments' },
+    { href: '/admin/products',     icon: 'bi-box-seam',           label: 'Catalog' },
+    { href: '/admin/labor-rates',  icon: 'bi-clock',              label: 'Labor Rates' },
+    { href: '/admin/subcontractors',icon: 'bi-tools',             label: 'Subcontractors' },
+  ];
+  const adminItems = [
+    { href: '/admin/settings',     icon: 'bi-gear',               label: 'Settings' },
+  ];
+  const cur = (typeof currentPath !== 'undefined' && currentPath) ? currentPath : '';
+  // Substring match so a detail page (e.g. /admin/payments/3) still lights up its section.
+  function navLink(i) {
+    const active = cur.indexOf(i.href) !== -1 ? ' active' : '';
+    return `<a class="cho-nav-link${active}" href="${basePath}${i.href}">`
+      + `<i class="bi ${i.icon}"></i><span>${i.label}</span></a>`;
+  }
+%>
+
+<!-- Desktop: fixed left sidebar (hidden below lg) -->
+<nav class="cho-sidebar d-none d-lg-flex flex-column">
+  <a class="cho-brand" href="<%= basePath %>/">
+    <img src="<%= basePath %>/img/logo.png" alt="Connected Home Outfitters">
+  </a>
+  <div class="cho-nav flex-grow-1">
+    <% navItems.forEach(i => { %><%- navLink(i) %><% }) %>
+    <% if (user && user.role === 'admin') { adminItems.forEach(i => { %><%- navLink(i) %><% }) } %>
+  </div>
+  <% if (user) { %>
+    <form action="<%= basePath %>/logout" method="POST" class="cho-logout">
+      <button class="btn btn-outline-secondary btn-sm w-100" type="submit">
+        <i class="bi bi-box-arrow-right"></i> Log out
+      </button>
+      <div class="text-muted small text-center mt-1"><%= user.name %></div>
+    </form>
+  <% } %>
+</nav>
+
+<!-- Mobile: top bar with hamburger that opens the offcanvas (hidden at lg+) -->
+<nav class="navbar navbar-light bg-white d-lg-none mb-4" style="border-bottom: 3px solid #6EC1E4;">
+  <div class="container-fluid">
+    <a class="navbar-brand d-flex align-items-center" href="<%= basePath %>/">
+      <img src="<%= basePath %>/img/logo.png" alt="Connected Home Outfitters" height="32">
+    </a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="offcanvas" data-bs-target="#choOffcanvas"
+      aria-controls="choOffcanvas" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+  </div>
+</nav>
+
+<div class="offcanvas offcanvas-start cho-offcanvas" tabindex="-1" id="choOffcanvas" aria-labelledby="choOffcanvasLabel">
+  <div class="offcanvas-header">
+    <img src="<%= basePath %>/img/logo.png" alt="Connected Home Outfitters" height="28" id="choOffcanvasLabel">
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+  <div class="offcanvas-body d-flex flex-column">
+    <div class="cho-nav flex-grow-1">
+      <% navItems.forEach(i => { %><%- navLink(i) %><% }) %>
+      <% if (user && user.role === 'admin') { adminItems.forEach(i => { %><%- navLink(i) %><% }) } %>
+    </div>
+    <% if (user) { %>
+      <form action="<%= basePath %>/logout" method="POST" class="cho-logout">
+        <button class="btn btn-outline-secondary btn-sm w-100" type="submit">
+          <i class="bi bi-box-arrow-right"></i> Log out (<%= user.name %>)
+        </button>
+      </form>
+    <% } %>
+  </div>
+</div>

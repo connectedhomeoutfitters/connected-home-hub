@@ -1,0 +1,50 @@
+/* Customer-facing portal branding (views/portal/*.ejs) — colors and fonts pulled from
+   the Connected Home Outfitters WordPress site's Elementor global kit, so a customer
+   moving between the marketing site and this portal sees one consistent identity.
+   Scoped to body.portal-page only; admin pages never set that class and are untouched. */
+
+:root {
+  --cho-accent: #0799D6;   /* Elementor "Accent" — primary buttons/links */
+  --cho-primary: #6EC1E4;  /* Elementor "Primary" — lighter accent */
+  --cho-dark: #54595F;     /* Elementor "Secondary" — headings */
+  --cho-text: #7A7A7A;     /* Elementor "Text" — body copy */
+}
+
+body.portal-page {
+  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+  color: var(--cho-text);
+}
+
+body.portal-page h1,
+body.portal-page h2,
+body.portal-page h3 {
+  font-family: 'Roboto Slab', Georgia, serif;
+  color: var(--cho-dark);
+}
+
+body.portal-page a {
+  color: var(--cho-accent);
+}
+
+body.portal-page .btn-primary,
+body.portal-page .btn-success {
+  background-color: var(--cho-accent);
+  border-color: var(--cho-accent);
+}
+
+body.portal-page .btn-primary:hover,
+body.portal-page .btn-success:hover {
+  background-color: #067bb0;
+  border-color: #067bb0;
+}
+
+.portal-header {
+  border-bottom: 3px solid var(--cho-primary);
+  padding: 20px 0;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.portal-header img {
+  height: 48px;
+}

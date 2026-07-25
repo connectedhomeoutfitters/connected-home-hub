@@ -1,0 +1,49 @@
+<%- include('../partials/head', { title: 'Edit Job' }) %>
+<%- include('../partials/nav') %>
+<div class="container" style="max-width: 600px;">
+  <h1 class="h3 mb-1">Edit Job</h1>
+  <p class="text-muted">
+    <%= job.customer_name %> &middot; <span class="badge bg-light text-dark border"><%= job.type.replace('_', ' ') %></span>
+  </p>
+  <form action="<%= basePath %>/admin/jobs/<%= job.id %>" method="POST">
+    <div class="mb-3">
+      <label class="form-label">Title</label>
+      <input type="text" name="title" class="form-control" value="<%= job.title %>" required>
+    </div>
+    <div class="row">
+      <div class="col-md-6 mb-3">
+        <label class="form-label">Status</label>
+        <select name="status" class="form-select">
+          <% ['pending','in_progress','done','cancelled'].forEach(s => { %>
+            <option value="<%= s %>" <%= job.status === s ? 'selected' : '' %>><%= s.replace('_',' ') %></option>
+          <% }) %>
+        </select>
+      </div>
+      <div class="col-md-6 mb-3">
+        <label class="form-label">Assigned To</label>
+        <select name="assigned_to" class="form-select">
+          <option value="">Unassigned</option>
+          <% staff.forEach(s => { %>
+            <option value="<%= s.id %>" <%= job.assigned_to === s.id ? 'selected' : '' %>><%= s.name %></option>
+          <% }) %>
+        </select>
+      </div>
+      <div class="col-md-6 mb-3">
+        <label class="form-label">Due Date</label>
+        <input type="date" name="due_date" class="form-control" value="<%= job.due_date || '' %>">
+      </div>
+      <div class="col-md-6 mb-3">
+        <label class="form-label">Scheduled At</label>
+        <input type="datetime-local" name="scheduled_at" class="form-control"
+          value="<%= job.scheduled_at ? job.scheduled_at.replace(' ', 'T').slice(0, 16) : '' %>">
+      </div>
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Notes</label>
+      <textarea name="notes" class="form-control" rows="3"><%= job.notes || '' %></textarea>
+    </div>
+    <button class="btn btn-primary" type="submit">Save</button>
+    <a class="btn btn-outline-secondary" href="<%= basePath %>/admin/jobs">Cancel</a>
+  </form>
+</div>
+<%- include('../partials/footer') %>
