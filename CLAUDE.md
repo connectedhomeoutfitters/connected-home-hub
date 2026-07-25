@@ -421,6 +421,37 @@ separate-session pattern rather than overloading Passport.
 - **To test on prod:** the prod DB has no customers yet — create one via staff admin
   (`/admin/customers`) with a real email, then that email works at `/portal/login`.
 
+`016_invoicing_and_decline.sql` completes the **back half of the billing loop** — before
+this, an invoice could only exist as the auto-created deposit on estimate acceptance;
+staff had no way to bill a final balance or a standalone cash job (`routes/admin/
+invoices.js` was a list-only stub).
+
+- **`services/invoicing.js`** is now the one place invoice money-math lives:
+  `createInvoice(conn, fields)` (always inserts `pending`) and
+  `remainingBalanceForEstimate(conn, id)` = `estimate.total − SUM(non-void invoices for
+  it)`. `createDepositInvoice` (estimates.js) was refactored to call it, so the deposit
+  is no longer computed in two places. **Non-void** (not just paid) is deliberate — it
+  stops a second final invoice being billed on top of an outstanding one.
+- **Manual invoices** (`routes/admin/invoices.js`): `GET /new` + `POST /` create a
+  `final`/`standalone` invoice (deposit stays auto-only), `GET /:id` is the detail page,
+  `POST /:id/send` mints an `access_tokens` row + emails the `/i/:token` pay link
+  (`views/emails/invoice-sent.ejs`) + sets `sent_at`, `POST /:id/void` voids a pending
+  one. `invoices.description` (new column) is the customer-facing "what is this for" line
+  — without it a standalone invoice was a context-free bare amount.
+- **"Bill final balance"** (`POST /admin/estimates/:id/final-invoice`, button on an
+  accepted estimate) creates a `final` invoice for `remainingBalanceForEstimate` and
+  drops staff on its detail page to review + Send. This is the piece that closes
+  "job done → collect the rest"; still a manual click, not auto-fired on job completion.
+- **Accepted/declined estimates are now locked.** `POST /admin/estimates/:id` (save) and
+  `/:id/send` reject with 409 when status ∈ {accepted, declined} — the line items are the
+  e-signed record and must not silently change. `estimate-form.ejs` hides Save/Send and
+  shows a lock notice for those statuses.
+- **Estimate decline path** (`estimates.declined_at`): the customer portal estimate page
+  (`views/portal/estimate.ejs`) now has a "Decline this estimate" button →
+  `POST /e/:token/decline` (`routes/portal.js`) sets `status='declined'`/`declined_at`
+  and **cancels the outstanding `estimate_followup` job** (no point chasing it). The
+  `declined` status existed in the enum since day one but had no way to be set until now.
+
 ---
 
 ## Local Dev / Test Hosting (NAS: `N:\` and `W:\` drives)

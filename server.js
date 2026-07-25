@@ -99,6 +99,7 @@ app.use(`${BASE_PATH}/admin/jobs`, require('./routes/admin/jobs'));
 app.use(`${BASE_PATH}/admin/estimates`, require('./routes/admin/estimates'));
 app.use(`${BASE_PATH}/admin/invoices`, require('./routes/admin/invoices'));
 app.use(`${BASE_PATH}/admin/payments`, require('./routes/admin/payments'));
+app.use(`${BASE_PATH}/admin/reports`, require('./routes/admin/reports'));
 app.use(`${BASE_PATH}/admin/products`, require('./routes/admin/products'));
 app.use(`${BASE_PATH}/admin/labor-rates`, require('./routes/admin/laborRates'));
 app.use(`${BASE_PATH}/admin/subcontractors`, require('./routes/admin/subcontractors'));

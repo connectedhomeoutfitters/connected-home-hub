@@ -1,0 +1,135 @@
+<%- include('../partials/head', { title: 'Reports' }) %>
+<%- include('../partials/nav') %>
+<%
+  const money = (n) => '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const compact = (n) => {
+    n = Number(n);
+    if (n >= 1000) return '$' + (n / 1000).toFixed(n >= 10000 ? 0 : 1) + 'k';
+    return '$' + Math.round(n);
+  };
+  const badge = (s) => {
+    const map = { draft: 'bg-secondary', sent: 'bg-info text-dark', accepted: 'bg-success',
+      declined: 'bg-dark', expired: 'bg-secondary', pending: 'bg-warning text-dark', paid: 'bg-success',
+      new: 'bg-primary', contacted: 'bg-info text-dark', scheduled: 'bg-secondary', converted: 'bg-success', lost: 'bg-dark' };
+    return `<span class="badge ${map[s] || 'bg-secondary'}">${s}</span>`;
+  };
+%>
+<div class="container">
+  <h1 class="h3 mb-4">Reports</h1>
+
+  <!-- KPI tiles -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+      <div class="card h-100"><div class="card-body">
+        <div class="text-muted small text-uppercase" style="letter-spacing:.03em;">Net revenue</div>
+        <div class="fs-4 fw-semibold text-body"><%= money(netRevenue) %></div>
+        <div class="text-muted small"><%= refunded > 0 ? money(refunded) + ' refunded' : 'all-time collected' %></div>
+      </div></div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="card h-100"><div class="card-body">
+        <div class="text-muted small text-uppercase" style="letter-spacing:.03em;">Outstanding A/R</div>
+        <div class="fs-4 fw-semibold text-body"><%= money(ar.total) %></div>
+        <div class="text-muted small"><%= ar.c %> unpaid invoice<%= ar.c === 1 ? '' : 's' %></div>
+      </div></div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="card h-100"><div class="card-body">
+        <div class="text-muted small text-uppercase" style="letter-spacing:.03em;">Open pipeline</div>
+        <div class="fs-4 fw-semibold text-body"><%= money(openPipeline) %></div>
+        <div class="text-muted small">draft + sent estimates</div>
+      </div></div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="card h-100"><div class="card-body">
+        <div class="text-muted small text-uppercase" style="letter-spacing:.03em;">Estimate win rate</div>
+        <div class="fs-4 fw-semibold text-body"><%= winRate === null ? '—' : winRate + '%' %></div>
+        <div class="text-muted small"><%= winRate === null ? 'no decisions yet' : 'accepted vs. decided' %></div>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- Revenue by month -->
+  <div class="card mb-4">
+    <div class="card-header">Net revenue — last 12 months</div>
+    <div class="card-body">
+      <div class="d-flex align-items-end justify-content-between gap-1" style="height: 200px;">
+        <% months.forEach(m => { const pct = maxMonth > 0 ? Math.round((m.net / maxMonth) * 100) : 0; %>
+          <div class="d-flex flex-column align-items-center justify-content-end flex-fill" style="height:100%;">
+            <div class="small text-muted mb-1" style="font-size:.7rem;"><%= m.net > 0 ? compact(m.net) : '' %></div>
+            <div title="<%= m.label %>: <%= money(m.net) %>"
+                 style="width:70%; min-width:10px; height:<%= Math.max(pct, m.net > 0 ? 2 : 0) %>%; background: var(--cho-accent); border-radius:3px 3px 0 0;"></div>
+            <div class="small text-muted mt-1" style="font-size:.7rem;"><%= m.label %></div>
+          </div>
+        <% }) %>
+      </div>
+      <% if (maxMonth <= 1) { %><p class="text-muted small mb-0 mt-2">No payments recorded yet — this chart fills in as invoices are paid.</p><% } %>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <!-- Estimate pipeline -->
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header">Estimate pipeline</div>
+        <div class="table-responsive">
+          <table class="table mb-0 align-middle">
+            <thead><tr><th>Status</th><th class="text-end">Count</th><th class="text-end">Value</th></tr></thead>
+            <tbody>
+              <% ['draft','sent','accepted','declined','expired'].forEach(s => { const r = est[s]; %>
+                <tr>
+                  <td><%- badge(s) %></td>
+                  <td class="text-end"><%= r ? r.c : 0 %></td>
+                  <td class="text-end"><%= r ? money(r.total) : '$0.00' %></td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Revenue mix + Lead funnel -->
+    <div class="col-lg-6">
+      <div class="card mb-4">
+        <div class="card-header">Revenue mix (paid)</div>
+        <div class="table-responsive">
+          <table class="table mb-0 align-middle">
+            <thead><tr><th>Type</th><th class="text-end">Payments</th><th class="text-end">Net</th></tr></thead>
+            <tbody>
+              <% if (!mixRows.length) { %><tr><td colspan="3" class="text-muted small">No payments yet.</td></tr><% } %>
+              <% mixRows.forEach(r => { %>
+                <tr>
+                  <td class="text-capitalize"><%= r.type %></td>
+                  <td class="text-end"><%= r.c %></td>
+                  <td class="text-end"><%= money(r.net) %></td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span>Lead funnel</span>
+          <span class="small text-muted"><%= leadConversion === null ? '' : leadConversion + '% converted' %></span>
+        </div>
+        <div class="table-responsive">
+          <table class="table mb-0 align-middle">
+            <tbody>
+              <% ['new','contacted','scheduled','converted','lost'].forEach(s => { %>
+                <tr>
+                  <td><%- badge(s) %></td>
+                  <td class="text-end"><%= leadByStatus[s] || 0 %></td>
+                </tr>
+              <% }) %>
+              <tr class="fw-semibold"><td>Total leads</td><td class="text-end"><%= totalLeads %></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<%- include('../partials/footer') %>
