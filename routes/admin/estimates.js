@@ -10,6 +10,9 @@ const { createInvoice, remainingBalanceForEstimate } = require('../../services/i
 router.use(requireAuth);
 
 const TOKEN_TTL_DAYS = 30;
+// How long a sent estimate stays open before the daily cron marks it expired
+// (see services/estimateExpiry.js). Re-sending an expired estimate resets the clock.
+const ESTIMATE_VALID_DAYS = 30;
 
 function normalizeArray(value) {
   if (value === undefined) return [];
@@ -278,7 +281,10 @@ router.post('/:id/send', async (req, res, next) => {
       'INSERT INTO access_tokens (token, resource_type, resource_id, expires_at) VALUES (?, ?, ?, ?)',
       [token, 'estimate', estimate.id, expiresAt]
     );
-    await db.execute("UPDATE estimates SET status = 'sent', sent_at = NOW() WHERE id = ?", [estimate.id]);
+    await db.execute(
+      "UPDATE estimates SET status = 'sent', sent_at = NOW(), expires_at = DATE_ADD(NOW(), INTERVAL ? DAY) WHERE id = ?",
+      [ESTIMATE_VALID_DAYS, estimate.id]
+    );
 
     const basePath = process.env.BASE_PATH || '';
     const viewUrl = `${process.env.BASE_URL || ''}${basePath}/e/${token}`;

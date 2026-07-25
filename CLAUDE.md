@@ -464,6 +464,21 @@ Missing months are gap-filled in JS so all 12 always render; win-rate = accepted
 (accepted+declined+expired), null until there's at least one decision. All staff (not
 admin-only) — it's operational data.
 
+`017_warranties.sql` adds **warranty tracking** (second Tier-2 feature). A `warranties`
+table (customer-linked, optional `job_id`, `item`/`type`/`provider`/
+`start_date`/`expires_on`/`coverage_notes`, `active` soft-delete, `reminder_sent_at`).
+Staff CRUD at `/admin/warranties` (`routes/admin/warranties.js`, nav link after
+Subcontractors) with an expiry-status badge (Active / Expires in Nd / Expired, computed
+from `expires_on` vs today). Editing the expiry **re-arms** the reminder (sets
+`reminder_sent_at = NULL`). **`services/warrantyReminders.js`** (`sendExpiryReminders`,
+daily `0 9 * * *` cron in server.js — the app's second scheduled job alongside the hourly
+consultation reminder) emails `warranty-expiring.ejs` to customers whose active warranty
+lapses within 30 days, once, idempotent via `reminder_sent_at`. Warranties surface on the
+**customer 360 timeline** (`routes/admin/customers.js`) and the **customer portal
+dashboard** (`routes/customerPortal.js` + `views/portal/dashboard.ejs`) — delivering on
+the portal's "track your project" line. The form prefills `?customer_id`/`?job_id` so it
+can be launched from a customer or a completed install job.
+
 ---
 
 ## Local Dev / Test Hosting (NAS: `N:\` and `W:\` drives)

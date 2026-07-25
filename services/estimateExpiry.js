@@ -1,0 +1,40 @@
+// services/estimateExpiry.js — marks sent estimates past their expires_at as 'expired'
+// and cancels the outstanding follow-up job (no point chasing an expired quote). Run on a
+// daily tick from server.js. Idempotent: it only touches estimates still in 'sent'. Staff
+// can re-send an expired estimate, which resets status + expires_at (routes/admin/
+// estimates.js), so this never permanently closes a quote.
+const db = require('../config/db');
+
+async function expireStaleEstimates() {
+  const [stale] = await db.execute(
+    "SELECT id FROM estimates WHERE status = 'sent' AND expires_at IS NOT NULL AND expires_at < NOW()"
+  );
+  if (!stale.length) return 0;
+
+  const ids = stale.map((r) => r.id);
+  const placeholders = ids.map(() => '?').join(',');
+
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    await conn.execute(
+      `UPDATE estimates SET status = 'expired' WHERE id IN (${placeholders})`,
+      ids
+    );
+    await conn.execute(
+      `UPDATE jobs SET status = 'cancelled'
+       WHERE estimate_id IN (${placeholders}) AND type = 'estimate_followup'
+         AND status IN ('pending', 'in_progress')`,
+      ids
+    );
+    await conn.commit();
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+  return ids.length;
+}
+
+module.exports = { expireStaleEstimates };

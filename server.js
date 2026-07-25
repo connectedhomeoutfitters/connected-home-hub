@@ -12,6 +12,7 @@ const db = require('./config/db');
 const { setLocals } = require('./middleware/auth');
 const { sendDueReminders } = require('./services/consultationReminders');
 const { sendExpiryReminders } = require('./services/warrantyReminders');
+const { expireStaleEstimates } = require('./services/estimateExpiry');
 
 const app = express();
 const BASE_PATH = process.env.BASE_PATH || '';
@@ -125,6 +126,11 @@ cron.schedule('0 * * * *', () => {
 // services/warrantyReminders.js).
 cron.schedule('0 9 * * *', () => {
   sendExpiryReminders().catch((err) => console.error('sendExpiryReminders failed:', err.message));
+});
+
+// Daily at 1am — expire sent estimates past their expires_at (see services/estimateExpiry.js).
+cron.schedule('0 1 * * *', () => {
+  expireStaleEstimates().catch((err) => console.error('expireStaleEstimates failed:', err.message));
 });
 
 const PORT = process.env.PORT || 3100;

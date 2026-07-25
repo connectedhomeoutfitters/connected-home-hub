@@ -125,9 +125,24 @@ router.get('/', requireCustomer, async (req, res, next) => {
        WHERE customer_id = ? AND active = 1 ORDER BY (expires_on IS NULL), expires_on`,
       [cid]
     );
+    // Appointments the customer can see (their consultations, not cancelled).
+    const [consultations] = await db.execute(
+      `SELECT consultation_date, duration_minutes, status FROM consultations
+       WHERE customer_id = ? AND status <> 'cancelled'
+       ORDER BY (consultation_date IS NULL), consultation_date DESC`,
+      [cid]
+    );
+    // Project status — only the actual install work, never internal staff tasks
+    // (consultation/estimate_followup jobs stay hidden from the customer).
+    const [jobs] = await db.execute(
+      `SELECT title, status, scheduled_at FROM jobs
+       WHERE customer_id = ? AND type = 'install'
+       ORDER BY (scheduled_at IS NULL), scheduled_at DESC`,
+      [cid]
+    );
     res.render('portal/dashboard', {
       portalBranded: true, bodyClass: 'portal-page', pageScript: null,
-      estimates, invoices, payments, warranties,
+      estimates, invoices, payments, warranties, consultations, jobs,
     });
   } catch (err) {
     next(err);
