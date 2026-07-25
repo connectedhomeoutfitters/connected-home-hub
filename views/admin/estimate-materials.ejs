@@ -1,0 +1,41 @@
+<%- include('../partials/head', { title: 'Material List' }) %>
+<%- include('../partials/nav') %>
+<% const money = (n) => '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); %>
+<div class="container" style="max-width: 820px;">
+  <a href="<%= basePath %>/admin/estimates/<%= estimate.id %>/edit" class="text-decoration-none small"><i class="bi bi-arrow-left"></i> Back to estimate</a>
+  <div class="d-flex justify-content-between align-items-center mt-2 mb-1">
+    <h1 class="h3 mb-0">Material List</h1>
+    <button id="print-btn" class="btn btn-outline-secondary btn-sm d-print-none"><i class="bi bi-printer"></i> Print</button>
+  </div>
+  <p class="text-muted"><%= estimate.title %> — <%= estimate.customer_name %></p>
+
+  <% if (!materials.length) { %>
+    <div class="alert alert-secondary">No catalog products on this estimate. Add product line items (via the Source dropdown) and they'll appear here.</div>
+  <% } else { %>
+    <div class="table-responsive">
+      <table class="table">
+        <thead><tr><th>Category</th><th>Item</th><th>Vendor</th><th class="text-end">Qty</th><th class="text-end">Unit cost</th><th class="text-end">Ext. cost</th></tr></thead>
+        <tbody>
+          <% materials.forEach(m => { %>
+            <tr>
+              <td class="small"><%= m.category || '' %></td>
+              <td><%= m.name %></td>
+              <td class="small"><%= m.vendor || '' %></td>
+              <td class="text-end"><%= Number(m.quantity) %></td>
+              <td class="text-end"><%= money(m.vendor_cost) %></td>
+              <td class="text-end"><%= money(m.ext_cost) %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+        <tfoot>
+          <tr class="fw-semibold"><td colspan="5" class="text-end">Total material cost</td><td class="text-end"><%= money(totalCost) %></td></tr>
+        </tfoot>
+      </table>
+    </div>
+    <p class="text-muted small">Costs are your vendor costs (not customer pricing) — for purchasing/pulling stock.</p>
+  <% } %>
+</div>
+<script nonce="<%= cspNonce %>">
+  document.getElementById('print-btn')?.addEventListener('click', () => window.print());
+</script>
+<%- include('../partials/footer') %>

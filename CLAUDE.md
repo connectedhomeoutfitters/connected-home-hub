@@ -479,6 +479,23 @@ dashboard** (`routes/customerPortal.js` + `views/portal/dashboard.ejs`) — deli
 the portal's "track your project" line. The form prefills `?customer_id`/`?job_id` so it
 can be launched from a customer or a completed install job.
 
+**Estimate expiry + portal project tracking** (third Tier-2 slice, **no migration** — both
+use existing columns):
+- **Estimate expiry**: the long-dead `estimates.expires_at`/`expired` status are now live.
+  Sending an estimate sets `expires_at = NOW() + 30d` (`ESTIMATE_VALID_DAYS` in
+  `routes/admin/estimates.js`). **`services/estimateExpiry.js`** (`expireStaleEstimates`,
+  daily `0 1 * * *` cron — the app's third scheduled job) flips `sent` estimates past
+  `expires_at` to `expired` and cancels their `estimate_followup` jobs. Re-sending resets
+  status + `expires_at`, so nothing is permanently closed. Only touches `sent` rows, so
+  it's idempotent and never overrides accepted/declined.
+- **Portal project tracking**: the customer portal dashboard
+  (`routes/customerPortal.js` + `views/portal/dashboard.ejs`) now shows **Appointments**
+  (their consultations) and **Installation** (their `type='install'` jobs with status +
+  scheduled time). **Internal jobs stay hidden** — the jobs query filters to
+  `type='install'` only, so `consultation`/`estimate_followup` staff tasks never leak to
+  the customer. Both sections only render when there's data (unlike the always-shown
+  Estimates/Invoices/Warranties cards), to keep a new customer's portal uncluttered.
+
 ---
 
 ## Local Dev / Test Hosting (NAS: `N:\` and `W:\` drives)

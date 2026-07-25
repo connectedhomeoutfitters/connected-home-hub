@@ -4,7 +4,9 @@
 (function () {
   const { products, laborRates } = window.CHO_HUB_CATALOG;
   const tbody = document.getElementById('line-items-body');
-  const rowTemplate = document.querySelector('.line-item-row');
+  // Clone from the inert <template> (see estimate-form.ejs) — works even on a new
+  // estimate that server-rendered zero rows.
+  const template = document.getElementById('line-row-template');
 
   function sourceOptionsHtml() {
     let html = '<option value="">Custom</option>';
@@ -35,6 +37,9 @@
   function wireRow(row) {
     const sourceSelect = row.querySelector('.line-source');
     sourceSelect.innerHTML = sourceOptionsHtml();
+    // Restore the catalog link when editing an existing estimate (data-source is set
+    // server-side); ignored for blank/custom rows.
+    if (row.dataset.source) sourceSelect.value = row.dataset.source;
 
     sourceSelect.addEventListener('change', () => {
       const selected = sourceSelect.selectedOptions[0];
@@ -59,8 +64,7 @@
   }
 
   function addRow() {
-    const row = rowTemplate.cloneNode(true);
-    row.querySelectorAll('input').forEach((input) => { input.value = ''; });
+    const row = template.content.firstElementChild.cloneNode(true);
     tbody.appendChild(row);
     wireRow(row);
     return row;

@@ -28,17 +28,51 @@ function lineItemsFromBody(body) {
   const descriptions = normalizeArray(body.line_description);
   const quantities = normalizeArray(body.line_quantity);
   const unitPrices = normalizeArray(body.line_unit_price);
+  // Parallel to the others, one per row: '' (custom), 'product:<id>', or 'labor:<id>'.
+  const sources = normalizeArray(body.line_source);
   const items = [];
   for (let i = 0; i < descriptions.length; i++) {
     const description = (descriptions[i] || '').trim();
     if (!description) continue;
+    let productId = null;
+    let laborRateId = null;
+    const src = sources[i] || '';
+    if (src.startsWith('product:')) productId = parseInt(src.slice(8), 10) || null;
+    else if (src.startsWith('labor:')) laborRateId = parseInt(src.slice(6), 10) || null;
     items.push({
       description,
       quantity: parseFloat(quantities[i]) || 0,
       unit_price: parseFloat(unitPrices[i]) || 0,
+      product_id: productId,
+      labor_rate_id: laborRateId,
     });
   }
   return items;
+}
+
+// Job costing from linked line items: margin is only meaningful on materials (vendor_cost
+// vs. what we charge). Labor/custom lines have no cost basis here, so they're revenue-only.
+// Needs items joined with products.vendor_cost AS product_cost (see GET /:id/edit).
+function computeCosting(items) {
+  let materialCost = 0, materialRevenue = 0, laborRevenue = 0, otherRevenue = 0, hasMaterials = false;
+  for (const it of items) {
+    const line = Number(it.quantity) * Number(it.unit_price);
+    if (it.product_id && it.product_cost != null) {
+      hasMaterials = true;
+      materialCost += Number(it.product_cost) * Number(it.quantity);
+      materialRevenue += line;
+    } else if (it.labor_rate_id) {
+      laborRevenue += line;
+    } else {
+      otherRevenue += line;
+    }
+  }
+  const materialMargin = materialRevenue - materialCost;
+  return {
+    hasMaterials, materialCost, materialRevenue, materialMargin,
+    marginPct: materialRevenue > 0 ? Math.round((materialMargin / materialRevenue) * 100) : null,
+    laborRevenue, otherRevenue,
+  };
 }
 
 router.get('/', async (req, res, next) => {
@@ -125,8 +159,8 @@ router.post('/', async (req, res, next) => {
     const estimateId = result.insertId;
     for (let i = 0; i < items.length; i++) {
       await conn.execute(
-        'INSERT INTO estimate_line_items (estimate_id, description, quantity, unit_price, sort_order) VALUES (?, ?, ?, ?, ?)',
-        [estimateId, items[i].description, items[i].quantity, items[i].unit_price, i]
+        'INSERT INTO estimate_line_items (estimate_id, product_id, labor_rate_id, description, quantity, unit_price, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [estimateId, items[i].product_id, items[i].labor_rate_id, items[i].description, items[i].quantity, items[i].unit_price, i]
       );
     }
     await conn.commit();
@@ -150,8 +184,12 @@ router.get('/:id/edit', async (req, res, next) => {
     const estimate = estimateRows[0];
     if (!estimate) return res.status(404).render('error', { message: 'Estimate not found' });
 
+    // Join the linked product so the builder has product_id (to restore the Source
+    // dropdown) and costing has vendor_cost.
     const [items] = await db.execute(
-      'SELECT * FROM estimate_line_items WHERE estimate_id = ? ORDER BY sort_order',
+      `SELECT eli.*, p.vendor_cost AS product_cost FROM estimate_line_items eli
+       LEFT JOIN products p ON p.id = eli.product_id
+       WHERE eli.estimate_id = ? ORDER BY eli.sort_order`,
       [req.params.id]
     );
     const { products, laborRates } = await loadCatalogForForm();
@@ -167,6 +205,7 @@ router.get('/:id/edit', async (req, res, next) => {
       isNew: false,
       estimate,
       items,
+      costing: computeCosting(items),
       customer: {
         id: estimate.customer_id,
         name: estimate.customer_name,
@@ -214,8 +253,8 @@ router.post('/:id', async (req, res, next) => {
     await conn.execute('DELETE FROM estimate_line_items WHERE estimate_id = ?', [req.params.id]);
     for (let i = 0; i < items.length; i++) {
       await conn.execute(
-        'INSERT INTO estimate_line_items (estimate_id, description, quantity, unit_price, sort_order) VALUES (?, ?, ?, ?, ?)',
-        [req.params.id, items[i].description, items[i].quantity, items[i].unit_price, i]
+        'INSERT INTO estimate_line_items (estimate_id, product_id, labor_rate_id, description, quantity, unit_price, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [req.params.id, items[i].product_id, items[i].labor_rate_id, items[i].description, items[i].quantity, items[i].unit_price, i]
       );
     }
     await conn.commit();
@@ -254,6 +293,31 @@ router.get('/:id/pdf', async (req, res, next) => {
     res.set('Content-Type', 'application/pdf');
     res.set('Content-Disposition', `inline; filename="estimate-${estimate.id}.pdf"`);
     res.send(pdf);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Material list — the product-linked lines on an estimate, for ordering/pulling stock.
+// Custom/labor lines are excluded (they're not physical materials). Same product bought
+// on several lines is aggregated into one row.
+router.get('/:id/materials', async (req, res, next) => {
+  try {
+    const estimate = await loadEstimateWithCustomer(req.params.id);
+    if (!estimate) return res.status(404).render('error', { message: 'Estimate not found' });
+    const [rows] = await db.execute(
+      `SELECT COALESCE(p.name, eli.description) AS name, p.category, p.vendor,
+              SUM(eli.quantity) AS quantity, p.vendor_cost,
+              SUM(eli.quantity * p.vendor_cost) AS ext_cost
+       FROM estimate_line_items eli
+       JOIN products p ON p.id = eli.product_id
+       WHERE eli.estimate_id = ?
+       GROUP BY eli.product_id, p.name, p.category, p.vendor, p.vendor_cost
+       ORDER BY p.category, p.name`,
+      [req.params.id]
+    );
+    const totalCost = rows.reduce((s, r) => s + Number(r.ext_cost || 0), 0);
+    res.render('admin/estimate-materials', { pageScript: null, estimate, materials: rows, totalCost });
   } catch (err) {
     next(err);
   }
