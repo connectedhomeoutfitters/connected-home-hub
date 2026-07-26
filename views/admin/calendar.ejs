@@ -1,0 +1,59 @@
+<%- include('../partials/head', { title: 'Calendar' }) %>
+<%- include('../partials/nav') %>
+<%
+  const EV = {
+    consultation:     { cls: 'cho-ev-consultation', label: 'Consultation' },
+    install:          { cls: 'cho-ev-install',      label: 'Install' },
+    estimate_followup:{ cls: 'cho-ev-followup',     label: 'Est. follow-up' },
+    other:            { cls: 'cho-ev-other',        label: 'Other' },
+    due:              { cls: 'cho-ev-due',          label: 'Due' },
+  };
+  const evCls = (k) => (EV[k] || EV.other).cls;
+%>
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+    <h1 class="h3 mb-0">Calendar</h1>
+    <div class="d-flex gap-2 align-items-center">
+      <a href="<%= basePath %>/admin/jobs" class="btn btn-outline-secondary btn-sm">List view</a>
+      <div class="btn-group">
+        <a href="<%= basePath %>/admin/calendar?m=<%= prevM %>" class="btn btn-outline-secondary btn-sm">&lsaquo;</a>
+        <a href="<%= basePath %>/admin/calendar?m=<%= thisM %>" class="btn btn-outline-secondary btn-sm">Today</a>
+        <a href="<%= basePath %>/admin/calendar?m=<%= nextM %>" class="btn btn-outline-secondary btn-sm">&rsaquo;</a>
+      </div>
+    </div>
+  </div>
+  <h2 class="h5 text-muted"><%= monthLabel %></h2>
+
+  <!-- Legend -->
+  <div class="mb-2 small d-flex flex-wrap gap-2">
+    <% ['consultation','install','estimate_followup','other','due'].forEach(k => { %>
+      <span class="cho-cal-ev <%= EV[k].cls %> d-inline-block" style="cursor:default;"><%= EV[k].label %></span>
+    <% }) %>
+  </div>
+
+  <div class="table-responsive">
+    <table class="cho-cal">
+      <thead>
+        <tr><% ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => { %><th><%= d %></th><% }) %></tr>
+      </thead>
+      <tbody>
+        <% weeks.forEach(week => { %>
+          <tr>
+            <% week.forEach(day => { %>
+              <td class="<%= day.inMonth ? '' : 'cho-cal-out' %> <%= day.isToday ? 'cho-cal-today' : '' %>">
+                <div class="cho-cal-daynum"><%= day.day %></div>
+                <% day.events.forEach(ev => { %>
+                  <a href="<%= basePath %><%= ev.link %>" class="cho-cal-ev <%= evCls(ev.kind) %>"
+                     title="<%= ev.time ? ev.time + ' · ' : '' %><%= ev.title.replace(/"/g, '&quot;') %>">
+                    <% if (ev.time) { %><span class="cho-cal-time"><%= ev.time %></span> <% } %><%= ev.title %>
+                  </a>
+                <% }) %>
+              </td>
+            <% }) %>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<%- include('../partials/footer') %>

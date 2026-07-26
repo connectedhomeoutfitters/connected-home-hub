@@ -790,6 +790,34 @@ cert. Ledger was verified untouched throughout (its `chl` PM2 process kept its u
    the OAuth client's authorized redirect URIs, or the "Sign in with Google" button
    fails `redirect_uri_mismatch` (local password login is unaffected).
 
+### Database backups & prod→test sync (2026-07-25)
+
+- **Prod backups**: `/usr/local/bin/cho-hub-backup.sh` on the VPS (reference copy in
+  `scripts/cho-hub-backup.sh`), root crontab **daily 2:30am**, `mysqldump` via root
+  unix_socket auth (no password), gzipped to `/var/backups/cho-hub/` (chmod 600 — dumps
+  hold customer PII), **14-day** retention, logs to `backup.log`. Restore:
+  `gunzip -c <file> | mysql choHub` (as root on the VPS).
+- **Prod→test sync**: `scripts/sync-prod-to-test.js` (run via
+  `scripts/sync-prod-to-test.bat`) pulls a fresh prod dump over SSH (`root@2.25.186.172`,
+  socket auth) and **loads it into the test NAS DB, replacing its contents** — test
+  becomes a mirror of prod; test-only scratch data is discarded each run. Runs from the
+  **dev machine** (it's the only host that can reach both the internet-facing VPS and the
+  LAN test DB at `192.168.4.199:3307`). Scheduled via a Windows Task Scheduler task
+  **"CHO Hub prod-to-test sync"** (weekly Mon 6am, InteractiveToken = runs when logged
+  on, no stored password, `StartWhenAvailable` catches up missed runs); logs to
+  `%USERPROFILE%\cho-hub-sync.log`.
+  - **Safety**: the script refuses to run unless `DB_HOST === 192.168.4.199`, so it can
+    only ever write to test, never prod.
+  - **`--skip-add-locks` is required**: the test DB user (`choHubWeb`) lacks the
+    `LOCK TABLES` privilege, and mysqldump's default `LOCK TABLES` wrappers would fail the
+    load with "Access denied … to database 'choHub'".
+- **Catalog seeding (2026-07-25)**: prod was deployed empty; the real product catalog
+  (28 rows, from the CSV import) lived only in test. A one-off `mysql2.escape`-generated
+  `DELETE`+`INSERT` of the config tables (`products`, `company_settings`, + empty
+  `labor_rates`/`subcontractors`) was piped `test → prod` so prod can build real
+  estimates. The recurring sync is the reverse direction (`prod → test`); now that prod
+  holds the catalog, a sync preserves it in test.
+
 ---
 
 ## Common Gotchas

@@ -4,6 +4,7 @@
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h1 class="h3 mb-0">Jobs</h1>
     <div>
+      <a class="btn btn-outline-secondary btn-sm" href="<%= basePath %>/admin/calendar"><i class="bi bi-calendar3"></i> Calendar</a>
       <a class="btn btn-outline-secondary btn-sm" href="<%= basePath %>/admin/jobs<%= showAll ? '' : '?all=1' %>">
         <%= showAll ? 'Show open only' : 'Show all (incl. done/cancelled)' %>
       </a>

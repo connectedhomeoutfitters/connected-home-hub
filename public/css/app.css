@@ -124,3 +124,65 @@ body {
     padding-top: 1.5rem;
   }
 }
+
+/* --- Scheduling calendar (views/admin/calendar.ejs) --- */
+.cho-cal {
+  width: 100%;
+  min-width: 780px;
+  table-layout: fixed;
+  border-collapse: collapse;
+  background: #fff;
+}
+.cho-cal th {
+  text-align: left;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--cho-dark);
+  padding: 6px 8px;
+  border: 1px solid #e5e7eb;
+  background: #f8f9fa;
+}
+.cho-cal td {
+  vertical-align: top;
+  height: 96px;
+  width: 14.28%;
+  border: 1px solid #e5e7eb;
+  padding: 4px;
+}
+.cho-cal-out { background: #fafbfc; }
+.cho-cal-out .cho-cal-daynum { color: #c0c4c9; }
+.cho-cal-today { background: rgba(7, 153, 214, 0.06); }
+.cho-cal-today .cho-cal-daynum {
+  background: var(--cho-accent);
+  color: #fff;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  text-align: center;
+  line-height: 22px;
+}
+.cho-cal-daynum {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--cho-dark);
+  margin-bottom: 3px;
+}
+.cho-cal-ev {
+  display: block;
+  font-size: 0.72rem;
+  line-height: 1.25;
+  padding: 2px 5px;
+  margin-bottom: 2px;
+  border-radius: 4px;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cho-cal-ev .cho-cal-time { font-weight: 600; opacity: 0.85; }
+.cho-ev-consultation { background: #cfe8f7; color: #084c74; }
+.cho-ev-install      { background: var(--cho-accent); color: #fff; }
+.cho-ev-followup     { background: #fff3cd; color: #664d03; }
+.cho-ev-other        { background: #e2e3e5; color: #41464b; }
+.cho-ev-due          { background: #fff; color: #6c757d; border: 1px dashed #adb5bd; }

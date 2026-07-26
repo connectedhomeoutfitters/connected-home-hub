@@ -98,6 +98,7 @@ app.use(`${BASE_PATH}/admin/leads`, require('./routes/admin/leads'));
 app.use(`${BASE_PATH}/admin/customers`, require('./routes/admin/customers'));
 app.use(`${BASE_PATH}/admin/consultations`, require('./routes/admin/consultations'));
 app.use(`${BASE_PATH}/admin/jobs`, require('./routes/admin/jobs'));
+app.use(`${BASE_PATH}/admin/calendar`, require('./routes/admin/calendar'));
 app.use(`${BASE_PATH}/admin/estimates`, require('./routes/admin/estimates'));
 app.use(`${BASE_PATH}/admin/invoices`, require('./routes/admin/invoices'));
 app.use(`${BASE_PATH}/admin/payments`, require('./routes/admin/payments'));
