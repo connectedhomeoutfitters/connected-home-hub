@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../../config/db');
 const { requireAuth } = require('../../middleware/auth');
+const { adjustStock } = require('../../services/inventory');
 
 router.use(requireAuth);
 
@@ -16,10 +17,16 @@ function resolveRetailPrice({ vendor_cost, markup_percent, markup_enabled, retai
 
 router.get('/', async (req, res, next) => {
   try {
+    const lowOnly = req.query.low === '1';
     const [products] = await db.execute(
-      'SELECT * FROM products ORDER BY active DESC, category, name'
+      `SELECT * FROM products
+       ${lowOnly ? 'WHERE track_inventory = 1 AND reorder_level IS NOT NULL AND stock_qty <= reorder_level' : ''}
+       ORDER BY active DESC, category, name`
     );
-    res.render('admin/products', { pageScript: null, products });
+    const [[low]] = await db.execute(
+      'SELECT COUNT(*) AS c FROM products WHERE track_inventory = 1 AND reorder_level IS NOT NULL AND stock_qty <= reorder_level'
+    );
+    res.render('admin/products', { pageScript: null, products, lowOnly, lowCount: low.c });
   } catch (err) {
     next(err);
   }
@@ -53,7 +60,38 @@ router.get('/:id/edit', async (req, res, next) => {
   try {
     const [rows] = await db.execute('SELECT * FROM products WHERE id = ?', [req.params.id]);
     if (!rows[0]) return res.status(404).render('error', { message: 'Product not found' });
-    res.render('admin/products-edit', { pageScript: null, product: rows[0] });
+    const [movements] = await db.execute(
+      `SELECT sm.*, u.name AS by_name FROM stock_movements sm
+       LEFT JOIN users u ON u.id = sm.created_by
+       WHERE sm.product_id = ? ORDER BY sm.created_at DESC LIMIT 30`,
+      [req.params.id]
+    );
+    res.render('admin/products-edit', { pageScript: null, product: rows[0], movements });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Manual stock change — "receive" adds the entered quantity; "set" adjusts to an absolute
+// count (recorded as an 'adjust' movement for the difference).
+router.post('/:id/stock', async (req, res, next) => {
+  try {
+    const [rows] = await db.execute('SELECT id, stock_qty FROM products WHERE id = ?', [req.params.id]);
+    const product = rows[0];
+    if (!product) return res.status(404).render('error', { message: 'Product not found' });
+
+    const qty = parseInt(req.body.qty, 10);
+    if (isNaN(qty)) return res.redirect(`${res.locals.basePath}/admin/products/${req.params.id}/edit`);
+
+    if (req.body.mode === 'set') {
+      const delta = qty - product.stock_qty;
+      if (delta !== 0) {
+        await adjustStock(db, { productId: product.id, delta, reason: 'adjust', note: (req.body.note || '').trim() || null, userId: req.user.id });
+      }
+    } else {
+      await adjustStock(db, { productId: product.id, delta: qty, reason: 'receive', note: (req.body.note || '').trim() || null, userId: req.user.id });
+    }
+    res.redirect(`${res.locals.basePath}/admin/products/${req.params.id}/edit`);
   } catch (err) {
     next(err);
   }
@@ -71,10 +109,11 @@ router.post('/:id', async (req, res, next) => {
     await db.execute(
       `UPDATE products SET category=?, vendor=?, product_line=?, name=?, description=?,
         part_number=?, vendor_cost=?, markup_percent=?, markup_enabled=?, retail_price=?,
-        taxable=?, unit_of_measure=?, reference_url=? WHERE id=?`,
+        taxable=?, unit_of_measure=?, reference_url=?, track_inventory=?, reorder_level=? WHERE id=?`,
       [category, vendor || null, product_line || null, name, description || null,
         part_number || null, vendor_cost || 0, markup_percent || null, markup_enabled,
         retail_price, taxable === 'on', unit_of_measure || 'Each', reference_url || null,
+        req.body.track_inventory === 'on', req.body.reorder_level || null,
         req.params.id]
     );
     res.redirect(`${res.locals.basePath}/admin/products`);

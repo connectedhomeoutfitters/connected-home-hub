@@ -3,15 +3,17 @@ const router = express.Router();
 const db = require('../../config/db');
 const { requireAuth } = require('../../middleware/auth');
 const { createInvoice, remainingBalanceForEstimate } = require('../../services/invoicing');
+const { consumeForJob } = require('../../services/inventory');
 const activity = require('../../services/activityLog');
 
 router.use(requireAuth);
 
-// When an install job tied to an accepted estimate is marked done, bill the remaining
-// balance automatically. Idempotent: remainingBalanceForEstimate already nets out any
-// invoice already raised, so a second "done" won't double-bill. Returns the new invoice
-// id (staff get redirected there to review + send) or null.
-async function maybeBillFinal(req, jobId) {
+// When an install job tied to an accepted estimate is marked done: (1) consume the
+// estimate's tracked products from inventory, and (2) bill the remaining balance. Both are
+// idempotent (consumeForJob skips if already consumed; remainingBalanceForEstimate nets
+// out invoices already raised), so re-marking a job done won't double-consume or
+// double-bill. Returns the new invoice id (staff get redirected there) or null.
+async function onInstallJobDone(req, jobId) {
   const [jrows] = await db.execute('SELECT * FROM jobs WHERE id = ?', [jobId]);
   const job = jrows[0];
   if (!job || job.type !== 'install' || !job.estimate_id) return null;
@@ -20,19 +22,24 @@ async function maybeBillFinal(req, jobId) {
   if (!estimate || estimate.status !== 'accepted') return null;
 
   const conn = await db.getConnection();
+  let invoiceId = null;
   try {
-    const remaining = await remainingBalanceForEstimate(conn, estimate.id);
-    if (remaining <= 0.005) { conn.release(); return null; }
     await conn.beginTransaction();
-    const invoiceId = await createInvoice(conn, {
-      estimate_id: estimate.id, customer_id: estimate.customer_id, type: 'final',
-      amount: remaining, description: `Final balance — ${estimate.title}`,
-    });
+    await consumeForJob(conn, { estimateId: estimate.id, jobId, userId: req.user.id });
+    const remaining = await remainingBalanceForEstimate(conn, estimate.id);
+    if (remaining > 0.005) {
+      invoiceId = await createInvoice(conn, {
+        estimate_id: estimate.id, customer_id: estimate.customer_id, type: 'final',
+        amount: remaining, description: `Final balance — ${estimate.title}`,
+      });
+    }
     await conn.commit();
-    await activity.log({
-      ...activity.staff(req), action: 'invoice.created', entityType: 'invoice', entityId: invoiceId,
-      customerId: estimate.customer_id, detail: `Final invoice ($${remaining.toFixed(2)}) auto-created on job completion`,
-    });
+    if (invoiceId) {
+      await activity.log({
+        ...activity.staff(req), action: 'invoice.created', entityType: 'invoice', entityId: invoiceId,
+        customerId: estimate.customer_id, detail: `Final invoice ($${remaining.toFixed(2)}) auto-created on job completion`,
+      });
+    }
     return invoiceId;
   } catch (err) {
     await conn.rollback();
@@ -99,7 +106,7 @@ router.post('/:id', async (req, res, next) => {
         assigned_to || null, notes || null, req.params.id]
     );
     if (status === 'done') {
-      const invoiceId = await maybeBillFinal(req, req.params.id);
+      const invoiceId = await onInstallJobDone(req, req.params.id);
       if (invoiceId) return res.redirect(`${res.locals.basePath}/admin/invoices/${invoiceId}?created=1`);
     }
     res.redirect(`${res.locals.basePath}/admin/jobs`);
@@ -112,7 +119,7 @@ router.post('/:id/status', async (req, res, next) => {
   try {
     await db.execute('UPDATE jobs SET status = ? WHERE id = ?', [req.body.status, req.params.id]);
     if (req.body.status === 'done') {
-      const invoiceId = await maybeBillFinal(req, req.params.id);
+      const invoiceId = await onInstallJobDone(req, req.params.id);
       if (invoiceId) return res.redirect(`${res.locals.basePath}/admin/invoices/${invoiceId}?created=1`);
     }
     res.redirect(`${res.locals.basePath}/admin/jobs${req.query.all === '1' ? '?all=1' : ''}`);

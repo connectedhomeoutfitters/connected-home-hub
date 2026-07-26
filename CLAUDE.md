@@ -554,6 +554,21 @@ leading/trailing adjacent-month days appear (normal calendar behaviour). Day buc
 uses a local-time `ymd()` for both events and cells so they line up regardless of server
 TZ (the one thing to watch if dates ever look off by a day).
 
+**Document storage** (`021_documents.sql`, `routes/admin/documents.js`) — a `documents`
+table + a Documents section on the customer detail page: upload (multer disk, 25 MB,
+category + optional job tag), download, delete. Files live under
+`uploads/documents/<customer_id>/`, **never `express.static`** — streamed through the
+authenticated `/admin/documents/:id/download` route (contracts/permits/PII). Same pattern
+as `subcontractor_documents`/`consultation_photos`. The `uploads/documents` dir is created
+on the VPS at deploy time.
+
+**Job-done → auto final invoice** (`routes/admin/jobs.js` `maybeBillFinal`) — marking an
+**install** job that's linked to an **accepted** estimate as `done` (via either the list
+dropdown or the edit form) auto-creates the `final` invoice for the remaining balance and
+redirects staff to it (`?created=1` shows a review-and-send notice). Idempotent via
+`remainingBalanceForEstimate` (nets out invoices already raised), so re-marking done never
+double-bills. Closes the last manual gap in the billing loop.
+
 ---
 
 ## Local Dev / Test Hosting (NAS: `N:\` and `W:\` drives)

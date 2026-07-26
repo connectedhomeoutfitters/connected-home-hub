@@ -3,9 +3,16 @@
 <div class="container">
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h1 class="h3 mb-0">Product Catalog</h1>
-    <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#addProduct">
-      + Add Product
-    </button>
+    <div class="d-flex gap-2 align-items-center">
+      <% if (lowOnly) { %>
+        <a href="<%= basePath %>/admin/products" class="btn btn-outline-secondary btn-sm">All products</a>
+      <% } else if (lowCount > 0) { %>
+        <a href="<%= basePath %>/admin/products?low=1" class="btn btn-outline-warning btn-sm"><i class="bi bi-exclamation-triangle"></i> <%= lowCount %> low on stock</a>
+      <% } %>
+      <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#addProduct">
+        + Add Product
+      </button>
+    </div>
   </div>
 
   <div class="collapse mb-4" id="addProduct">
@@ -76,7 +83,7 @@
     <thead>
       <tr>
         <th>Category</th><th>Vendor / Line</th><th>Name</th><th>Cost</th><th>Retail</th>
-        <th>Unit</th><th>Taxable</th><th>Status</th><th></th>
+        <th>Stock</th><th>Unit</th><th>Status</th><th></th>
       </tr>
     </thead>
     <tbody>
@@ -87,8 +94,12 @@
           <td><%= p.name %></td>
           <td>$<%= Number(p.vendor_cost).toFixed(2) %></td>
           <td>$<%= Number(p.retail_price).toFixed(2) %></td>
+          <td>
+            <% if (p.track_inventory) { %>
+              <%= p.stock_qty %><% if (p.reorder_level != null && p.stock_qty <= p.reorder_level) { %> <span class="badge bg-warning text-dark">Low</span><% } %>
+            <% } else { %><span class="text-muted">—</span><% } %>
+          </td>
           <td><%= p.unit_of_measure %></td>
-          <td><%= p.taxable ? 'Yes' : 'No' %></td>
           <td><%= p.active ? 'Active' : 'Inactive' %></td>
           <td class="text-end">
             <a class="btn btn-sm btn-outline-secondary" href="<%= basePath %>/admin/products/<%= p.id %>/edit">Edit</a>
