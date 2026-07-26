@@ -2,13 +2,19 @@
 // earlier non-legal placeholder text. Authored as HTML, not markdown: rendered
 // unescaped (`<%- terms %>`) into a scrollable box in views/portal/estimate.ejs, which
 // is safe because this content is fully author-controlled, never user input.
-module.exports = `
-<h5>Connected Home Outfitters LLC</h5>
+//
+// Now a function of the company name (from company_settings, see services/companySettings.js)
+// so the legal contracting party matches the configured business; falls back to the legal
+// name if unset. `co` is interpolated wherever the company name appears below.
+module.exports = function estimateTerms(companyName) {
+  const co = (companyName && String(companyName).trim()) || 'Connected Home Outfitters LLC';
+  return `
+<h5>${co}</h5>
 <h6 class="mt-3">Estimate Terms &amp; Conditions</h6>
 <p>By accepting this estimate electronically or by signing below, the Customer agrees to the following Terms and Conditions.</p>
 
 <h6 class="mt-3">1. Scope of Work</h6>
-<p>Connected Home Outfitters LLC ("Contractor") agrees to provide the products and services described in this estimate. Any work requested outside the scope of this estimate may require a written change order and additional charges.</p>
+<p>${co} ("Contractor") agrees to provide the products and services described in this estimate. Any work requested outside the scope of this estimate may require a written change order and additional charges.</p>
 
 <h6 class="mt-3">2. Estimate Validity</h6>
 <p>This estimate is valid for thirty (30) calendar days from the date issued. Pricing may be adjusted after this period due to changes in material costs, product availability, or labor rates.</p>
@@ -48,7 +54,7 @@ module.exports = `
 <p>All change orders must be approved before additional work is performed.</p>
 
 <h6 class="mt-3">10. Limited Warranty</h6>
-<p>Connected Home Outfitters LLC warrants its installation workmanship for one (1) year from the date of project completion.</p>
+<p>${co} warrants its installation workmanship for one (1) year from the date of project completion.</p>
 <p>Manufacturer warranties apply separately to purchased equipment and remain subject to each manufacturer's terms and conditions.</p>
 <p>Warranty coverage does not include:</p>
 <ul>
@@ -62,7 +68,7 @@ module.exports = `
 
 <h6 class="mt-3">11. Customer-Supplied Equipment</h6>
 <p>Contractor may install customer-supplied equipment when agreed upon.</p>
-<p>Connected Home Outfitters LLC cannot guarantee compatibility, performance, or manufacturer warranty coverage for equipment not purchased through Contractor.</p>
+<p>${co} cannot guarantee compatibility, performance, or manufacturer warranty coverage for equipment not purchased through Contractor.</p>
 <p>Additional labor charges may apply for troubleshooting customer-supplied devices.</p>
 
 <h6 class="mt-3">12. Property Protection</h6>
@@ -97,7 +103,8 @@ module.exports = `
   <li>Have reviewed this estimate.</li>
   <li>Understand the scope of work.</li>
   <li>Agree to these Terms &amp; Conditions.</li>
-  <li>Authorize Connected Home Outfitters LLC to perform the described work.</li>
+  <li>Authorize ${co} to perform the described work.</li>
   <li>Agree to pay the required 50% deposit prior to scheduling and the remaining balance upon project completion.</li>
 </ul>
 `.trim();
+};

@@ -318,10 +318,15 @@ not just another CRUD screen:
   tax ID, address/phone/email, and `default_tax_percent`. The tax default actually
   does something: `routes/admin/estimates.js`'s `GET /new` reads it and pre-fills the
   new estimate's `tax_percent` field (still editable per estimate, same as always).
-  Deliberately **not** wired into `services/estimatePdf.js` or `config/estimateTerms.js`
-  (both still hardcode "Connected Home Outfitters LLC") — that would touch 3 call
-  sites across `routes/portal.js`/`routes/admin/estimates.js` for a cosmetic win, out
-  of scope for what was asked.
+  **Now also wired into the estimate PDF + Terms** (2026-07-26): `services/
+  companySettings.js`'s `getCompany()` loads the row (fallback to "Connected Home
+  Outfitters LLC" per field). `services/estimatePdf.js` renders a company block
+  (name/address/phone/email/tax ID, top-right) and `config/estimateTerms.js` is now a
+  **function** `estimateTerms(companyName)` interpolating the name into the legal text.
+  Both are passed `company: await getCompany()` / `estimateTerms(company.company_name)`
+  from all three call sites (`GET /:id/pdf` + `POST /:id/send` in estimates.js, `GET /e/
+  :token`/`/pdf` + the accept-error render in portal.js). Fill in Settings → Company and
+  it flows through; unset fields fall back so nothing breaks.
 - **Staff management UI** (`/admin/settings/users`) replaces `scripts/create-admin.js`
   for day-to-day use (the CLI script still works, treat it as a break-glass fallback).
   New staff can be created with **no password** (`password_hash` stays `NULL`) for a
@@ -600,6 +605,20 @@ job edit page. Landing page gained a "Subcontractor sign in" link. This is the t
 three portals sharing `views/partials/portal-header.ejs` + `portal.css`; all three
 (`/portal` customer, `/sub` subcontractor, staff `/login`) are independent session
 mechanisms that can't satisfy each other's guards.
+
+**Project close-out** (`025_job_closeout.sql`, `jobs.closed_at`) — the final workflow
+step: *"final payment collected → customer receives warranty documentation."* Before this,
+a paid final invoice did nothing to the job and no warranty docs ever reached the customer.
+Now a **`done`** job's edit page shows a **billing status** (`paymentStatusForEstimate`:
+Fully paid / Outstanding $X, from the estimate's non-void invoices) and a **"Close out
+project"** action (deliberate staff step, per the design decision — not auto-on-payment).
+Close-out stamps `closed_at`, emails the customer a **`warranty-summary`** ("project
+complete" + a table of their active warranties — the vision's final handoff), and logs
+`job.closed`. Idempotent (a closed job just redirects back); allowed even if not fully paid
+(staff's call, with a warning). `closed_at` is a **milestone on top of** status='done', not
+a new status, so the status flow is untouched; the jobs list shows a "closed" badge.
+`onInstallJobDone` remains the *auto* path (done → final invoice + inventory consume);
+close-out is the *manual* final step after payment lands.
 
 ---
 

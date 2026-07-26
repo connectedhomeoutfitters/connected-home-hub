@@ -8,6 +8,7 @@ const { createDepositInvoice } = require('./admin/estimates');
 const { sendMail } = require('../services/mailer');
 const { generateEstimatePdf } = require('../services/estimatePdf');
 const estimateTerms = require('../config/estimateTerms');
+const { getCompany } = require('../services/companySettings');
 const activity = require('../services/activityLog');
 
 const TOKEN_TTL_DAYS = 30;
@@ -21,12 +22,13 @@ router.get('/e/:token', resolveToken('estimate'), async (req, res, next) => {
       [req.resourceId]
     );
     if (!rows[0]) return res.status(404).render('portal/expired');
+    const company = await getCompany();
     res.render('portal/estimate', {
       estimate: rows[0],
       items,
       token: req.params.token,
       pageScript: null,
-      terms: estimateTerms,
+      terms: estimateTerms(company.company_name),
       error: null,
     });
   } catch (err) {
@@ -60,8 +62,9 @@ router.post('/e/:token/accept', resolveToken('estimate'), async (req, res, next)
         'SELECT * FROM estimate_line_items WHERE estimate_id = ? ORDER BY sort_order',
         [req.resourceId]
       );
+      const company = await getCompany();
       return res.status(400).render('portal/estimate', {
-        estimate, items, token: req.params.token, pageScript: null, terms: estimateTerms,
+        estimate, items, token: req.params.token, pageScript: null, terms: estimateTerms(company.company_name),
         signatureName,
         error: !signatureName
           ? 'Please type your name to sign electronically before accepting.'
@@ -181,6 +184,7 @@ router.get('/e/:token/pdf', resolveToken('estimate'), async (req, res, next) => 
     const pdf = await generateEstimatePdf({
       estimate, items,
       customer: { name: estimate.customer_name, email: estimate.customer_email, phone: estimate.customer_phone, address: estimate.customer_address },
+      company: await getCompany(),
     });
     res.set('Content-Type', 'application/pdf');
     res.set('Content-Disposition', `inline; filename="estimate-${estimate.id}.pdf"`);

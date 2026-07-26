@@ -5,6 +5,7 @@ const db = require('../../config/db');
 const { requireAuth } = require('../../middleware/auth');
 const { sendMail } = require('../../services/mailer');
 const { generateEstimatePdf } = require('../../services/estimatePdf');
+const { getCompany } = require('../../services/companySettings');
 const { createInvoice, remainingBalanceForEstimate } = require('../../services/invoicing');
 const activity = require('../../services/activityLog');
 
@@ -290,6 +291,7 @@ router.get('/:id/pdf', async (req, res, next) => {
       estimate,
       items,
       customer: { name: estimate.customer_name, email: estimate.customer_email, phone: estimate.customer_phone, address: estimate.customer_address },
+      company: await getCompany(),
     });
     res.set('Content-Type', 'application/pdf');
     res.set('Content-Disposition', `inline; filename="estimate-${estimate.id}.pdf"`);
@@ -357,6 +359,7 @@ router.post('/:id/send', async (req, res, next) => {
       estimate,
       items,
       customer: { name: estimate.customer_name, email: estimate.customer_email, phone: estimate.customer_phone, address: estimate.customer_address },
+      company: await getCompany(),
     });
 
     await sendMail({
