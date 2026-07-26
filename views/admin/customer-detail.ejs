@@ -25,6 +25,11 @@
         <% } else { %>&mdash;<% } %>
       </div>
       <div class="col-md-2"><span class="text-muted small">Customer Since</span><br><%= customer.created_at %></div>
+      <% if (customer.builder_name) { %>
+        <div class="col-md-3"><span class="text-muted small">Referred by</span><br>
+          <a href="<%= basePath %>/admin/builders/<%= customer.builder_id %>"><%= customer.builder_name %></a>
+        </div>
+      <% } %>
       <% if (customer.notes) { %>
         <div class="col-12 mt-2"><span class="text-muted small">Notes</span><br><%= customer.notes %></div>
       <% } %>

@@ -1,0 +1,48 @@
+<%- include('../partials/head', { title: 'Builders' }) %>
+<%- include('../partials/nav') %>
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">Builders &amp; GCs</h1>
+    <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#addBuilder">+ Add Builder</button>
+  </div>
+
+  <div class="collapse mb-4" id="addBuilder">
+    <div class="card card-body">
+      <form action="<%= basePath %>/admin/builders" method="POST" class="row g-2">
+        <div class="col-md-4"><label class="form-label">Company name</label><input type="text" name="name" class="form-control" required></div>
+        <div class="col-md-4"><label class="form-label">Contact name</label><input type="text" name="contact_name" class="form-control"></div>
+        <div class="col-md-4"><label class="form-label">Phone</label><input type="text" name="phone" class="form-control"></div>
+        <div class="col-md-4"><label class="form-label">Email</label><input type="email" name="email" class="form-control"></div>
+        <div class="col-md-8"><label class="form-label">Address</label><input type="text" name="address" class="form-control"></div>
+        <div class="col-12"><label class="form-label">Notes</label><input type="text" name="notes" class="form-control"></div>
+        <div class="col-12"><button class="btn btn-primary mt-2" type="submit">Save Builder</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table align-middle">
+      <thead><tr><th>Company</th><th>Contact</th><th>Phone</th><th>Email</th><th class="text-end">Customers</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        <% if (!builders.length) { %><tr><td colspan="7" class="text-muted text-center py-4">No builders yet.</td></tr><% } %>
+        <% builders.forEach(b => { %>
+          <tr class="<%= b.active ? '' : 'text-muted' %>">
+            <td><a href="<%= basePath %>/admin/builders/<%= b.id %>" class="text-decoration-none"><%= b.name %></a></td>
+            <td><%= b.contact_name || '' %></td>
+            <td class="small"><%= b.phone || '' %></td>
+            <td class="small"><%= b.email || '' %></td>
+            <td class="text-end"><%= b.customer_count %></td>
+            <td><%= b.active ? 'Active' : 'Inactive' %></td>
+            <td class="text-end text-nowrap">
+              <a class="btn btn-sm btn-outline-secondary" href="<%= basePath %>/admin/builders/<%= b.id %>/edit">Edit</a>
+              <form action="<%= basePath %>/admin/builders/<%= b.id %>/toggle-active" method="POST" class="d-inline">
+                <button class="btn btn-sm btn-outline-secondary" type="submit"><%= b.active ? 'Deactivate' : 'Reactivate' %></button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<%- include('../partials/footer') %>

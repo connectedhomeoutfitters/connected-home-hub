@@ -1,0 +1,19 @@
+<%- include('../partials/head', { title: 'Edit Builder' }) %>
+<%- include('../partials/nav') %>
+<div class="container" style="max-width: 640px;">
+  <a href="<%= basePath %>/admin/builders/<%= builder.id %>" class="text-decoration-none small"><i class="bi bi-arrow-left"></i> Back</a>
+  <h1 class="h3 mt-2 mb-4">Edit Builder</h1>
+  <form action="<%= basePath %>/admin/builders/<%= builder.id %>" method="POST" class="row g-2">
+    <div class="col-md-6"><label class="form-label">Company name</label><input type="text" name="name" class="form-control" value="<%= builder.name %>" required></div>
+    <div class="col-md-6"><label class="form-label">Contact name</label><input type="text" name="contact_name" class="form-control" value="<%= builder.contact_name || '' %>"></div>
+    <div class="col-md-6"><label class="form-label">Phone</label><input type="text" name="phone" class="form-control" value="<%= builder.phone || '' %>"></div>
+    <div class="col-md-6"><label class="form-label">Email</label><input type="email" name="email" class="form-control" value="<%= builder.email || '' %>"></div>
+    <div class="col-12"><label class="form-label">Address</label><input type="text" name="address" class="form-control" value="<%= builder.address || '' %>"></div>
+    <div class="col-12"><label class="form-label">Notes</label><textarea name="notes" class="form-control" rows="2"><%= builder.notes || '' %></textarea></div>
+    <div class="col-12 mt-3">
+      <button class="btn btn-primary" type="submit">Save</button>
+      <a class="btn btn-outline-secondary" href="<%= basePath %>/admin/builders/<%= builder.id %>">Cancel</a>
+    </div>
+  </form>
+</div>
+<%- include('../partials/footer') %>

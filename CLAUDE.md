@@ -569,6 +569,17 @@ redirects staff to it (`?created=1` shows a review-and-send notice). Idempotent 
 `remainingBalanceForEstimate` (nets out invoices already raised), so re-marking done never
 double-bills. Closes the last manual gap in the billing loop.
 
+**Inventory v1** (`022_inventory.sql`, `services/inventory.js`) — opt-in per product
+(`products.track_inventory`), building on catalog-linked line items. `stock_movements` is
+the audit trail (`receive`/`consume`/`adjust`); `products.stock_qty` is the running total,
+only ever changed through `adjustStock()` so a movement is always recorded. Product edit
+has an Inventory card (current stock + Low badge, receive/set form, movement history);
+the catalog list shows a Stock column + `?low=1` filter (`stock_qty <= reorder_level`).
+`onInstallJobDone` (in jobs.js, renamed from `maybeBillFinal`) now also calls
+`consumeForJob` — completing an install job **decrements the estimate's tracked products
+from stock**, idempotent per job (skips if that job already has `consume` movements, so
+re-marking done never double-consumes). Only `track_inventory=1` products are touched.
+
 ---
 
 ## Local Dev / Test Hosting (NAS: `N:\` and `W:\` drives)

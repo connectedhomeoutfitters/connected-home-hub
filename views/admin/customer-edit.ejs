@@ -21,6 +21,15 @@
       <input type="text" name="address" class="form-control" value="<%= customer.address || '' %>">
     </div>
     <div class="mb-3">
+      <label class="form-label">Referred by (builder / GC)</label>
+      <select name="builder_id" class="form-select">
+        <option value="">— none —</option>
+        <% builders.forEach(b => { %>
+          <option value="<%= b.id %>" <%= String(customer.builder_id) === String(b.id) ? 'selected' : '' %>><%= b.name %></option>
+        <% }) %>
+      </select>
+    </div>
+    <div class="mb-3">
       <label class="form-label">Site / Arrival Notes</label>
       <textarea name="notes" class="form-control" rows="3" placeholder="Gate code, parking instructions, dog on property, etc."><%= customer.notes || '' %></textarea>
     </div>

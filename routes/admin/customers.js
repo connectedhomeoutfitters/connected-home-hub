@@ -69,7 +69,11 @@ const JOB_STATUS = {
 // this is the richest view obtainable from the current schema.
 router.get('/:id', async (req, res, next) => {
   try {
-    const [customerRows] = await db.execute('SELECT * FROM customers WHERE id = ?', [req.params.id]);
+    const [customerRows] = await db.execute(
+      `SELECT c.*, b.name AS builder_name FROM customers c
+       LEFT JOIN builders b ON b.id = c.builder_id WHERE c.id = ?`,
+      [req.params.id]
+    );
     const customer = customerRows[0];
     if (!customer) return res.status(404).render('error', { message: 'Customer not found' });
 
@@ -179,7 +183,8 @@ router.get('/:id/edit', async (req, res, next) => {
     const [rows] = await db.execute('SELECT * FROM customers WHERE id = ?', [req.params.id]);
     const customer = rows[0];
     if (!customer) return res.status(404).render('error', { message: 'Customer not found' });
-    res.render('admin/customer-edit', { pageScript: null, customer, returnTo: req.query.returnTo || null });
+    const [builders] = await db.execute('SELECT id, name FROM builders WHERE active = 1 ORDER BY name');
+    res.render('admin/customer-edit', { pageScript: null, customer, builders, returnTo: req.query.returnTo || null });
   } catch (err) {
     next(err);
   }
@@ -189,10 +194,10 @@ router.get('/:id/edit', async (req, res, next) => {
 // customers previously had no way to be edited once created.
 router.post('/:id', async (req, res, next) => {
   try {
-    const { name, email, phone, address, notes } = req.body;
+    const { name, email, phone, address, notes, builder_id } = req.body;
     await db.execute(
-      'UPDATE customers SET name = ?, email = ?, phone = ?, address = ?, notes = ? WHERE id = ?',
-      [name, email, phone || null, address || null, notes || null, req.params.id]
+      'UPDATE customers SET name = ?, email = ?, phone = ?, address = ?, builder_id = ?, notes = ? WHERE id = ?',
+      [name, email, phone || null, address || null, builder_id || null, notes || null, req.params.id]
     );
     res.redirect(req.body.return_to || `${res.locals.basePath}/admin/customers`);
   } catch (err) {

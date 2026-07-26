@@ -108,6 +108,7 @@ app.use(`${BASE_PATH}/admin/activity`, require('./routes/admin/activity'));
 app.use(`${BASE_PATH}/admin/products`, require('./routes/admin/products'));
 app.use(`${BASE_PATH}/admin/labor-rates`, require('./routes/admin/laborRates'));
 app.use(`${BASE_PATH}/admin/subcontractors`, require('./routes/admin/subcontractors'));
+app.use(`${BASE_PATH}/admin/builders`, require('./routes/admin/builders'));
 app.use(`${BASE_PATH}/admin/warranties`, require('./routes/admin/warranties'));
 app.use(`${BASE_PATH}/admin/settings`, require('./routes/admin/settings'));
 app.use(`${BASE_PATH}/portal`, require('./routes/customerPortal'));
