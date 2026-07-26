@@ -31,6 +31,67 @@
     </div>
   </div>
 
+  <!-- Documents -->
+  <div class="card mb-4" id="documents">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span>Documents</span>
+      <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#uploadDoc">
+        <i class="bi bi-upload"></i> Upload
+      </button>
+    </div>
+
+    <div class="collapse" id="uploadDoc">
+      <div class="card-body border-bottom bg-light">
+        <form method="POST" action="<%= basePath %>/admin/documents" enctype="multipart/form-data" class="row g-2 align-items-end">
+          <input type="hidden" name="customer_id" value="<%= customer.id %>">
+          <div class="col-md-3">
+            <label class="form-label small mb-1">Category</label>
+            <select name="category" class="form-select form-select-sm">
+              <% ['contract','permit','plan','photo','other'].forEach(c => { %><option value="<%= c %>"><%= c %></option><% }) %>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small mb-1">Tag to job <span class="text-muted">(optional)</span></label>
+            <select name="job_id" class="form-select form-select-sm">
+              <option value="">—</option>
+              <% jobs.forEach(j => { %><option value="<%= j.id %>"><%= j.title %></option><% }) %>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small mb-1">File(s)</label>
+            <input type="file" name="documents" class="form-control form-control-sm" multiple required>
+          </div>
+          <div class="col-md-2">
+            <button type="submit" class="btn btn-primary btn-sm w-100">Upload</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <% if (!documents.length) { %>
+      <div class="card-body text-muted">No documents yet.</div>
+    <% } else { %>
+      <ul class="list-group list-group-flush">
+        <% documents.forEach(d => { %>
+          <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+              <a href="<%= basePath %>/admin/documents/<%= d.id %>/download"><%= d.original_name || d.filename %></a>
+              <div class="text-muted small">
+                <% if (d.category) { %><span class="badge bg-light text-secondary border"><%= d.category %></span> <% } %>
+                <% if (d.job_title) { %>· <%= d.job_title %> <% } %>
+                · <%= d.size_bytes ? (d.size_bytes/1024).toFixed(0) + ' KB' : '' %>
+                · <%= new Date(d.created_at).toLocaleDateString() %><% if (d.uploaded_by_name) { %> by <%= d.uploaded_by_name %><% } %>
+              </div>
+            </div>
+            <form method="POST" action="<%= basePath %>/admin/documents/<%= d.id %>/delete" class="js-confirm-delete">
+              <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
+            </form>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+  </div>
+
   <h2 class="h5 mb-3">History</h2>
   <% if (events.length === 0) { %>
     <p class="text-muted">No activity yet — start a consultation or estimate above.</p>
@@ -49,4 +110,8 @@
     </ul>
   <% } %>
 </div>
+<script nonce="<%= cspNonce %>">
+  document.querySelectorAll('.js-confirm-delete').forEach((f) =>
+    f.addEventListener('submit', (e) => { if (!confirm('Delete this document? This cannot be undone.')) e.preventDefault(); }));
+</script>
 <%- include('../partials/footer') %>

@@ -543,6 +543,17 @@ never a live join, so editing a product later can't rewrite an accepted estimate
   Reports) with a `?customer_id=` filter linked from the customer detail page's "Activity"
   button. `activity.staff(req)` is the shorthand for staff-actor fields.
 
+**Scheduling calendar** (`/admin/calendar`, `routes/admin/calendar.js` + `views/admin/
+calendar.ejs`, nav link after Jobs; **no migration**). A server-rendered month grid
+(6 weeks × 7 days, CSS in `app.css` `.cho-cal*`, **no JS calendar library**) of everything
+scheduled: consultations (by `consultation_date`), jobs by `scheduled_at` (timed), and
+jobs with a `due_date` but no time as all-day "due" markers. Colour-coded by kind, events
+link to their edit pages, prev/Today/next nav via `?m=YYYY-MM`. Read-only — times are
+changed on the job/consultation edit pages. The grid shows whole weeks, so events on the
+leading/trailing adjacent-month days appear (normal calendar behaviour). Day bucketing
+uses a local-time `ymd()` for both events and cells so they line up regardless of server
+TZ (the one thing to watch if dates ever look off by a day).
+
 ---
 
 ## Local Dev / Test Hosting (NAS: `N:\` and `W:\` drives)

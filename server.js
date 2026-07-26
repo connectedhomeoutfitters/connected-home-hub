@@ -96,6 +96,7 @@ app.use(`${BASE_PATH}/`, require('./routes/index'));
 app.use(`${BASE_PATH}/`, require('./routes/auth'));
 app.use(`${BASE_PATH}/admin/leads`, require('./routes/admin/leads'));
 app.use(`${BASE_PATH}/admin/customers`, require('./routes/admin/customers'));
+app.use(`${BASE_PATH}/admin/documents`, require('./routes/admin/documents'));
 app.use(`${BASE_PATH}/admin/consultations`, require('./routes/admin/consultations'));
 app.use(`${BASE_PATH}/admin/jobs`, require('./routes/admin/jobs'));
 app.use(`${BASE_PATH}/admin/calendar`, require('./routes/admin/calendar'));

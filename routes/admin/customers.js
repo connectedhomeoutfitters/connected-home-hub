@@ -79,6 +79,13 @@ router.get('/:id', async (req, res, next) => {
     const [invoices] = await db.execute('SELECT * FROM invoices WHERE customer_id = ?', [req.params.id]);
     const [jobs] = await db.execute('SELECT * FROM jobs WHERE customer_id = ?', [req.params.id]);
     const [warranties] = await db.execute('SELECT * FROM warranties WHERE customer_id = ?', [req.params.id]);
+    const [documents] = await db.execute(
+      `SELECT d.*, j.title AS job_title, u.name AS uploaded_by_name FROM documents d
+       LEFT JOIN jobs j ON j.id = d.job_id
+       LEFT JOIN users u ON u.id = d.uploaded_by
+       WHERE d.customer_id = ? ORDER BY d.created_at DESC`,
+      [req.params.id]
+    );
 
     const events = [];
 
@@ -161,7 +168,7 @@ router.get('/:id', async (req, res, next) => {
 
     events.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-    res.render('admin/customer-detail', { customer, events });
+    res.render('admin/customer-detail', { customer, events, documents, jobs });
   } catch (err) {
     next(err);
   }

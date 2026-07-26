@@ -16,6 +16,7 @@
   </div>
 
   <% if (saved) { %><div class="alert alert-success">Invoice sent to the customer.</div><% } %>
+  <% if (typeof autoCreated !== 'undefined' && autoCreated) { %><div class="alert alert-info">Final invoice created automatically from the completed job — review the amount and send it to the customer.</div><% } %>
 
   <div class="card mb-4">
     <div class="card-body">

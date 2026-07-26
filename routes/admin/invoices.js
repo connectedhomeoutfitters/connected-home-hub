@@ -100,6 +100,7 @@ router.get('/:id', async (req, res, next) => {
     res.render('admin/invoice-detail', {
       pageScript: null, invoice, payments, payToken,
       saved: req.query.sent === '1',
+      autoCreated: req.query.created === '1',
     });
   } catch (err) {
     next(err);
