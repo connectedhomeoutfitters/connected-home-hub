@@ -54,5 +54,58 @@
     <button class="btn btn-primary" type="submit">Save</button>
     <a class="btn btn-outline-secondary" href="<%= basePath %>/admin/jobs">Cancel</a>
   </form>
+
+  <% const money = (n) => '$' + Number(n || 0).toFixed(2); %>
+
+  <% if (closed) { %>
+    <div class="alert alert-success mt-4">Project closed out — the customer has been emailed their warranty documentation.</div>
+  <% } %>
+
+  <!-- Close out -->
+  <div class="card mt-4">
+    <div class="card-header">Project close-out</div>
+    <div class="card-body">
+      <% if (job.closed_at) { %>
+        <p class="mb-0"><i class="bi bi-check-circle-fill text-success"></i> <strong>Closed out</strong> on <%= new Date(job.closed_at).toLocaleString() %> — warranty documentation was emailed to the customer.</p>
+      <% } else { %>
+        <% if (payment) { %>
+          <p class="mb-2">
+            Billing:
+            <% if (payment.fullyPaid) { %>
+              <span class="badge bg-success">Fully paid</span> <span class="text-muted small"><%= money(payment.paid) %> collected</span>
+            <% } else if (payment.outstanding > 0) { %>
+              <span class="badge bg-warning text-dark">Outstanding <%= money(payment.outstanding) %></span> <span class="text-muted small"><%= money(payment.paid) %> paid</span>
+            <% } else { %>
+              <span class="text-muted small">No invoices raised yet.</span>
+            <% } %>
+          </p>
+        <% } %>
+
+        <p class="small text-muted mb-2">
+          Closing out emails the customer a "project complete" note with their warranty documentation
+          (<%= warranties.length %> active warrant<%= warranties.length === 1 ? 'y' : 'ies' %> on file<% if (!warranties.length) { %> — <a href="<%= basePath %>/admin/warranties/new?customer_id=<%= job.customer_id %>">add one first</a><% } %>).
+        </p>
+        <% if (warranties.length) { %>
+          <ul class="small text-muted mb-3">
+            <% warranties.forEach(w => { %><li><%= w.item %><%= w.provider ? ' (' + w.provider + ')' : '' %><%= w.expires_on ? ' — through ' + new Date(w.expires_on).toLocaleDateString() : '' %></li><% }) %>
+          </ul>
+        <% } %>
+
+        <% if (job.status === 'done') { %>
+          <form action="<%= basePath %>/admin/jobs/<%= job.id %>/close-out" method="POST" id="closeout-form">
+            <button class="btn btn-success" type="submit"><i class="bi bi-flag"></i> Close out project</button>
+            <% if (payment && !payment.fullyPaid) { %><span class="text-warning small ms-2">Final balance not fully paid — close out anyway?</span><% } %>
+          </form>
+        <% } else { %>
+          <p class="text-muted small mb-0">Mark the job <strong>done</strong> first, then you can close it out.</p>
+        <% } %>
+      <% } %>
+    </div>
+  </div>
 </div>
+<script nonce="<%= cspNonce %>">
+  document.getElementById('closeout-form')?.addEventListener('submit', (e) => {
+    if (!confirm('Close out this project and email the customer their warranty documentation?')) e.preventDefault();
+  });
+</script>
 <%- include('../partials/footer') %>

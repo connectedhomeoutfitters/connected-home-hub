@@ -72,6 +72,7 @@
                 <% }) %>
               </select>
             </form>
+            <% if (j.closed_at) { %><span class="badge bg-success ms-1" title="Project closed out">closed</span><% } %>
           </td>
           <td class="text-end">
             <a class="btn btn-sm btn-outline-secondary" href="<%= basePath %>/admin/jobs/<%= j.id %>/edit">Edit</a>

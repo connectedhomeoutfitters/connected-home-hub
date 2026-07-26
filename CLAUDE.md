@@ -588,6 +588,19 @@ builder detail page lists that builder's referred customers and their **net paid
 (sum of succeeded payments − refunds), so staff can see which referral relationships are
 worth nurturing.
 
+**Subcontractor portal** (`024_subcontractor_portal.sql`) — the **third access tier**,
+previously deferred as needing multi-principal auth, now built by mirroring the customer
+portal's separate-session pattern (`req.session.subcontractorId`, **not** Passport —
+`middleware/subAuth.js`, `routes/subPortal.js`, mounted at `/sub`). Magic-link login (only
+active subs with an email on file; no self-signup / no enumeration; single-use 30-min
+tokens in `subcontractor_auth_tokens`). Dashboard shows the sub's **assigned jobs** and
+their **own documents** (COIs/W9s, streamed scoped to the logged-in sub). Enabled by
+`jobs.subcontractor_id` (also deferred with the portal) — assigned via a dropdown on the
+job edit page. Landing page gained a "Subcontractor sign in" link. This is the third of
+three portals sharing `views/partials/portal-header.ejs` + `portal.css`; all three
+(`/portal` customer, `/sub` subcontractor, staff `/login`) are independent session
+mechanisms that can't satisfy each other's guards.
+
 ---
 
 ## Local Dev / Test Hosting (NAS: `N:\` and `W:\` drives)
