@@ -91,7 +91,8 @@ router.get('/:id/edit', async (req, res, next) => {
     const job = rows[0];
     if (!job) return res.status(404).render('error', { message: 'Job not found' });
     const [staff] = await db.execute('SELECT id, name FROM users ORDER BY name');
-    res.render('admin/job-edit', { pageScript: null, job, staff });
+    const [subcontractors] = await db.execute("SELECT id, name, trade FROM subcontractors WHERE active = 1 ORDER BY name");
+    res.render('admin/job-edit', { pageScript: null, job, staff, subcontractors });
   } catch (err) {
     next(err);
   }
@@ -99,11 +100,11 @@ router.get('/:id/edit', async (req, res, next) => {
 
 router.post('/:id', async (req, res, next) => {
   try {
-    const { title, status, due_date, scheduled_at, assigned_to, notes } = req.body;
+    const { title, status, due_date, scheduled_at, assigned_to, subcontractor_id, notes } = req.body;
     await db.execute(
-      `UPDATE jobs SET title=?, status=?, due_date=?, scheduled_at=?, assigned_to=?, notes=? WHERE id=?`,
+      `UPDATE jobs SET title=?, status=?, due_date=?, scheduled_at=?, assigned_to=?, subcontractor_id=?, notes=? WHERE id=?`,
       [title, status, due_date || null, scheduled_at ? scheduled_at.replace('T', ' ') + ':00' : null,
-        assigned_to || null, notes || null, req.params.id]
+        assigned_to || null, subcontractor_id || null, notes || null, req.params.id]
     );
     if (status === 'done') {
       const invoiceId = await onInstallJobDone(req, req.params.id);

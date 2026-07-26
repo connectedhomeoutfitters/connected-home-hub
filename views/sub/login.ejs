@@ -1,0 +1,30 @@
+<%- include('../partials/head', { title: 'Subcontractor Portal', portalBranded: true, bodyClass: 'portal-page' }) %>
+<%- include('../partials/portal-header') %>
+<div class="container py-5" style="max-width: 460px;">
+  <h1 class="h4 mb-2">Subcontractor Portal</h1>
+  <p class="text-muted">View the jobs assigned to you and your documents on file.</p>
+
+  <% if (sent) { %>
+    <div class="alert alert-success">
+      <strong>Check your email.</strong> If that address is on file with us, we've sent a
+      secure sign-in link. It expires in 30 minutes.
+    </div>
+    <a href="<%= basePath %>/sub/login" class="btn btn-outline-secondary w-100">Back</a>
+  <% } else { %>
+    <% if (error) { %><div class="alert alert-danger"><%= error %></div><% } %>
+    <form action="<%= basePath %>/sub/login" method="POST">
+      <div class="mb-3">
+        <label class="form-label">Email address</label>
+        <input type="email" name="email" class="form-control" required autofocus placeholder="you@example.com">
+        <div class="form-text">We'll email you a one-time sign-in link — no password needed.</div>
+      </div>
+      <button class="btn btn-primary w-100" type="submit">Email me a sign-in link</button>
+    </form>
+  <% } %>
+
+  <hr class="my-4">
+  <p class="text-center text-muted small mb-0">
+    Connected Home Outfitters staff? <a href="<%= basePath %>/login">Staff sign in</a>
+  </p>
+</div>
+<%- include('../partials/footer') %>

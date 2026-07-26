@@ -580,6 +580,14 @@ the catalog list shows a Stock column + `?low=1` filter (`stock_qty <= reorder_l
 from stock**, idempotent per job (skips if that job already has `consume` movements, so
 re-marking done never double-consumes). Only `track_inventory=1` products are touched.
 
+**Builder/GC management** (`023_builders.sql`, `routes/admin/builders.js`) — the general
+contractors/builders who **refer** work to CHO (distinct from `subcontractors`, whom CHO
+hires out). `builders` CRUD (nav link after Subcontractors) + `customers.builder_id` (set
+via a "Referred by" dropdown on the customer edit page, shown on the customer detail). The
+builder detail page lists that builder's referred customers and their **net paid revenue**
+(sum of succeeded payments − refunds), so staff can see which referral relationships are
+worth nurturing.
+
 ---
 
 ## Local Dev / Test Hosting (NAS: `N:\` and `W:\` drives)

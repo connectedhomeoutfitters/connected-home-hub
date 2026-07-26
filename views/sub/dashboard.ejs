@@ -1,0 +1,65 @@
+<%- include('../partials/head', { title: 'Your Jobs', portalBranded: true, bodyClass: 'portal-page' }) %>
+<%- include('../partials/portal-header') %>
+<%
+  function badge(s) {
+    const map = { pending: 'bg-secondary', in_progress: 'bg-info text-dark', done: 'bg-success', cancelled: 'bg-secondary' };
+    return `<span class="badge ${map[s] || 'bg-secondary'}">${String(s).replace('_',' ')}</span>`;
+  }
+  const dt = (d) => d ? new Date(String(d).replace(' ', 'T')).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : null;
+  const date = (d) => d ? new Date(d).toLocaleDateString() : null;
+%>
+<div class="container py-4" style="max-width: 820px;">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h4 mb-0">Welcome<%= subcontractor && subcontractor.name ? ', ' + subcontractor.name : '' %></h1>
+      <div class="text-muted small"><%= subcontractor ? subcontractor.email : '' %></div>
+    </div>
+    <form action="<%= basePath %>/sub/logout" method="POST"><button class="btn btn-outline-secondary btn-sm" type="submit">Sign out</button></form>
+  </div>
+
+  <!-- Assigned jobs -->
+  <div class="card mb-4">
+    <div class="card-header">Your jobs</div>
+    <% if (!jobs.length) { %>
+      <div class="card-body text-muted">No jobs assigned to you right now.</div>
+    <% } else { %>
+      <ul class="list-group list-group-flush">
+        <% jobs.forEach(j => { %>
+          <li class="list-group-item">
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+              <div>
+                <div class="fw-semibold"><%= j.title %></div>
+                <div class="text-muted small"><%= j.customer_name %><% if (j.customer_address) { %> · <%= j.customer_address %><% } %></div>
+                <% if (j.scheduled_at) { %><div class="small">Scheduled: <%= dt(j.scheduled_at) %></div>
+                <% } else if (j.due_date) { %><div class="small">Due: <%= date(j.due_date) %></div><% } %>
+                <% if (j.notes) { %><div class="text-muted small mt-1"><%= j.notes %></div><% } %>
+              </div>
+              <%- badge(j.status) %>
+            </div>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+  </div>
+
+  <!-- Documents on file -->
+  <div class="card mb-4">
+    <div class="card-header">Your documents</div>
+    <% if (!documents.length) { %>
+      <div class="card-body text-muted">No documents on file.</div>
+    <% } else { %>
+      <ul class="list-group list-group-flush">
+        <% documents.forEach(d => { %>
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <div>
+              <a href="<%= basePath %>/sub/documents/<%= d.id %>/download"><%= d.original_name || 'Document' %></a>
+              <% if (d.category) { %><span class="badge bg-light text-secondary border ms-1"><%= d.category %></span><% } %>
+            </div>
+            <span class="text-muted small"><%= date(d.created_at) %></span>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+  </div>
+</div>
+<%- include('../partials/footer') %>
