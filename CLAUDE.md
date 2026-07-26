@@ -519,6 +519,30 @@ never a live join, so editing a product later can't rewrite an accepted estimate
   in the browser grabs the **sidebar logout form** (first in DOM) — target the real form
   via `getElementById('line-items-body').closest('form')` or `form[action$=...]`.
 
+### Tier 3 — polish/hardening (migrations 019, 020)
+
+- **CSP-blocked inline handlers fixed.** The CSP's `script-src-attr 'none'` silently
+  killed every inline `on*=` handler. Two were **functional breaks, not cosmetic**: the
+  `onchange="this.form.submit()"` on the jobs *and* leads status dropdowns meant changing
+  a status via the dropdown **did nothing**. All three (those two + estimate "Send to
+  Customer" confirm) moved to nonce'd `addEventListener` blocks (`.js-autosubmit` class +
+  a per-page nonced script). **Rule: never add an inline `on*=` handler — it will no-op
+  under the CSP.** (`grep -rn "on\(submit\|click\|change\)=" views/` should stay empty.)
+- **Email delivery logging** (`019_email_log.sql`). `services/mailer.js` now writes an
+  `email_log` row for every send — `sent` / `failed` (with error) / `skipped` (SMTP
+  unset) — wrapped so a logging failure never affects the send. Admin-only view at
+  **`/admin/settings/email-log`** (card on the Settings index) with a "problems only"
+  filter, so a bounced estimate/invoice email is visible instead of silent.
+- **Activity / audit log** (`020_activity_log.sql`, `services/activityLog.js`). Append-only
+  record with actor attribution (`staff`/`customer`/`system`) that the reconstructed
+  customer-360 timeline couldn't provide. `log()` never throws (audit write must not break
+  the audited action) and can take a `conn` to commit inside the action's transaction.
+  Instrumented at: estimate.sent (staff), estimate.accepted/declined (customer, from the
+  portal), invoice.created/sent (staff), invoice.paid (system, from the webhook),
+  refund.issued (staff). Global feed at **`/admin/activity`** (all staff, nav link after
+  Reports) with a `?customer_id=` filter linked from the customer detail page's "Activity"
+  button. `activity.staff(req)` is the shorthand for staff-actor fields.
+
 ---
 
 ## Local Dev / Test Hosting (NAS: `N:\` and `W:\` drives)
