@@ -1,0 +1,82 @@
+<%- include('../partials/head', { title: isNew ? 'New Template' : 'Edit Template' }) %>
+<%- include('../partials/nav') %>
+<div class="container" style="max-width: 900px;">
+  <a href="<%= basePath %>/admin/estimate-templates" class="text-decoration-none small"><i class="bi bi-arrow-left"></i> Templates</a>
+  <h1 class="h3 mt-2 mb-1"><%= isNew ? 'New Estimate Template' : 'Edit Estimate Template' %></h1>
+  <p class="text-muted small">Build a reusable set of line items. Loading this into an estimate copies the lines in to tweak per customer.</p>
+
+  <form action="<%= basePath %>/admin/estimate-templates<%= isNew ? '' : '/' + template.id %>" method="POST">
+    <div class="row mb-3">
+      <div class="col-md-6">
+        <label class="form-label">Template name <span class="text-muted small">(internal)</span></label>
+        <input type="text" name="name" class="form-control" value="<%= template.name || '' %>" required placeholder="e.g. Smart Home Starter Package">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Deposit %</label>
+        <input type="number" step="0.01" name="deposit_percent" class="form-control" id="deposit_percent" value="<%= template.deposit_percent %>">
+      </div>
+      <div class="col-md-8 mt-3">
+        <label class="form-label">Estimate title <span class="text-muted small">(shown to customer)</span></label>
+        <input type="text" name="title" class="form-control" value="<%= template.title || '' %>" placeholder="Defaults to the template name">
+      </div>
+      <div class="col-12 mt-3">
+        <label class="form-label">Description</label>
+        <textarea name="description" class="form-control" rows="2"><%= template.description || '' %></textarea>
+      </div>
+    </div>
+
+    <h2 class="h5">Line Items</h2>
+    <table class="table table-sm" id="line-items-table">
+      <thead>
+        <tr><th style="width:22%">Source</th><th>Description</th><th style="width:10%">Qty</th><th style="width:14%">Unit Price</th><th style="width:14%">Line Total</th><th></th></tr>
+      </thead>
+      <tbody id="line-items-body">
+        <% items.forEach(item => { %>
+          <tr class="line-item-row" data-source="<%= item.product_id ? 'product:' + item.product_id : (item.labor_rate_id ? 'labor:' + item.labor_rate_id : '') %>">
+            <td><select name="line_source" class="form-select form-select-sm line-source"><option value="">Custom</option></select></td>
+            <td><input type="text" name="line_description" class="form-control form-control-sm line-description" value="<%= item.description %>" required></td>
+            <td><input type="number" step="0.01" name="line_quantity" class="form-control form-control-sm line-quantity" value="<%= item.quantity %>"></td>
+            <td><input type="number" step="0.01" name="line_unit_price" class="form-control form-control-sm line-price" value="<%= item.unit_price %>"></td>
+            <td class="line-total">$0.00</td>
+            <td><button type="button" class="btn btn-sm btn-link text-danger remove-line">&times;</button></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+    <button type="button" class="btn btn-sm btn-outline-primary mb-3" id="add-line">+ Add Line</button>
+
+    <template id="line-row-template">
+      <tr class="line-item-row" data-source="">
+        <td><select name="line_source" class="form-select form-select-sm line-source"><option value="">Custom</option></select></td>
+        <td><input type="text" name="line_description" class="form-control form-control-sm line-description" required></td>
+        <td><input type="number" step="0.01" name="line_quantity" class="form-control form-control-sm line-quantity"></td>
+        <td><input type="number" step="0.01" name="line_unit_price" class="form-control form-control-sm line-price"></td>
+        <td class="line-total">$0.00</td>
+        <td><button type="button" class="btn btn-sm btn-link text-danger remove-line">&times;</button></td>
+      </tr>
+    </template>
+
+    <div class="row justify-content-end">
+      <div class="col-md-4">
+        <div class="d-flex justify-content-between"><span>Subtotal</span><span id="summary-subtotal">$0.00</span></div>
+        <div class="d-flex justify-content-between align-items-center">
+          <span>Tax %</span>
+          <input type="number" step="0.01" name="tax_percent" id="tax_percent" class="form-control form-control-sm w-50 text-end" value="<%= template.tax_percent != null ? template.tax_percent : '' %>">
+        </div>
+        <div class="d-flex justify-content-between"><span>Tax</span><span id="summary-tax">$0.00</span></div>
+        <div class="d-flex justify-content-between fs-5"><strong>Total</strong><strong id="summary-total">$0.00</strong></div>
+        <div class="text-muted small mt-1">Tax % is a default; left blank uses the company default when loaded.</div>
+      </div>
+    </div>
+
+    <button class="btn btn-primary mt-3" type="submit"><%= isNew ? 'Create Template' : 'Save' %></button>
+    <a class="btn btn-outline-secondary mt-3" href="<%= basePath %>/admin/estimate-templates">Cancel</a>
+  </form>
+</div>
+<script nonce="<%= cspNonce %>">
+  window.CHO_HUB_CATALOG = {
+    products: <%- JSON.stringify(products) %>,
+    laborRates: <%- JSON.stringify(laborRates) %>,
+  };
+</script>
+<%- include('../partials/footer') %>

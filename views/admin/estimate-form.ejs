@@ -35,6 +35,27 @@
     </div>
   </div>
 
+  <!-- Start from a template (new estimates only) -->
+  <% if (isNew && typeof templates !== 'undefined' && templates.length) { %>
+    <form method="GET" action="<%= basePath %>/admin/estimates/new" class="card card-body mb-3 border-primary-subtle">
+      <input type="hidden" name="customer_id" value="<%= customer.id %>">
+      <% if (estimate.consultation_id) { %><input type="hidden" name="consultation_id" value="<%= estimate.consultation_id %>"><% } %>
+      <div class="d-flex align-items-end gap-2 flex-wrap">
+        <div class="flex-grow-1" style="max-width: 360px;">
+          <label class="form-label mb-1"><i class="bi bi-clipboard-plus"></i> Start from a template</label>
+          <select name="template_id" class="form-select form-select-sm">
+            <option value="">— none (blank estimate) —</option>
+            <% templates.forEach(t => { %>
+              <option value="<%= t.id %>" <%= String(selectedTemplateId) === String(t.id) ? 'selected' : '' %>><%= t.name %></option>
+            <% }) %>
+          </select>
+        </div>
+        <button class="btn btn-outline-primary btn-sm" type="submit">Load</button>
+        <span class="text-muted small">Loads the template's lines below to tweak — replaces anything currently entered.</span>
+      </div>
+    </form>
+  <% } %>
+
   <form action="<%= isNew ? `${basePath}/admin/estimates` : `${basePath}/admin/estimates/${estimate.id}` %>" method="POST" id="estimate-form">
     <input type="hidden" name="customer_id" value="<%= customer.id %>">
     <input type="hidden" name="consultation_id" value="<%= estimate && estimate.consultation_id ? estimate.consultation_id : '' %>">
@@ -131,6 +152,7 @@
         <a href="<%= basePath %>/admin/estimates/<%= estimate.id %>/materials" class="btn btn-outline-secondary">
           <i class="bi bi-box-seam"></i> Material list
         </a>
+        <!-- "Save as template" lives after </form> below — a <form> can't be nested inside the estimate form. -->
       </div>
     <% } %>
 
@@ -140,6 +162,13 @@
     <% } %>
     <a class="btn btn-outline-secondary mt-3" href="<%= basePath %>/admin/estimates">Cancel</a>
   </form>
+
+  <% if (!isNew) { %>
+    <form action="<%= basePath %>/admin/estimates/<%= estimate.id %>/save-as-template" method="POST" class="mt-2">
+      <button class="btn btn-outline-secondary btn-sm" type="submit"><i class="bi bi-clipboard-plus"></i> Save as template</button>
+      <span class="text-muted small ms-1">Reuse these line items for future estimates.</span>
+    </form>
+  <% } %>
 
   <% if (locked) { %>
     <div class="alert alert-secondary mt-4">

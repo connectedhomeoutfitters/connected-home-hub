@@ -6,6 +6,7 @@ const { requireAuth } = require('../../middleware/auth');
 const { sendMail } = require('../../services/mailer');
 const { generateEstimatePdf } = require('../../services/estimatePdf');
 const { getCompany } = require('../../services/companySettings');
+const { lineItemsFromBody } = require('../../services/lineItems');
 const { createInvoice, remainingBalanceForEstimate } = require('../../services/invoicing');
 const activity = require('../../services/activityLog');
 
@@ -16,41 +17,7 @@ const TOKEN_TTL_DAYS = 30;
 // (see services/estimateExpiry.js). Re-sending an expired estimate resets the clock.
 const ESTIMATE_VALID_DAYS = 30;
 
-function normalizeArray(value) {
-  if (value === undefined) return [];
-  return Array.isArray(value) ? value : [value];
-}
-
-// Line items arrive as parallel arrays (line_description[], line_quantity[],
-// line_unit_price[]) from the dynamic add/remove-row form — zipped back together here,
-// blank rows dropped. Named distinctly from the estimate's own "description" field —
-// same-named inputs merge into one array on submit, which silently corrupted both
-// fields the first time this used plain "description"/"quantity"/"unit_price".
-function lineItemsFromBody(body) {
-  const descriptions = normalizeArray(body.line_description);
-  const quantities = normalizeArray(body.line_quantity);
-  const unitPrices = normalizeArray(body.line_unit_price);
-  // Parallel to the others, one per row: '' (custom), 'product:<id>', or 'labor:<id>'.
-  const sources = normalizeArray(body.line_source);
-  const items = [];
-  for (let i = 0; i < descriptions.length; i++) {
-    const description = (descriptions[i] || '').trim();
-    if (!description) continue;
-    let productId = null;
-    let laborRateId = null;
-    const src = sources[i] || '';
-    if (src.startsWith('product:')) productId = parseInt(src.slice(8), 10) || null;
-    else if (src.startsWith('labor:')) laborRateId = parseInt(src.slice(6), 10) || null;
-    items.push({
-      description,
-      quantity: parseFloat(quantities[i]) || 0,
-      unit_price: parseFloat(unitPrices[i]) || 0,
-      product_id: productId,
-      labor_rate_id: laborRateId,
-    });
-  }
-  return items;
-}
+// lineItemsFromBody moved to services/lineItems.js (shared with the template builder).
 
 // Job costing from linked line items: margin is only meaningful on materials (vendor_cost
 // vs. what we charge). Labor/custom lines have no cost basis here, so they're revenue-only.
@@ -116,21 +83,41 @@ router.get('/new', async (req, res, next) => {
     const [settingsRows] = await db.execute('SELECT default_tax_percent FROM company_settings WHERE id = 1');
     const defaultTaxPercent = settingsRows[0]?.default_tax_percent ?? 0;
 
+    // Templates for the "Start from template" picker, and pre-fill if one is chosen.
+    const [templates] = await db.execute(
+      'SELECT id, name FROM estimate_templates WHERE active = 1 ORDER BY name'
+    );
+    let tpl = null;
+    let items = [];
+    if (req.query.template_id) {
+      const [tRows] = await db.execute('SELECT * FROM estimate_templates WHERE id = ?', [req.query.template_id]);
+      tpl = tRows[0] || null;
+      if (tpl) {
+        const [tItems] = await db.execute(
+          'SELECT product_id, labor_rate_id, description, quantity, unit_price FROM estimate_template_items WHERE template_id = ? ORDER BY sort_order',
+          [tpl.id]
+        );
+        items = tItems;
+      }
+    }
+
     res.render('admin/estimate-form', {
       pageScript: 'page-estimate-form.js',
       isNew: true,
       estimate: {
-        title: consultation?.recommended_package || '',
-        description: consultation?.consultant_notes || '',
+        title: tpl?.title || consultation?.recommended_package || '',
+        description: tpl?.description || consultation?.consultant_notes || '',
         consultation_id: consultation?.id || null,
-        deposit_percent: 50,
-        tax_percent: defaultTaxPercent,
+        deposit_percent: tpl ? tpl.deposit_percent : 50,
+        tax_percent: tpl && tpl.tax_percent != null ? tpl.tax_percent : defaultTaxPercent,
       },
-      items: [],
+      items,
       customer: customerRows[0],
       consultation,
       products,
       laborRates,
+      templates,
+      selectedTemplateId: tpl ? tpl.id : null,
     });
   } catch (err) {
     next(err);
@@ -437,6 +424,41 @@ router.post('/:id/final-invoice', async (req, res, next) => {
       customerId: estimate.customer_id, detail: `Final invoice ($${remaining.toFixed(2)}) created from estimate "${estimate.title}"`,
     });
     res.redirect(`${res.locals.basePath}/admin/invoices/${invoiceId}`);
+  } catch (err) {
+    await conn.rollback();
+    next(err);
+  } finally {
+    conn.release();
+  }
+});
+
+// Save an existing estimate's line items + title/deposit as a reusable template. Lands on
+// the new template's edit page so staff can name/tweak it.
+router.post('/:id/save-as-template', async (req, res, next) => {
+  const conn = await db.getConnection();
+  try {
+    const [rows] = await conn.execute('SELECT * FROM estimates WHERE id = ?', [req.params.id]);
+    const estimate = rows[0];
+    if (!estimate) { conn.release(); return res.status(404).render('error', { message: 'Estimate not found' }); }
+    const [items] = await conn.execute(
+      'SELECT product_id, labor_rate_id, description, quantity, unit_price, sort_order FROM estimate_line_items WHERE estimate_id = ? ORDER BY sort_order',
+      [estimate.id]
+    );
+
+    await conn.beginTransaction();
+    const [result] = await conn.execute(
+      'INSERT INTO estimate_templates (name, title, description, deposit_percent, tax_percent) VALUES (?, ?, ?, ?, ?)',
+      [estimate.title, estimate.title, estimate.description || null, estimate.deposit_percent, estimate.tax_percent]
+    );
+    const templateId = result.insertId;
+    for (const it of items) {
+      await conn.execute(
+        'INSERT INTO estimate_template_items (template_id, product_id, labor_rate_id, description, quantity, unit_price, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [templateId, it.product_id, it.labor_rate_id, it.description, it.quantity, it.unit_price, it.sort_order]
+      );
+    }
+    await conn.commit();
+    res.redirect(`${res.locals.basePath}/admin/estimate-templates/${templateId}/edit`);
   } catch (err) {
     await conn.rollback();
     next(err);

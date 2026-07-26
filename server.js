@@ -101,6 +101,7 @@ app.use(`${BASE_PATH}/admin/consultations`, require('./routes/admin/consultation
 app.use(`${BASE_PATH}/admin/jobs`, require('./routes/admin/jobs'));
 app.use(`${BASE_PATH}/admin/calendar`, require('./routes/admin/calendar'));
 app.use(`${BASE_PATH}/admin/estimates`, require('./routes/admin/estimates'));
+app.use(`${BASE_PATH}/admin/estimate-templates`, require('./routes/admin/estimateTemplates'));
 app.use(`${BASE_PATH}/admin/invoices`, require('./routes/admin/invoices'));
 app.use(`${BASE_PATH}/admin/payments`, require('./routes/admin/payments'));
 app.use(`${BASE_PATH}/admin/reports`, require('./routes/admin/reports'));

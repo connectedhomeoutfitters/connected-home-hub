@@ -1,0 +1,41 @@
+<%- include('../partials/head', { title: 'Estimate Templates' }) %>
+<%- include('../partials/nav') %>
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-0">Estimate Templates</h1>
+      <p class="text-muted small mb-0">Reusable starting points for packages and common installs.</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="<%= basePath %>/admin/estimates" class="btn btn-outline-secondary btn-sm">Estimates</a>
+      <a href="<%= basePath %>/admin/estimate-templates/new" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> New template</a>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table align-middle">
+      <thead><tr><th>Name</th><th>Estimate title</th><th class="text-end">Lines</th><th class="text-end">Deposit</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        <% if (!templates.length) { %>
+          <tr><td colspan="6" class="text-muted text-center py-4">No templates yet. Create one, or open an estimate and "Save as template".</td></tr>
+        <% } %>
+        <% templates.forEach(t => { %>
+          <tr class="<%= t.active ? '' : 'text-muted' %>">
+            <td><a href="<%= basePath %>/admin/estimate-templates/<%= t.id %>/edit" class="text-decoration-none fw-semibold"><%= t.name %></a></td>
+            <td class="small text-muted"><%= t.title %></td>
+            <td class="text-end"><%= t.item_count %></td>
+            <td class="text-end"><%= Number(t.deposit_percent) %>%</td>
+            <td><%= t.active ? 'Active' : 'Inactive' %></td>
+            <td class="text-end text-nowrap">
+              <a class="btn btn-sm btn-outline-secondary" href="<%= basePath %>/admin/estimate-templates/<%= t.id %>/edit">Edit</a>
+              <form action="<%= basePath %>/admin/estimate-templates/<%= t.id %>/toggle-active" method="POST" class="d-inline">
+                <button class="btn btn-sm btn-outline-secondary" type="submit"><%= t.active ? 'Deactivate' : 'Reactivate' %></button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<%- include('../partials/footer') %>
