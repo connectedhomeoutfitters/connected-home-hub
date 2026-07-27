@@ -1,0 +1,9 @@
+<%
+  // Suggestions for the product category input. Paired with an <input list="category-options">;
+  // staff can pick one of these or type a new category (the form saves whatever's entered).
+%>
+<datalist id="category-options">
+  <% (typeof categories !== 'undefined' && categories ? categories : []).forEach(function (c) { %>
+    <option value="<%= c %>"></option>
+  <% }) %>
+</datalist>

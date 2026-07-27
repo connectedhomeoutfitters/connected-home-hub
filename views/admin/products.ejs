@@ -21,7 +21,8 @@
         <div class="row g-2">
           <div class="col-md-3">
             <label class="form-label">Category</label>
-            <input type="text" name="category" class="form-control" required>
+            <input type="text" name="category" class="form-control" list="category-options" required>
+            <%- include('../partials/category-datalist') %>
           </div>
           <div class="col-md-3">
             <label class="form-label">Vendor</label>

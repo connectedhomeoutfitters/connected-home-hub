@@ -6,6 +6,17 @@ const { adjustStock } = require('../../services/inventory');
 
 router.use(requireAuth);
 
+// Distinct existing categories, for the <datalist> on the product forms — staff pick an
+// existing one or type a brand-new value (the routes save whatever's submitted, so a new
+// category just works). Includes inactive products so a category doesn't vanish when its
+// last product is deactivated.
+async function loadCategories() {
+  const [rows] = await db.execute(
+    "SELECT DISTINCT category FROM products WHERE category IS NOT NULL AND category <> '' ORDER BY category"
+  );
+  return rows.map((r) => r.category);
+}
+
 // If markup is enabled, retail_price is derived from cost + markup% rather than trusting
 // whatever the form submitted for it — keeps the two from drifting out of sync.
 function resolveRetailPrice({ vendor_cost, markup_percent, markup_enabled, retail_price }) {
@@ -26,7 +37,7 @@ router.get('/', async (req, res, next) => {
     const [[low]] = await db.execute(
       'SELECT COUNT(*) AS c FROM products WHERE track_inventory = 1 AND reorder_level IS NOT NULL AND stock_qty <= reorder_level'
     );
-    res.render('admin/products', { pageScript: null, products, lowOnly, lowCount: low.c });
+    res.render('admin/products', { pageScript: null, products, lowOnly, lowCount: low.c, categories: await loadCategories() });
   } catch (err) {
     next(err);
   }
@@ -66,7 +77,7 @@ router.get('/:id/edit', async (req, res, next) => {
        WHERE sm.product_id = ? ORDER BY sm.created_at DESC LIMIT 30`,
       [req.params.id]
     );
-    res.render('admin/products-edit', { pageScript: null, product: rows[0], movements });
+    res.render('admin/products-edit', { pageScript: null, product: rows[0], movements, categories: await loadCategories() });
   } catch (err) {
     next(err);
   }

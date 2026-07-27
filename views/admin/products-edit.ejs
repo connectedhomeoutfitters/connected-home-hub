@@ -6,7 +6,9 @@
     <div class="row g-2">
       <div class="col-md-4">
         <label class="form-label">Category</label>
-        <input type="text" name="category" class="form-control" value="<%= product.category %>" required>
+        <input type="text" name="category" class="form-control" list="category-options" value="<%= product.category %>" required>
+        <%- include('../partials/category-datalist') %>
+        <div class="form-text">Pick an existing category or type a new one.</div>
       </div>
       <div class="col-md-4">
         <label class="form-label">Vendor</label>
