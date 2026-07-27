@@ -524,6 +524,69 @@ never a live join, so editing a product later can't rewrite an accepted estimate
   in the browser grabs the **sidebar logout form** (first in DOM) — target the real form
   via `getElementById('line-items-body').closest('form')` or `form[action$=...]`.
 
+**Estimate templates** (`026_estimate_templates.sql`, `routes/admin/estimateTemplates.js`)
+— reusable starting points (WordPress packages, common installs), à la Housecall Pro.
+`estimate_templates` + `estimate_template_items` (catalog-linked, mirrors
+`estimate_line_items`). Template CRUD at `/admin/estimate-templates` (linked from the
+Estimates page) reuses **`page-estimate-form.js`** verbatim — the template form supplies
+the same `#line-items-body`/`#line-row-template`/`#tax_percent`/`#summary-*` ids +
+`window.CHO_HUB_CATALOG`. Two flows: **Start from template** (a picker on the new-estimate
+form → `GET /new?customer_id=X&template_id=Y` pre-fills title/deposit/tax + copies the
+lines in, source dropdowns restored via `data-source`) and **Save as template** (from an
+estimate → copies its lines into a new template). The shared line parser now lives in
+**`services/lineItems.js`** (`lineItemsFromBody`), used by both builders. **Bug fixed in
+testing:** the "Save as template" `<form>` was nested inside the main estimate `<form>` —
+HTML forbids nested forms, so the browser silently dropped it; moved it after `</form>`
+(a `<form>` can never live inside the estimate form — anchors/buttons-outside-a-form only).
+
+**Flat-rate packages, per-line hide-price, line reordering, profitability**
+(`027_flat_price_hide_price.sql` + `028_line_item_costing.sql`) — one connected set of
+estimate/template builder features, on both `estimates`/`estimate_line_items` and their
+`estimate_templates`/`estimate_template_items` mirrors:
+
+- **Flat-rate "packages"** (`estimates.flat_price` / `estimate_templates.flat_price`,
+  nullable). When set, the estimate is a fixed-price package (e.g. "Starter Package —
+  $899"): the customer sees the package title, an **"includes"** bulleted list of the line
+  descriptions (**names only, no per-line prices**), and one flat total — on the portal
+  view (`views/portal/estimate.ejs`) and the PDF (`services/estimatePdf.js`). Deposit +
+  invoices bill off `flat_price` (stored as `total`); **tax is suppressed** (the flat price
+  is all-in). Line items keep their real qty/price/cost for internal costing regardless.
+  Money math is centralized in **`services/estimatePricing.js`** (`computeEstimateTotals`,
+  `parseFlatPrice`) so the create/update routes can't drift.
+- **Per-line `hide_price`** — on a normal itemized estimate, a hidden line shows to the
+  customer as **"Included"** instead of a dollar amount (its cost still counts toward the
+  total; bundled pricing). Submitted via an **always-present hidden input** (`name=
+  line_hide_price`, value `0`/`1`) that a checkbox writes — **not a bare checkbox**, since
+  an unchecked checkbox submits nothing and would misalign the parallel line arrays. Every
+  rendered row contributes exactly one value to every `line_*[]` array, so `lineItemsFromBody`
+  (`services/lineItems.js`) stays index-aligned even when blank rows are skipped.
+- **Line reordering** — ↑/↓ buttons per row in `page-estimate-form.js` (no drag library).
+  **No schema change**: `sort_order` already existed and both save routes write row/DOM
+  order, so reordering is purely front-end.
+- **Profitability / job costing** (`estimate_line_items.unit_cost` + `subcontractor_id`,
+  same on template items; **`services/estimateCosting.js`** `computeCosting`). A per-line
+  **Unit Cost** (COGS), auto-filled from `products.vendor_cost` or a subcontractor's
+  `hourly_rate` when picked, editable for custom lines. **Subcontractor is now a third line
+  "source"** alongside product/labor (`line_source` value `sub:<id>`, parsed to
+  `subcontractor_id`) so farmed-out work is captured + categorized. A **Profitability panel**
+  (`views/partials/costing-panel.ejs`, shared by both builders, live-updated by
+  `page-estimate-form.js`) shows Revenue, COGS split into **Materials / Labor /
+  Subcontractor / Other**, total COGS, gross profit, margin %. For a flat package, revenue =
+  the package price (not the summed lines). Own-labor lines default to $0 cost (owner's
+  time), editable. `028` **backfills** existing product lines' `unit_cost` from current
+  `vendor_cost` so old estimates show real COGS without a re-save.
+
+**CSP/Bootstrap gotcha (found + fixed in the browser during this work):** the flat-price
+field is toggled show/hide by swapping Bootstrap's **`d-none`/`d-flex` classes**, NOT
+`element.style.display` — `.d-flex` is `display:flex !important`, which an inline style
+can't override, so `style.display='none'` left the field stuck visible. The initial
+shown/hidden state is also **server-rendered** (`d-flex` vs `d-none` in the EJS) so it's
+correct before JS runs. Watch for this on any JS show/hide of a Bootstrap-utility element.
+The estimate/template forms widened to `max-width:1080px` + `.table-responsive` for the
+extra Unit Cost / Hide / reorder columns. Verified end-to-end on the NAS test instance
+(product cost auto-fill, live profitability, flat-mode total override, hide flag + Source
+dropdown + flat price all round-tripping through save→reopen).
+
 ### Tier 3 — polish/hardening (migrations 019, 020)
 
 - **CSP-blocked inline handlers fixed.** The CSP's `script-src-attr 'none'` silently
