@@ -13,6 +13,10 @@
       <input type="email" class="form-control" value="<%= targetUser.email %>" disabled>
       <div class="form-text">Email can't be changed here — create a new account instead if it's wrong.</div>
     </div>
+    <div class="mb-3">
+      <label class="form-label">Phone <span class="text-muted small">(shown to customers on "on my way" messages)</span></label>
+      <input type="tel" name="phone" class="form-control" value="<%= targetUser.phone || '' %>" placeholder="e.g. (555) 123-4567">
+    </div>
     <div class="row g-2 mb-3">
       <div class="col-md-6">
         <label class="form-label">Role</label>

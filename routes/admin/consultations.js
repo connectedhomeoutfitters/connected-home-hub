@@ -8,6 +8,7 @@ const { requireAuth } = require('../../middleware/auth');
 const consultationOptions = require('../../config/consultationOptions');
 const { mapLeadToConsultation } = require('../../config/leadToConsultationMapping');
 const { sendMail } = require('../../services/mailer');
+const { getCompany } = require('../../services/companySettings');
 const { generateConsultationInvite } = require('../../services/calendarInvite');
 
 router.use(requireAuth);
@@ -78,7 +79,16 @@ router.get('/', async (req, res, next) => {
        ORDER BY co.created_at DESC`
     );
     const [customers] = await db.execute('SELECT id, name FROM customers ORDER BY name');
-    res.render('admin/consultations', { pageScript: null, consultations, customers });
+
+    // Feedback for the "On My Way" action (redirected here with the consultation id).
+    let omw = null;
+    const omwId = req.query.omw_sent || req.query.omw_noemail;
+    if (omwId) {
+      const match = consultations.find((c) => String(c.id) === String(omwId));
+      if (match) omw = { name: match.customer_name, noemail: !!req.query.omw_noemail };
+    }
+
+    res.render('admin/consultations', { pageScript: null, consultations, customers, omw });
   } catch (err) {
     next(err);
   }
@@ -246,25 +256,42 @@ router.post('/:id/cancel', async (req, res, next) => {
 // One-click heads-up email, distinct from reschedule — doesn't touch consultation_date,
 // just lets the customer know staff is en route. Fired from the Consultations list
 // (see views/admin/consultations.ejs), not the consultation's own page.
+// Emails the customer a "we're on our way" heads-up, naming the consultant and their
+// contact number (the consultant's own phone, falling back to the company phone). Records
+// on_the_way_sent_at so the list can show a sent state; redirects with a flag so the list
+// can confirm it went through (or warn if the customer has no email on file).
 router.post('/:id/on-the-way', async (req, res, next) => {
   try {
     const [rows] = await db.execute(
-      `SELECT co.id, c.name AS customer_name, c.email AS customer_email, c.address AS customer_address
-       FROM consultations co JOIN customers c ON c.id = co.customer_id WHERE co.id = ?`,
+      `SELECT co.id, c.name AS customer_name, c.email AS customer_email, c.address AS customer_address,
+              u.name AS consultant_name, u.phone AS consultant_phone
+       FROM consultations co
+       JOIN customers c ON c.id = co.customer_id
+       LEFT JOIN users u ON u.id = co.consultant_id
+       WHERE co.id = ?`,
       [req.params.id]
     );
     const consultation = rows[0];
     if (!consultation) return res.status(404).render('error', { message: 'Consultation not found' });
 
-    if (consultation.customer_email) {
-      await sendMail({
-        to: consultation.customer_email,
-        subject: `On our way — ${consultation.customer_name}'s consultation`,
-        template: 'consultation-on-the-way',
-        data: { customerName: consultation.customer_name, address: consultation.customer_address },
-      });
+    if (!consultation.customer_email) {
+      return res.redirect(`${res.locals.basePath}/admin/consultations?omw_noemail=${consultation.id}`);
     }
-    res.redirect(`${res.locals.basePath}/admin/consultations`);
+
+    const company = await getCompany();
+    await sendMail({
+      to: consultation.customer_email,
+      subject: `On our way — ${consultation.customer_name}'s consultation`,
+      template: 'consultation-on-the-way',
+      data: {
+        customerName: consultation.customer_name,
+        address: consultation.customer_address,
+        consultantName: consultation.consultant_name || null,
+        consultantPhone: consultation.consultant_phone || company.phone || null,
+      },
+    });
+    await db.execute('UPDATE consultations SET on_the_way_sent_at = NOW() WHERE id = ?', [consultation.id]);
+    res.redirect(`${res.locals.basePath}/admin/consultations?omw_sent=${consultation.id}`);
   } catch (err) {
     next(err);
   }

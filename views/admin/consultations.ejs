@@ -8,6 +8,14 @@
     </button>
   </div>
 
+  <% if (typeof omw !== 'undefined' && omw) { %>
+    <% if (omw.noemail) { %>
+      <div class="alert alert-warning">No email on file for <strong><%= omw.name %></strong> — the "on my way" message couldn't be sent.</div>
+    <% } else { %>
+      <div class="alert alert-success"><i class="bi bi-check-circle"></i> "On my way" message sent to <strong><%= omw.name %></strong>.</div>
+    <% } %>
+  <% } %>
+
   <div class="collapse mb-4" id="newConsultation">
     <div class="card card-body">
       <% if (customers.length === 0) { %>
@@ -48,9 +56,16 @@
             <% if (co.status === 'scheduled') { %>
               <a class="btn btn-sm btn-primary" href="<%= basePath %>/admin/consultations/<%= co.id %>/edit">Conduct Site Visit</a>
               <a class="btn btn-sm btn-outline-secondary" href="<%= basePath %>/admin/consultations/<%= co.id %>/edit#rescheduleBox">Alert of Change</a>
-              <form action="<%= basePath %>/admin/consultations/<%= co.id %>/on-the-way" method="POST" class="d-inline">
-                <button class="btn btn-sm btn-outline-success" type="submit">On My Way</button>
-              </form>
+              <% if (co.on_the_way_sent_at) { %>
+                <span class="text-success small me-1" title="Sent <%= new Date(co.on_the_way_sent_at).toLocaleString() %>"><i class="bi bi-check-circle-fill"></i> On my way sent</span>
+                <form action="<%= basePath %>/admin/consultations/<%= co.id %>/on-the-way" method="POST" class="d-inline omw-form">
+                  <button class="btn btn-sm btn-link p-0 align-baseline" type="submit">resend</button>
+                </form>
+              <% } else { %>
+                <form action="<%= basePath %>/admin/consultations/<%= co.id %>/on-the-way" method="POST" class="d-inline omw-form">
+                  <button class="btn btn-sm btn-outline-success" type="submit">On My Way</button>
+                </form>
+              <% } %>
             <% } else { %>
               <a class="btn btn-sm btn-outline-secondary" href="<%= basePath %>/admin/consultations/<%= co.id %>/edit">Open</a>
             <% } %>
@@ -63,4 +78,14 @@
     </tbody>
   </table>
 </div>
+<script nonce="<%= cspNonce %>">
+  // Disable the "On My Way" button the moment it's clicked, so it can't be double-sent
+  // during the request (the button then shows a persistent sent state after the reload).
+  document.querySelectorAll('form.omw-form').forEach((f) => {
+    f.addEventListener('submit', () => {
+      const b = f.querySelector('button');
+      if (b) { b.disabled = true; b.textContent = 'Sending…'; }
+    });
+  });
+</script>
 <%- include('../partials/footer') %>

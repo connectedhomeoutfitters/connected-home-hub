@@ -3,9 +3,13 @@
 <body style="font-family: 'Roboto', Arial, Helvetica, sans-serif; color: #333; max-width: 560px; margin: 0 auto;">
   <%- include('_header') %>
   <p>Hi <%= customerName %>,</p>
-  <p>Just a heads up — we're on our way to your consultation now!</p>
-  <% if (address) { %><p><%= address %></p><% } %>
-  <p>See you soon.</p>
+  <p>Just a heads up — <% if (consultantName) { %><strong><%= consultantName %></strong> is<% } else { %>we're<% } %> on the way to your consultation now!</p>
+  <% if (address) { %><p style="color: #7A7A7A;"><%= address %></p><% } %>
+  <% if (consultantPhone) { %>
+    <p>If you need to reach <%= consultantName || 'us' %>, call or text
+       <a href="tel:<%= consultantPhone.replace(/[^0-9+]/g, '') %>" style="color: #0799D6;"><%= consultantPhone %></a>.</p>
+  <% } %>
+  <p>See you soon!</p>
   <%- include('_footer') %>
 </body>
 </html>

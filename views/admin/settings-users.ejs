@@ -18,6 +18,9 @@
           <input type="email" name="email" class="form-control" placeholder="Email" required>
         </div>
         <div class="col-md-3">
+          <input type="tel" name="phone" class="form-control" placeholder="Phone (optional)">
+        </div>
+        <div class="col-md-3">
           <input type="password" name="password" class="form-control" placeholder="Password (optional)" autocomplete="new-password">
         </div>
         <div class="col-md-2">
@@ -37,12 +40,13 @@
   </div>
 
   <table class="table table-sm align-middle">
-    <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last Login</th><th></th></tr></thead>
+    <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Role</th><th>Status</th><th>Last Login</th><th></th></tr></thead>
     <tbody>
       <% users.forEach(u => { %>
         <tr class="<%= u.active ? '' : 'text-muted' %>">
           <td><%= u.name %></td>
           <td><%= u.email %></td>
+          <td><%= u.phone || '—' %></td>
           <td><span class="badge bg-<%= u.role === 'admin' ? 'primary' : 'secondary' %>"><%= u.role %></span></td>
           <td><%= u.active ? 'Active' : 'Deactivated' %></td>
           <td><%= u.last_login || 'never' %></td>

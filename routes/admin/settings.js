@@ -82,11 +82,11 @@ router.get('/users', async (req, res, next) => {
 // ever attaches to an existing users row rather than creating one.
 router.post('/users', async (req, res, next) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, phone } = req.body;
     const passwordHash = password ? await bcrypt.hash(password, 12) : null;
     await db.execute(
-      "INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)",
-      [name, email, passwordHash, role === 'admin' ? 'admin' : 'staff']
+      "INSERT INTO users (name, email, password_hash, role, phone) VALUES (?, ?, ?, ?, ?)",
+      [name, email, passwordHash, role === 'admin' ? 'admin' : 'staff', phone || null]
     );
     res.redirect(`${res.locals.basePath}/admin/settings/users`);
   } catch (err) {
@@ -111,7 +111,7 @@ router.post('/users/:id', async (req, res, next) => {
     const targetUser = rows[0];
     if (!targetUser) return res.status(404).render('error', { message: 'User not found' });
 
-    const { name, role, password } = req.body;
+    const { name, role, password, phone } = req.body;
     const nextRole = role === 'admin' ? 'admin' : 'staff';
     const nextActive = req.body.active === 'on';
 
@@ -130,13 +130,13 @@ router.post('/users/:id', async (req, res, next) => {
     const passwordHash = password ? await bcrypt.hash(password, 12) : null;
     if (passwordHash) {
       await db.execute(
-        'UPDATE users SET name = ?, role = ?, active = ?, password_hash = ? WHERE id = ?',
-        [name, nextRole, nextActive, passwordHash, req.params.id]
+        'UPDATE users SET name = ?, phone = ?, role = ?, active = ?, password_hash = ? WHERE id = ?',
+        [name, phone || null, nextRole, nextActive, passwordHash, req.params.id]
       );
     } else {
       await db.execute(
-        'UPDATE users SET name = ?, role = ?, active = ? WHERE id = ?',
-        [name, nextRole, nextActive, req.params.id]
+        'UPDATE users SET name = ?, phone = ?, role = ?, active = ? WHERE id = ?',
+        [name, phone || null, nextRole, nextActive, req.params.id]
       );
     }
     res.redirect(`${res.locals.basePath}/admin/settings/users`);

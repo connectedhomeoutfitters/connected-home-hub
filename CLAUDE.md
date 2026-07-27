@@ -709,6 +709,16 @@ template regardless of type). Also fixed: the job-edit `GET` query now selects
 accurate. Add a new step message = add a `config/jobStepMessages.js` entry + a
 `views/emails/*.ejs` template; no route/schema change.
 
+**Consultation "On My Way" + staff phone** (`029_consultation_omw_and_user_phone.sql`) —
+the Consultations list's "On My Way" button now: (1) gives real feedback — redirects with
+`?omw_sent=<id>` / `?omw_noemail=<id>` and the list shows a success/warning alert; (2) records
+`consultations.on_the_way_sent_at`, so the row shows a **"✓ On my way sent"** state + a small
+**resend** link instead of an always-active button (plus a client-side disable-on-submit so it
+can't be double-sent mid-request); and (3) names the **consultant and their contact number** in
+the email (`consultation-on-the-way`), from the consultation's `consultant_id` → new
+**`users.phone`** column, falling back to `company_settings.phone`. Staff phones are managed in
+**Settings → Users** (added to the create + edit forms and the list, `routes/admin/settings.js`).
+
 ---
 
 ## Local Dev / Test Hosting (NAS: `N:\` and `W:\` drives)
