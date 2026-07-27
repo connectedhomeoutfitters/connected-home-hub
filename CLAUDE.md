@@ -693,6 +693,22 @@ a new status, so the status flow is untouched; the jobs list shows a "closed" ba
 `onInstallJobDone` remains the *auto* path (done → final invoice + inventory consume);
 close-out is the *manual* final step after payment lands.
 
+**Step-aware close-out communications** (`config/jobStepMessages.js`) — close-out is no
+longer install-only: **each job type sends its own customer email** when closed out, so the
+customer is kept informed as the project moves consultation → estimate → install → done.
+The route (`POST /admin/jobs/:id/close-out`) looks up `jobStepMessages[job.type]` and sends
+that step's template: **`consultation`** → `job-consultation-complete` ("consultation done,
+we're now preparing your estimate"); **`install`** → the existing `warranty-summary` (+ the
+customer's active warranties). Types with no entry (e.g. `estimate_followup`) still close
+out — stamping `closed_at` — but send no email. The job-edit close-out card is driven by the
+same config (per-type heading/description/button), so it reads correctly for a consultation
+instead of showing warranty copy. **This also fixed a latent bug**: before, closing out a
+*consultation* job sent the customer a warranty-summary email (the route hard-coded that
+template regardless of type). Also fixed: the job-edit `GET` query now selects
+`c.email AS customer_email` (it didn't before), so the card's "no email on file" warning is
+accurate. Add a new step message = add a `config/jobStepMessages.js` entry + a
+`views/emails/*.ejs` template; no route/schema change.
+
 ---
 
 ## Local Dev / Test Hosting (NAS: `N:\` and `W:\` drives)

@@ -58,17 +58,17 @@
   <% const money = (n) => '$' + Number(n || 0).toFixed(2); %>
 
   <% if (closed) { %>
-    <div class="alert alert-success mt-4">Project closed out — the customer has been emailed their warranty documentation.</div>
+    <div class="alert alert-success mt-4">Step closed out<% if (stepMessage) { %> — the customer has been notified by email<% } %>.</div>
   <% } %>
 
-  <!-- Close out -->
+  <!-- Close out / step completion -->
   <div class="card mt-4">
-    <div class="card-header">Project close-out</div>
+    <div class="card-header"><%= stepMessage ? stepMessage.label : 'Close out step' %></div>
     <div class="card-body">
       <% if (job.closed_at) { %>
-        <p class="mb-0"><i class="bi bi-check-circle-fill text-success"></i> <strong>Closed out</strong> on <%= new Date(job.closed_at).toLocaleString() %> — warranty documentation was emailed to the customer.</p>
+        <p class="mb-0"><i class="bi bi-check-circle-fill text-success"></i> <strong>Closed out</strong> on <%= new Date(job.closed_at).toLocaleString() %><% if (stepMessage) { %> — the customer was notified by email<% } %>.</p>
       <% } else { %>
-        <% if (payment) { %>
+        <% if (stepMessage && stepMessage.includeWarranties && payment) { %>
           <p class="mb-2">
             Billing:
             <% if (payment.fullyPaid) { %>
@@ -81,20 +81,25 @@
           </p>
         <% } %>
 
-        <p class="small text-muted mb-2">
-          Closing out emails the customer a "project complete" note with their warranty documentation
-          (<%= warranties.length %> active warrant<%= warranties.length === 1 ? 'y' : 'ies' %> on file<% if (!warranties.length) { %> — <a href="<%= basePath %>/admin/warranties/new?customer_id=<%= job.customer_id %>">add one first</a><% } %>).
-        </p>
-        <% if (warranties.length) { %>
-          <ul class="small text-muted mb-3">
-            <% warranties.forEach(w => { %><li><%= w.item %><%= w.provider ? ' (' + w.provider + ')' : '' %><%= w.expires_on ? ' — through ' + new Date(w.expires_on).toLocaleDateString() : '' %></li><% }) %>
-          </ul>
+        <% if (stepMessage) { %>
+          <p class="small text-muted mb-2">
+            Closing out <%= stepMessage.staffDescription %><% if (stepMessage.includeWarranties) { %>
+            (<%= warranties.length %> active warrant<%= warranties.length === 1 ? 'y' : 'ies' %> on file<% if (!warranties.length) { %> — <a href="<%= basePath %>/admin/warranties/new?customer_id=<%= job.customer_id %>">add one first</a><% } %>)<% } %>.
+          </p>
+          <% if (stepMessage.includeWarranties && warranties.length) { %>
+            <ul class="small text-muted mb-3">
+              <% warranties.forEach(w => { %><li><%= w.item %><%= w.provider ? ' (' + w.provider + ')' : '' %><%= w.expires_on ? ' — through ' + new Date(w.expires_on).toLocaleDateString() : '' %></li><% }) %>
+            </ul>
+          <% } %>
+        <% } else { %>
+          <p class="small text-muted mb-2">This step type has no customer notification — closing out just records that it's complete.</p>
         <% } %>
 
         <% if (job.status === 'done') { %>
-          <form action="<%= basePath %>/admin/jobs/<%= job.id %>/close-out" method="POST" id="closeout-form">
-            <button class="btn btn-success" type="submit"><i class="bi bi-flag"></i> Close out project</button>
-            <% if (payment && !payment.fullyPaid) { %><span class="text-warning small ms-2">Final balance not fully paid — close out anyway?</span><% } %>
+          <form action="<%= basePath %>/admin/jobs/<%= job.id %>/close-out" method="POST" id="closeout-form" data-notify="<%= stepMessage && job.customer_email ? '1' : '0' %>">
+            <button class="btn btn-success" type="submit"><i class="bi bi-flag"></i> <%= stepMessage ? stepMessage.button : 'Mark step complete' %></button>
+            <% if (stepMessage && stepMessage.includeWarranties && payment && !payment.fullyPaid) { %><span class="text-warning small ms-2">Final balance not fully paid — close out anyway?</span><% } %>
+            <% if (stepMessage && !job.customer_email) { %><span class="text-warning small ms-2">No email on file — the customer won't be notified.</span><% } %>
           </form>
         <% } else { %>
           <p class="text-muted small mb-0">Mark the job <strong>done</strong> first, then you can close it out.</p>
@@ -105,7 +110,9 @@
 </div>
 <script nonce="<%= cspNonce %>">
   document.getElementById('closeout-form')?.addEventListener('submit', (e) => {
-    if (!confirm('Close out this project and email the customer their warranty documentation?')) e.preventDefault();
+    const notify = e.currentTarget.dataset.notify === '1';
+    const msg = notify ? 'Close out this step and email the customer an update?' : 'Close out this step?';
+    if (!confirm(msg)) e.preventDefault();
   });
 </script>
 <%- include('../partials/footer') %>

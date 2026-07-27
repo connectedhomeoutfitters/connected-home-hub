@@ -1,0 +1,13 @@
+<!doctype html>
+<html>
+<body style="font-family: 'Roboto', Arial, Helvetica, sans-serif; color: #333; max-width: 560px; margin: 0 auto;">
+  <%- include('_header') %>
+  <p>Hi <%= customerName %>,</p>
+  <p>Thank you for taking the time to meet with us — we've completed your consultation<%= projectTitle ? ' for <strong>' + projectTitle + '</strong>' : '' %>.</p>
+  <p><strong>Here's what happens next:</strong> our team is now putting together a detailed estimate based on
+     what we discussed and the needs of your home. We'll send it your way shortly for you to review — you'll be
+     able to look everything over and approve it online whenever you're ready.</p>
+  <p>If anything else comes to mind in the meantime, just reply to this email — we're happy to help.</p>
+  <%- include('_footer') %>
+</body>
+</html>

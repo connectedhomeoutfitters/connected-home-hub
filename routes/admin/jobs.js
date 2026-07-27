@@ -5,6 +5,7 @@ const { requireAuth } = require('../../middleware/auth');
 const { createInvoice, remainingBalanceForEstimate } = require('../../services/invoicing');
 const { consumeForJob } = require('../../services/inventory');
 const { sendMail } = require('../../services/mailer');
+const jobStepMessages = require('../../config/jobStepMessages');
 const activity = require('../../services/activityLog');
 
 // Payment picture for a job's estimate: how much is invoiced, paid, and still outstanding
@@ -105,7 +106,8 @@ router.post('/', async (req, res, next) => {
 router.get('/:id/edit', async (req, res, next) => {
   try {
     const [rows] = await db.execute(
-      `SELECT j.*, c.name AS customer_name FROM jobs j JOIN customers c ON c.id = j.customer_id WHERE j.id = ?`,
+      `SELECT j.*, c.name AS customer_name, c.email AS customer_email FROM jobs j
+       JOIN customers c ON c.id = j.customer_id WHERE j.id = ?`,
       [req.params.id]
     );
     const job = rows[0];
@@ -124,6 +126,7 @@ router.get('/:id/edit', async (req, res, next) => {
 
     res.render('admin/job-edit', {
       pageScript: null, job, staff, subcontractors, payment, warranties,
+      stepMessage: jobStepMessages[job.type] || null,
       closed: req.query.closed === '1',
     });
   } catch (err) {
@@ -162,9 +165,11 @@ router.post('/:id/status', async (req, res, next) => {
   }
 });
 
-// Close out a completed project: stamp closed_at and email the customer their warranty
-// documentation. Deliberate staff action (they confirm it's done + paid first). Idempotent
-// — a job already closed just redirects back.
+// Close out a completed job/step: stamp closed_at and send the customer the communication
+// that fits this step (config/jobStepMessages.js) — e.g. "consultation complete, preparing
+// your estimate" for a consultation, warranty documentation for an install. Steps with no
+// configured message still close out but send no email. Deliberate staff action (they
+// confirm it's done first). Idempotent — a job already closed just redirects back.
 router.post('/:id/close-out', async (req, res, next) => {
   try {
     const [rows] = await db.execute(
@@ -181,23 +186,27 @@ router.post('/:id/close-out', async (req, res, next) => {
 
     await db.execute('UPDATE jobs SET closed_at = NOW() WHERE id = ?', [job.id]);
 
-    const [warranties] = await db.execute(
-      `SELECT item, provider, type, start_date, expires_on, coverage_notes FROM warranties
-       WHERE customer_id = ? AND active = 1 ORDER BY (expires_on IS NULL), expires_on`,
-      [job.customer_id]
-    );
-    if (job.customer_email) {
-      await sendMail({
-        to: job.customer_email,
-        subject: 'Your project is complete — Connected Home Outfitters',
-        template: 'warranty-summary',
-        data: { customerName: job.customer_name, projectTitle: job.title, warranties },
-      });
+    // Send the step-appropriate customer email, if this job type has one configured.
+    const step = jobStepMessages[job.type];
+    let notified = false;
+    if (step && step.template && job.customer_email) {
+      const data = { customerName: job.customer_name, projectTitle: job.title };
+      if (step.includeWarranties) {
+        const [warranties] = await db.execute(
+          `SELECT item, provider, type, start_date, expires_on, coverage_notes FROM warranties
+           WHERE customer_id = ? AND active = 1 ORDER BY (expires_on IS NULL), expires_on`,
+          [job.customer_id]
+        );
+        data.warranties = warranties;
+      }
+      await sendMail({ to: job.customer_email, subject: step.subject, template: step.template, data });
+      notified = true;
     }
 
     await activity.log({
       ...activity.staff(req), action: 'job.closed', entityType: 'job', entityId: job.id,
-      customerId: job.customer_id, detail: `Project "${job.title}" closed out (warranty docs sent)`,
+      customerId: job.customer_id,
+      detail: `Step "${job.title}" (${job.type.replace('_', ' ')}) closed out${notified ? ' — customer notified' : ''}`,
     });
 
     res.redirect(`${res.locals.basePath}/admin/jobs/${job.id}/edit?closed=1`);
