@@ -37,7 +37,7 @@ router.get('/', async (req, res, next) => {
     const [[low]] = await db.execute(
       'SELECT COUNT(*) AS c FROM products WHERE track_inventory = 1 AND reorder_level IS NOT NULL AND stock_qty <= reorder_level'
     );
-    res.render('admin/products', { pageScript: null, products, lowOnly, lowCount: low.c, categories: await loadCategories() });
+    res.render('admin/products', { pageScript: 'page-products.js', products, lowOnly, lowCount: low.c, categories: await loadCategories() });
   } catch (err) {
     next(err);
   }

@@ -80,22 +80,47 @@
     </div>
   </div>
 
-  <table class="table table-sm align-middle">
+  <div class="row g-2 mb-3">
+    <div class="col-md-4">
+      <input type="search" id="prod-search" class="form-control form-control-sm" placeholder="Search name, vendor, line, part #…" autocomplete="off">
+    </div>
+    <div class="col-md-3">
+      <select id="prod-category" class="form-select form-select-sm"><option value="">All categories</option></select>
+    </div>
+    <div class="col-md-3">
+      <select id="prod-vendor" class="form-select form-select-sm"><option value="">All vendors</option></select>
+    </div>
+    <div class="col-md-2 d-flex align-items-center">
+      <span class="text-muted small" id="prod-count"></span>
+    </div>
+  </div>
+
+  <table class="table table-sm align-middle" id="products-table">
     <thead>
       <tr>
-        <th>Category</th><th>Vendor / Line</th><th>Name</th><th>Cost</th><th>Retail</th>
-        <th>Stock</th><th>Unit</th><th>Status</th><th></th>
+        <th class="sortable" data-col="0" data-type="text">Category</th>
+        <th class="sortable" data-col="1" data-type="text">Vendor / Line</th>
+        <th class="sortable" data-col="2" data-type="text">Name</th>
+        <th class="sortable" data-col="3" data-type="num">Cost</th>
+        <th class="sortable" data-col="4" data-type="num">Retail</th>
+        <th class="sortable" data-col="5" data-type="num">Stock</th>
+        <th class="sortable" data-col="6" data-type="text">Unit</th>
+        <th class="sortable" data-col="7" data-type="text">Status</th>
+        <th></th>
       </tr>
     </thead>
     <tbody>
       <% products.forEach(p => { %>
-        <tr class="<%= p.active ? '' : 'text-muted' %>">
+        <tr class="<%= p.active ? '' : 'text-muted' %>"
+            data-category="<%= p.category || '' %>"
+            data-vendor="<%= p.vendor || '' %>"
+            data-search="<%= [p.category, p.vendor, p.product_line, p.name, p.part_number, p.description].filter(Boolean).join(' ').toLowerCase() %>">
           <td><%= p.category %></td>
           <td><%= [p.vendor, p.product_line].filter(Boolean).join(' / ') %></td>
           <td><%= p.name %></td>
-          <td>$<%= Number(p.vendor_cost).toFixed(2) %></td>
-          <td>$<%= Number(p.retail_price).toFixed(2) %></td>
-          <td>
+          <td data-sort="<%= Number(p.vendor_cost) %>">$<%= Number(p.vendor_cost).toFixed(2) %></td>
+          <td data-sort="<%= Number(p.retail_price) %>">$<%= Number(p.retail_price).toFixed(2) %></td>
+          <td data-sort="<%= p.track_inventory ? p.stock_qty : -1 %>">
             <% if (p.track_inventory) { %>
               <%= p.stock_qty %><% if (p.reorder_level != null && p.stock_qty <= p.reorder_level) { %> <span class="badge bg-warning text-dark">Low</span><% } %>
             <% } else { %><span class="text-muted">—</span><% } %>
