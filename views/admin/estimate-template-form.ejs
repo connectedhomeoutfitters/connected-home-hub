@@ -98,13 +98,14 @@
           <span>Package price</span>
           <input type="number" step="0.01" name="flat_price" id="flat_price" class="form-control form-control-sm w-50 text-end" value="<%= template.flat_price != null ? template.flat_price : '' %>">
         </div>
-        <div class="d-flex justify-content-between"><span>Subtotal</span><span id="summary-subtotal">$0.00</span></div>
+        <div id="summary-subtotal-row" class="<%= (template.flat_price != null) ? 'd-none' : 'd-flex' %> justify-content-between"><span>Subtotal</span><span id="summary-subtotal">$0.00</span></div>
         <div class="d-flex justify-content-between align-items-center">
           <span>Tax %</span>
           <input type="number" step="0.01" name="tax_percent" id="tax_percent" class="form-control form-control-sm w-50 text-end" value="<%= template.tax_percent != null ? template.tax_percent : '' %>">
         </div>
         <div class="d-flex justify-content-between"><span>Tax</span><span id="summary-tax">$0.00</span></div>
         <div class="d-flex justify-content-between fs-5"><strong>Total</strong><strong id="summary-total">$0.00</strong></div>
+        <div class="text-muted small mt-1" id="flat-tax-note"></div>
         <div class="text-muted small mt-1">Tax % is a default; blank uses the company default when loaded. A flat package price carries into the estimate too.</div>
       </div>
     </div>

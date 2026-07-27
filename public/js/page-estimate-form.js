@@ -155,6 +155,20 @@
     setText('summary-tax', money(tax));
     setText('summary-total', money(total));
 
+    // In flat mode the itemized "Subtotal" (sum of line prices) isn't what the customer
+    // pays — hide it to avoid confusion with the package price, and explain the tax base.
+    const subtotalRow = document.getElementById('summary-subtotal-row');
+    if (subtotalRow) {
+      subtotalRow.classList.toggle('d-none', isFlat);
+      subtotalRow.classList.toggle('d-flex', !isFlat);
+    }
+    const flatNote = document.getElementById('flat-tax-note');
+    if (flatNote) {
+      flatNote.textContent = isFlat && tax > 0
+        ? `Sales tax applies to ${money(taxableGoods)} of taxable goods (labor/custom lines excluded).`
+        : '';
+    }
+
     // Profitability panel (live).
     const totalCost = cost.materials + cost.labor + cost.subcontractor + cost.other;
     const revenue = isFlat ? flatPrice : subtotal;
