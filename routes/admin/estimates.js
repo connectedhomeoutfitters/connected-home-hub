@@ -36,9 +36,26 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+// Retail value of the taxable-goods lines (product lines whose catalog product is taxable).
+// Used as the sales-tax base for flat-price packages only — itemized estimates tax the
+// whole subtotal (see services/estimatePricing.js).
+async function taxableGoodsBase(conn, items) {
+  const productIds = [...new Set(items.filter((i) => i.product_id).map((i) => i.product_id))];
+  if (!productIds.length) return 0;
+  const [rows] = await conn.execute(
+    `SELECT id FROM products WHERE taxable = 1 AND id IN (${productIds.map(() => '?').join(',')})`,
+    productIds
+  );
+  const taxable = new Set(rows.map((r) => r.id));
+  return items.reduce(
+    (sum, i) => sum + (i.product_id && taxable.has(i.product_id) ? i.quantity * i.unit_price : 0),
+    0
+  );
+}
+
 async function loadCatalogForForm() {
   const [products] = await db.execute(
-    'SELECT id, category, name, retail_price, vendor_cost FROM products WHERE active = 1 ORDER BY category, name'
+    'SELECT id, category, name, retail_price, vendor_cost, taxable FROM products WHERE active = 1 ORDER BY category, name'
   );
   const [laborRates] = await db.execute(
     'SELECT id, name, hourly_rate FROM labor_rates WHERE active = 1 ORDER BY name'
@@ -116,7 +133,8 @@ router.post('/', async (req, res, next) => {
     const taxPercent = parseFloat(req.body.tax_percent) || 0;
     const depositPercent = parseFloat(req.body.deposit_percent) || 50;
     const flatPrice = parseFlatPrice(req.body.flat_price);
-    const { subtotal, tax, total, depositAmount } = computeEstimateTotals(items, taxPercent, depositPercent, flatPrice);
+    const taxableBase = flatPrice != null ? await taxableGoodsBase(conn, items) : 0;
+    const { subtotal, tax, total, depositAmount } = computeEstimateTotals(items, taxPercent, depositPercent, flatPrice, taxableBase);
 
     await conn.beginTransaction();
     const [result] = await conn.execute(
@@ -213,7 +231,8 @@ router.post('/:id', async (req, res, next) => {
     const taxPercent = parseFloat(req.body.tax_percent) || 0;
     const depositPercent = parseFloat(req.body.deposit_percent) || 50;
     const flatPrice = parseFlatPrice(req.body.flat_price);
-    const { subtotal, tax, total, depositAmount } = computeEstimateTotals(items, taxPercent, depositPercent, flatPrice);
+    const taxableBase = flatPrice != null ? await taxableGoodsBase(conn, items) : 0;
+    const { subtotal, tax, total, depositAmount } = computeEstimateTotals(items, taxPercent, depositPercent, flatPrice, taxableBase);
 
     await conn.beginTransaction();
     await conn.execute(

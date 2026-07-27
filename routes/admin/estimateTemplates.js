@@ -11,7 +11,7 @@ router.use(requireAuth);
 
 async function loadCatalog() {
   const [products] = await db.execute(
-    'SELECT id, category, name, retail_price, vendor_cost FROM products WHERE active = 1 ORDER BY category, name'
+    'SELECT id, category, name, retail_price, vendor_cost, taxable FROM products WHERE active = 1 ORDER BY category, name'
   );
   const [laborRates] = await db.execute(
     'SELECT id, name, hourly_rate FROM labor_rates WHERE active = 1 ORDER BY name'

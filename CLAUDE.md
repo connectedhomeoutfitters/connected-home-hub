@@ -548,11 +548,21 @@ estimate/template builder features, on both `estimates`/`estimate_line_items` an
   nullable). When set, the estimate is a fixed-price package (e.g. "Starter Package —
   $899"): the customer sees the package title, an **"includes"** bulleted list of the line
   descriptions (**names only, no per-line prices**), and one flat total — on the portal
-  view (`views/portal/estimate.ejs`) and the PDF (`services/estimatePdf.js`). Deposit +
-  invoices bill off `flat_price` (stored as `total`); **tax is suppressed** (the flat price
-  is all-in). Line items keep their real qty/price/cost for internal costing regardless.
-  Money math is centralized in **`services/estimatePricing.js`** (`computeEstimateTotals`,
-  `parseFlatPrice`) so the create/update routes can't drift.
+  view (`views/portal/estimate.ejs`) and the PDF (`services/estimatePdf.js`). The flat price
+  is **pre-tax**: sales tax is added **only on the taxable goods** inside the package —
+  `taxableBase = Σ(qty × retail price)` of the product lines whose `products.taxable = 1`
+  (labor/custom/subcontractor lines are never taxed in flat mode; itemized mode is
+  UNCHANGED and still taxes the whole subtotal). So `total = flat_price + tax`, deposit is
+  a % of that tax-inclusive total (matching itemized). `flat_price` stores the pre-tax
+  package price; `subtotal = flat_price`, `tax` = the goods tax, `total = flat_price + tax`.
+  The routes look up `products.taxable` server-side (authoritative — `taxableGoodsBase()` in
+  `routes/admin/estimates.js`); the builder JS + PDF/portal show the "Sales tax" line live
+  (products now carry `taxable` in `window.CHO_HUB_CATALOG`). This was a **deliberate answer
+  to "how do I handle tax on a flat package"** — chosen base is the taxable goods' retail
+  value, not a proportional allocation or vendor cost (2026-07-27). Line items keep their
+  real qty/price/cost for internal costing regardless. Money math is centralized in
+  **`services/estimatePricing.js`** (`computeEstimateTotals`, `parseFlatPrice`) so the
+  create/update routes can't drift.
 - **Per-line `hide_price`** — on a normal itemized estimate, a hidden line shows to the
   customer as **"Included"** instead of a dollar amount (its cost still counts toward the
   total; bundled pricing). Submitted via an **always-present hidden input** (`name=

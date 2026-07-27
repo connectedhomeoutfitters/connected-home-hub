@@ -76,7 +76,12 @@ function generateEstimatePdf({ estimate, items, customer, company = {} }) {
       doc.moveDown(0.6);
       doc.moveTo(50, doc.y + 3).lineTo(545, doc.y + 3).strokeColor('#ccc').stroke();
       doc.moveDown(0.8);
-      doc.fontSize(13).fillColor(BRAND.accent).text(`Package price: ${money(estimate.total)}`, { align: 'right' });
+      // Flat price is pre-tax; sales tax (if any) is charged on the taxable goods only.
+      doc.fontSize(10).fillColor('#000').text(`Package price: ${money(estimate.flat_price)}`, { align: 'right' });
+      if (Number(estimate.tax) > 0) {
+        doc.text(`Sales tax: ${money(estimate.tax)}`, { align: 'right' });
+      }
+      doc.fontSize(13).fillColor(BRAND.accent).text(`Total: ${money(estimate.total)}`, { align: 'right' });
     } else {
       // Line items table — simple fixed-column layout, no external table library.
       const colX = { desc: 50, qty: 350, price: 410, total: 480 };

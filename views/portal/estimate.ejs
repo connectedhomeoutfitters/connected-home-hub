@@ -13,7 +13,11 @@
         <% items.forEach(i => { %><li><%= i.description %></li><% }) %>
       </ul>
     <% } %>
-    <p class="fs-4 mt-3">Package price: <strong>$<%= estimate.total %></strong></p>
+    <p class="fs-5 mt-3 mb-1">Package price: <strong>$<%= estimate.flat_price %></strong></p>
+    <% if (Number(estimate.tax) > 0) { %>
+      <p class="mb-1">Sales tax: <strong>$<%= estimate.tax %></strong></p>
+    <% } %>
+    <p class="fs-4">Total: <strong>$<%= estimate.total %></strong></p>
     <p>Deposit due to begin (<%= estimate.deposit_percent %>%): <strong>$<%= estimate.deposit_amount %></strong></p>
   <% } else { %>
     <table class="table">

@@ -3,6 +3,9 @@
 // feedback only — the server recomputes authoritatively on save.
 (function () {
   const { products, laborRates, subcontractors = [] } = window.CHO_HUB_CATALOG;
+  // productId -> taxable flag, for flat-package sales tax (taxed only on taxable goods).
+  const productTaxable = {};
+  for (const p of products) productTaxable[String(p.id)] = !!Number(p.taxable);
   const tbody = document.getElementById('line-items-body');
   // Clone from the inert <template> — works even on a new estimate that server-rendered
   // zero rows.
@@ -126,6 +129,7 @@
 
   function recalculate() {
     let subtotal = 0;
+    let taxableGoods = 0; // retail value of taxable product lines (flat-package tax base)
     const cost = { materials: 0, labor: 0, subcontractor: 0, other: 0 };
     document.querySelectorAll('.line-item-row').forEach((row) => {
       const qty = parseFloat(row.querySelector('.line-quantity').value) || 0;
@@ -134,15 +138,18 @@
       const lineTotal = qty * price;
       row.querySelector('.line-total').textContent = money(lineTotal);
       subtotal += lineTotal;
-      cost[sourceCategory(row.querySelector('.line-source').value)] += qty * unitCost;
+      const srcVal = row.querySelector('.line-source').value;
+      cost[sourceCategory(srcVal)] += qty * unitCost;
+      if (srcVal.startsWith('product:') && productTaxable[srcVal.slice(8)]) taxableGoods += lineTotal;
     });
 
     const isFlat = !!(flatToggle && flatToggle.checked && flatInput && flatInput.value !== '' && !Number.isNaN(parseFloat(flatInput.value)));
     const flatPrice = isFlat ? parseFloat(flatInput.value) : null;
 
     const taxPercent = parseFloat(document.getElementById('tax_percent').value) || 0;
-    const tax = isFlat ? 0 : subtotal * (taxPercent / 100);
-    const total = isFlat ? flatPrice : subtotal + tax;
+    // Flat package: tax only the taxable goods, on top of the flat price.
+    const tax = isFlat ? taxableGoods * (taxPercent / 100) : subtotal * (taxPercent / 100);
+    const total = isFlat ? flatPrice + tax : subtotal + tax;
 
     setText('summary-subtotal', money(subtotal));
     setText('summary-tax', money(tax));
