@@ -38,17 +38,21 @@ router.get('/', async (req, res, next) => {
        WHERE co.consultation_date >= ? AND co.consultation_date < ? AND co.status <> 'cancelled'`,
       [gridStart, gridEnd]
     );
+    // A job tied to a consultation (auto-created when the consultation is booked) is a
+    // task-list item, not its own calendar appointment — the consultation itself is the
+    // canonical calendar entry, so skip consultation-linked jobs here to avoid a duplicate
+    // entry at the same time. Such jobs still appear on the Jobs list.
     const [scheduledJobs] = await db.execute(
       `SELECT j.id, j.title, j.type, j.status, j.scheduled_at, u.name AS assigned_name
        FROM jobs j LEFT JOIN users u ON u.id = j.assigned_to
-       WHERE j.scheduled_at >= ? AND j.scheduled_at < ?`,
+       WHERE j.scheduled_at >= ? AND j.scheduled_at < ? AND j.consultation_id IS NULL`,
       [gridStart, gridEnd]
     );
     const [dueJobs] = await db.execute(
       `SELECT j.id, j.title, j.type, j.status, j.due_date, u.name AS assigned_name
        FROM jobs j LEFT JOIN users u ON u.id = j.assigned_to
        WHERE j.scheduled_at IS NULL AND j.due_date >= ? AND j.due_date < ?
-         AND j.status NOT IN ('done', 'cancelled')`,
+         AND j.status NOT IN ('done', 'cancelled') AND j.consultation_id IS NULL`,
       [ymd(gridStart), ymd(gridEnd)]
     );
 
