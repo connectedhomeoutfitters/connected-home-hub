@@ -5,18 +5,34 @@
   <p class="text-muted"><%= estimate.description %></p>
   <p><a href="<%= basePath %>/e/<%= token %>/pdf" target="_blank">Download as PDF</a></p>
 
-  <table class="table">
-    <thead><tr><th>Item</th><th>Qty</th><th>Price</th></tr></thead>
-    <tbody>
-      <% items.forEach(i => { %>
-        <tr><td><%= i.description %></td><td><%= i.quantity %></td><td>$<%= i.unit_price %></td></tr>
-      <% }) %>
-    </tbody>
-  </table>
-  <p>Subtotal: $<%= estimate.subtotal %></p>
-  <p>Tax: $<%= estimate.tax %></p>
-  <p class="fs-5">Total: <strong>$<%= estimate.total %></strong></p>
-  <p>Deposit due to begin (<%= estimate.deposit_percent %>%): <strong>$<%= estimate.deposit_amount %></strong></p>
+  <% if (estimate.flat_price != null) { %>
+    <!-- Flat-rate package: the customer sees what's included with no per-line pricing. -->
+    <% if (items.length) { %>
+      <p class="fw-semibold mb-1">This package includes:</p>
+      <ul>
+        <% items.forEach(i => { %><li><%= i.description %></li><% }) %>
+      </ul>
+    <% } %>
+    <p class="fs-4 mt-3">Package price: <strong>$<%= estimate.total %></strong></p>
+    <p>Deposit due to begin (<%= estimate.deposit_percent %>%): <strong>$<%= estimate.deposit_amount %></strong></p>
+  <% } else { %>
+    <table class="table">
+      <thead><tr><th>Item</th><th>Qty</th><th class="text-end">Price</th></tr></thead>
+      <tbody>
+        <% items.forEach(i => { %>
+          <tr>
+            <td><%= i.description %></td>
+            <td><%= i.quantity %></td>
+            <td class="text-end"><% if (i.hide_price) { %><span class="text-muted">Included</span><% } else { %>$<%= i.unit_price %><% } %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+    <p>Subtotal: $<%= estimate.subtotal %></p>
+    <p>Tax: $<%= estimate.tax %></p>
+    <p class="fs-5">Total: <strong>$<%= estimate.total %></strong></p>
+    <p>Deposit due to begin (<%= estimate.deposit_percent %>%): <strong>$<%= estimate.deposit_amount %></strong></p>
+  <% } %>
 
   <% if (estimate.status === 'sent') { %>
     <% if (error) { %><div class="alert alert-danger"><%= error %></div><% } %>

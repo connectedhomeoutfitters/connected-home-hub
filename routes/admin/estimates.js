@@ -7,6 +7,8 @@ const { sendMail } = require('../../services/mailer');
 const { generateEstimatePdf } = require('../../services/estimatePdf');
 const { getCompany } = require('../../services/companySettings');
 const { lineItemsFromBody } = require('../../services/lineItems');
+const { computeEstimateTotals, parseFlatPrice } = require('../../services/estimatePricing');
+const { computeCosting } = require('../../services/estimateCosting');
 const { createInvoice, remainingBalanceForEstimate } = require('../../services/invoicing');
 const activity = require('../../services/activityLog');
 
@@ -18,31 +20,7 @@ const TOKEN_TTL_DAYS = 30;
 const ESTIMATE_VALID_DAYS = 30;
 
 // lineItemsFromBody moved to services/lineItems.js (shared with the template builder).
-
-// Job costing from linked line items: margin is only meaningful on materials (vendor_cost
-// vs. what we charge). Labor/custom lines have no cost basis here, so they're revenue-only.
-// Needs items joined with products.vendor_cost AS product_cost (see GET /:id/edit).
-function computeCosting(items) {
-  let materialCost = 0, materialRevenue = 0, laborRevenue = 0, otherRevenue = 0, hasMaterials = false;
-  for (const it of items) {
-    const line = Number(it.quantity) * Number(it.unit_price);
-    if (it.product_id && it.product_cost != null) {
-      hasMaterials = true;
-      materialCost += Number(it.product_cost) * Number(it.quantity);
-      materialRevenue += line;
-    } else if (it.labor_rate_id) {
-      laborRevenue += line;
-    } else {
-      otherRevenue += line;
-    }
-  }
-  const materialMargin = materialRevenue - materialCost;
-  return {
-    hasMaterials, materialCost, materialRevenue, materialMargin,
-    marginPct: materialRevenue > 0 ? Math.round((materialMargin / materialRevenue) * 100) : null,
-    laborRevenue, otherRevenue,
-  };
-}
+// Money math moved to services/estimatePricing.js; profitability to services/estimateCosting.js.
 
 router.get('/', async (req, res, next) => {
   try {
@@ -60,12 +38,15 @@ router.get('/', async (req, res, next) => {
 
 async function loadCatalogForForm() {
   const [products] = await db.execute(
-    'SELECT id, category, name, retail_price FROM products WHERE active = 1 ORDER BY category, name'
+    'SELECT id, category, name, retail_price, vendor_cost FROM products WHERE active = 1 ORDER BY category, name'
   );
   const [laborRates] = await db.execute(
     'SELECT id, name, hourly_rate FROM labor_rates WHERE active = 1 ORDER BY name'
   );
-  return { products, laborRates };
+  const [subcontractors] = await db.execute(
+    'SELECT id, name, trade, hourly_rate FROM subcontractors WHERE active = 1 ORDER BY name'
+  );
+  return { products, laborRates, subcontractors };
 }
 
 router.get('/new', async (req, res, next) => {
@@ -79,7 +60,7 @@ router.get('/new', async (req, res, next) => {
       consultation = consultationRows[0] || null;
     }
 
-    const { products, laborRates } = await loadCatalogForForm();
+    const { products, laborRates, subcontractors } = await loadCatalogForForm();
     const [settingsRows] = await db.execute('SELECT default_tax_percent FROM company_settings WHERE id = 1');
     const defaultTaxPercent = settingsRows[0]?.default_tax_percent ?? 0;
 
@@ -94,7 +75,8 @@ router.get('/new', async (req, res, next) => {
       tpl = tRows[0] || null;
       if (tpl) {
         const [tItems] = await db.execute(
-          'SELECT product_id, labor_rate_id, description, quantity, unit_price FROM estimate_template_items WHERE template_id = ? ORDER BY sort_order',
+          `SELECT product_id, labor_rate_id, subcontractor_id, description, quantity, unit_price, unit_cost, hide_price
+           FROM estimate_template_items WHERE template_id = ? ORDER BY sort_order`,
           [tpl.id]
         );
         items = tItems;
@@ -110,12 +92,15 @@ router.get('/new', async (req, res, next) => {
         consultation_id: consultation?.id || null,
         deposit_percent: tpl ? tpl.deposit_percent : 50,
         tax_percent: tpl && tpl.tax_percent != null ? tpl.tax_percent : defaultTaxPercent,
+        flat_price: tpl ? tpl.flat_price : null,
       },
       items,
+      costing: computeCosting(items, tpl ? tpl.flat_price : null),
       customer: customerRows[0],
       consultation,
       products,
       laborRates,
+      subcontractors,
       templates,
       selectedTemplateId: tpl ? tpl.id : null,
     });
@@ -128,28 +113,29 @@ router.post('/', async (req, res, next) => {
   const conn = await db.getConnection();
   try {
     const items = lineItemsFromBody(req.body);
-    const subtotal = items.reduce((sum, i) => sum + i.quantity * i.unit_price, 0);
     const taxPercent = parseFloat(req.body.tax_percent) || 0;
-    const tax = subtotal * (taxPercent / 100);
     const depositPercent = parseFloat(req.body.deposit_percent) || 50;
-    const total = subtotal + tax;
-    const depositAmount = total * (depositPercent / 100);
+    const flatPrice = parseFlatPrice(req.body.flat_price);
+    const { subtotal, tax, total, depositAmount } = computeEstimateTotals(items, taxPercent, depositPercent, flatPrice);
 
     await conn.beginTransaction();
     const [result] = await conn.execute(
       `INSERT INTO estimates
         (customer_id, consultation_id, title, description, subtotal, tax_percent, tax, total,
-         deposit_percent, deposit_amount)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         flat_price, deposit_percent, deposit_amount)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [req.body.customer_id, req.body.consultation_id || null, req.body.title, req.body.description || null,
         subtotal.toFixed(2), taxPercent, tax.toFixed(2), total.toFixed(2),
-        depositPercent, depositAmount.toFixed(2)]
+        flatPrice != null ? flatPrice.toFixed(2) : null, depositPercent, depositAmount.toFixed(2)]
     );
     const estimateId = result.insertId;
     for (let i = 0; i < items.length; i++) {
       await conn.execute(
-        'INSERT INTO estimate_line_items (estimate_id, product_id, labor_rate_id, description, quantity, unit_price, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [estimateId, items[i].product_id, items[i].labor_rate_id, items[i].description, items[i].quantity, items[i].unit_price, i]
+        `INSERT INTO estimate_line_items
+          (estimate_id, product_id, labor_rate_id, subcontractor_id, description, quantity, unit_price, unit_cost, hide_price, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [estimateId, items[i].product_id, items[i].labor_rate_id, items[i].subcontractor_id, items[i].description,
+          items[i].quantity, items[i].unit_price, items[i].unit_cost, items[i].hide_price, i]
       );
     }
     await conn.commit();
@@ -173,15 +159,13 @@ router.get('/:id/edit', async (req, res, next) => {
     const estimate = estimateRows[0];
     if (!estimate) return res.status(404).render('error', { message: 'Estimate not found' });
 
-    // Join the linked product so the builder has product_id (to restore the Source
-    // dropdown) and costing has vendor_cost.
+    // Line items carry their own unit_cost snapshot (see migration 028), so costing needs
+    // no live join — product_id/labor_rate_id/subcontractor_id restore the Source dropdown.
     const [items] = await db.execute(
-      `SELECT eli.*, p.vendor_cost AS product_cost FROM estimate_line_items eli
-       LEFT JOIN products p ON p.id = eli.product_id
-       WHERE eli.estimate_id = ? ORDER BY eli.sort_order`,
+      'SELECT * FROM estimate_line_items WHERE estimate_id = ? ORDER BY sort_order',
       [req.params.id]
     );
-    const { products, laborRates } = await loadCatalogForForm();
+    const { products, laborRates, subcontractors } = await loadCatalogForForm();
 
     let consultation = null;
     if (estimate.consultation_id) {
@@ -194,7 +178,7 @@ router.get('/:id/edit', async (req, res, next) => {
       isNew: false,
       estimate,
       items,
-      costing: computeCosting(items),
+      costing: computeCosting(items, estimate.flat_price),
       customer: {
         id: estimate.customer_id,
         name: estimate.customer_name,
@@ -205,6 +189,7 @@ router.get('/:id/edit', async (req, res, next) => {
       consultation,
       products,
       laborRates,
+      subcontractors,
     });
   } catch (err) {
     next(err);
@@ -225,25 +210,27 @@ router.post('/:id', async (req, res, next) => {
     }
 
     const items = lineItemsFromBody(req.body);
-    const subtotal = items.reduce((sum, i) => sum + i.quantity * i.unit_price, 0);
     const taxPercent = parseFloat(req.body.tax_percent) || 0;
-    const tax = subtotal * (taxPercent / 100);
     const depositPercent = parseFloat(req.body.deposit_percent) || 50;
-    const total = subtotal + tax;
-    const depositAmount = total * (depositPercent / 100);
+    const flatPrice = parseFlatPrice(req.body.flat_price);
+    const { subtotal, tax, total, depositAmount } = computeEstimateTotals(items, taxPercent, depositPercent, flatPrice);
 
     await conn.beginTransaction();
     await conn.execute(
       `UPDATE estimates SET title=?, description=?, subtotal=?, tax_percent=?, tax=?,
-        total=?, deposit_percent=?, deposit_amount=? WHERE id=?`,
+        total=?, flat_price=?, deposit_percent=?, deposit_amount=? WHERE id=?`,
       [req.body.title, req.body.description || null, subtotal.toFixed(2), taxPercent,
-        tax.toFixed(2), total.toFixed(2), depositPercent, depositAmount.toFixed(2), req.params.id]
+        tax.toFixed(2), total.toFixed(2), flatPrice != null ? flatPrice.toFixed(2) : null,
+        depositPercent, depositAmount.toFixed(2), req.params.id]
     );
     await conn.execute('DELETE FROM estimate_line_items WHERE estimate_id = ?', [req.params.id]);
     for (let i = 0; i < items.length; i++) {
       await conn.execute(
-        'INSERT INTO estimate_line_items (estimate_id, product_id, labor_rate_id, description, quantity, unit_price, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [req.params.id, items[i].product_id, items[i].labor_rate_id, items[i].description, items[i].quantity, items[i].unit_price, i]
+        `INSERT INTO estimate_line_items
+          (estimate_id, product_id, labor_rate_id, subcontractor_id, description, quantity, unit_price, unit_cost, hide_price, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [req.params.id, items[i].product_id, items[i].labor_rate_id, items[i].subcontractor_id, items[i].description,
+          items[i].quantity, items[i].unit_price, items[i].unit_cost, items[i].hide_price, i]
       );
     }
     await conn.commit();
@@ -441,20 +428,24 @@ router.post('/:id/save-as-template', async (req, res, next) => {
     const estimate = rows[0];
     if (!estimate) { conn.release(); return res.status(404).render('error', { message: 'Estimate not found' }); }
     const [items] = await conn.execute(
-      'SELECT product_id, labor_rate_id, description, quantity, unit_price, sort_order FROM estimate_line_items WHERE estimate_id = ? ORDER BY sort_order',
+      `SELECT product_id, labor_rate_id, subcontractor_id, description, quantity, unit_price, unit_cost, hide_price, sort_order
+       FROM estimate_line_items WHERE estimate_id = ? ORDER BY sort_order`,
       [estimate.id]
     );
 
     await conn.beginTransaction();
     const [result] = await conn.execute(
-      'INSERT INTO estimate_templates (name, title, description, deposit_percent, tax_percent) VALUES (?, ?, ?, ?, ?)',
-      [estimate.title, estimate.title, estimate.description || null, estimate.deposit_percent, estimate.tax_percent]
+      'INSERT INTO estimate_templates (name, title, description, deposit_percent, tax_percent, flat_price) VALUES (?, ?, ?, ?, ?, ?)',
+      [estimate.title, estimate.title, estimate.description || null, estimate.deposit_percent, estimate.tax_percent, estimate.flat_price]
     );
     const templateId = result.insertId;
     for (const it of items) {
       await conn.execute(
-        'INSERT INTO estimate_template_items (template_id, product_id, labor_rate_id, description, quantity, unit_price, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [templateId, it.product_id, it.labor_rate_id, it.description, it.quantity, it.unit_price, it.sort_order]
+        `INSERT INTO estimate_template_items
+          (template_id, product_id, labor_rate_id, subcontractor_id, description, quantity, unit_price, unit_cost, hide_price, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [templateId, it.product_id, it.labor_rate_id, it.subcontractor_id, it.description,
+          it.quantity, it.unit_price, it.unit_cost, it.hide_price, it.sort_order]
       );
     }
     await conn.commit();

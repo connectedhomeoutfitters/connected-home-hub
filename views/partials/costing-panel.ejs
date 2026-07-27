@@ -1,0 +1,22 @@
+<%
+  // Internal profitability breakdown, shared by the estimate + template builders. Initial
+  // values are server-rendered from `costing`; page-estimate-form.js updates the same ids
+  // live as staff edit line items. Never shown to customers.
+  const c = costing || { revenue: 0, cost: { materials: 0, labor: 0, subcontractor: 0, other: 0 }, totalCost: 0, profit: 0, marginPct: null };
+  const m = (n) => '$' + Number(n || 0).toFixed(2);
+%>
+<div class="card h-100">
+  <div class="card-header py-2">Profitability <span class="text-muted small">(internal &mdash; never shown to the customer)</span></div>
+  <div class="card-body py-2 small">
+    <div class="d-flex justify-content-between"><span class="text-muted">Revenue</span><span id="cost-revenue"><%= m(c.revenue) %></span></div>
+    <hr class="my-2">
+    <div class="d-flex justify-content-between"><span class="text-muted">Materials cost</span><span id="cost-materials"><%= m(c.cost.materials) %></span></div>
+    <div class="d-flex justify-content-between"><span class="text-muted">Labor cost</span><span id="cost-labor"><%= m(c.cost.labor) %></span></div>
+    <div class="d-flex justify-content-between"><span class="text-muted">Subcontractor cost</span><span id="cost-sub"><%= m(c.cost.subcontractor) %></span></div>
+    <div class="d-flex justify-content-between"><span class="text-muted">Other cost</span><span id="cost-other"><%= m(c.cost.other) %></span></div>
+    <div class="d-flex justify-content-between fw-semibold"><span>Total cost (COGS)</span><span id="cost-total"><%= m(c.totalCost) %></span></div>
+    <hr class="my-2">
+    <div class="d-flex justify-content-between fs-6 fw-bold"><span>Gross profit</span><span id="cost-profit"><%= (c.profit < 0 ? '-' : '') + m(Math.abs(c.profit)) %></span></div>
+    <div class="d-flex justify-content-between"><span class="text-muted">Margin</span><span id="cost-margin"><%= c.marginPct !== null && c.marginPct !== undefined ? c.marginPct + '%' : '—' %></span></div>
+  </div>
+</div>

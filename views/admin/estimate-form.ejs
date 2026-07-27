@@ -1,6 +1,6 @@
 <%- include('../partials/head', { title: 'Estimate' }) %>
 <%- include('../partials/nav') %>
-<div class="container" style="max-width: 900px;">
+<div class="container" style="max-width: 1080px;">
   <h1 class="h3 mb-1">Estimate &mdash; <%= customer.name %></h1>
   <% if (!isNew) { %>
     <p class="text-muted">
@@ -76,13 +76,24 @@
     </div>
 
     <h2 class="h5">Line Items</h2>
-    <table class="table table-sm" id="line-items-table">
+    <p class="text-muted small mb-1">
+      <strong>Unit Cost</strong> is your cost (COGS) &mdash; auto-filled from the catalog, used for the profitability
+      panel and never shown to the customer. Tick <strong>Hide</strong> to show a line to the customer as
+      &ldquo;Included&rdquo; instead of a price. Use the arrows to reorder.
+    </p>
+    <div class="table-responsive">
+    <table class="table table-sm align-middle" id="line-items-table">
       <thead>
-        <tr><th style="width:22%">Source</th><th>Description</th><th style="width:10%">Qty</th><th style="width:14%">Unit Price</th><th style="width:14%">Line Total</th><th></th></tr>
+        <tr>
+          <th style="width:15%">Source</th><th>Description</th>
+          <th style="width:7%">Qty</th><th style="width:11%">Unit Price</th>
+          <th style="width:11%">Unit Cost</th><th style="width:5%" class="text-center">Hide</th>
+          <th style="width:11%">Line Total</th><th style="width:9%"></th>
+        </tr>
       </thead>
       <tbody id="line-items-body">
         <% items.forEach(item => { %>
-          <tr class="line-item-row" data-source="<%= item.product_id ? 'product:' + item.product_id : (item.labor_rate_id ? 'labor:' + item.labor_rate_id : '') %>">
+          <tr class="line-item-row" data-source="<%= item.product_id ? 'product:' + item.product_id : (item.subcontractor_id ? 'sub:' + item.subcontractor_id : (item.labor_rate_id ? 'labor:' + item.labor_rate_id : '')) %>">
             <td>
               <select name="line_source" class="form-select form-select-sm line-source">
                 <option value="">Custom</option>
@@ -91,12 +102,22 @@
             <td><input type="text" name="line_description" class="form-control form-control-sm line-description" value="<%= item.description %>" required></td>
             <td><input type="number" step="0.01" name="line_quantity" class="form-control form-control-sm line-quantity" value="<%= item.quantity %>"></td>
             <td><input type="number" step="0.01" name="line_unit_price" class="form-control form-control-sm line-price" value="<%= item.unit_price %>"></td>
+            <td><input type="number" step="0.01" name="line_unit_cost" class="form-control form-control-sm line-cost" value="<%= item.unit_cost != null ? item.unit_cost : 0 %>"></td>
+            <td class="text-center">
+              <input type="hidden" name="line_hide_price" class="line-hide-price" value="<%= item.hide_price ? '1' : '0' %>">
+              <input type="checkbox" class="form-check-input line-hide-toggle" title="Hide this line's price from the customer" <%= item.hide_price ? 'checked' : '' %>>
+            </td>
             <td class="line-total">$0.00</td>
-            <td><button type="button" class="btn btn-sm btn-link text-danger remove-line">&times;</button></td>
+            <td class="text-nowrap">
+              <button type="button" class="btn btn-sm btn-link text-secondary p-0 me-1 move-up" title="Move up">&uarr;</button>
+              <button type="button" class="btn btn-sm btn-link text-secondary p-0 me-1 move-down" title="Move down">&darr;</button>
+              <button type="button" class="btn btn-sm btn-link text-danger p-0 remove-line" title="Remove">&times;</button>
+            </td>
           </tr>
         <% }) %>
       </tbody>
     </table>
+    </div>
     <button type="button" class="btn btn-sm btn-outline-primary mb-3" id="add-line">+ Add Line</button>
 
     <!-- Cloned by page-estimate-form.js for each new row. A <template> is inert (its
@@ -113,42 +134,46 @@
         <td><input type="text" name="line_description" class="form-control form-control-sm line-description" required></td>
         <td><input type="number" step="0.01" name="line_quantity" class="form-control form-control-sm line-quantity"></td>
         <td><input type="number" step="0.01" name="line_unit_price" class="form-control form-control-sm line-price"></td>
+        <td><input type="number" step="0.01" name="line_unit_cost" class="form-control form-control-sm line-cost" value="0"></td>
+        <td class="text-center">
+          <input type="hidden" name="line_hide_price" class="line-hide-price" value="0">
+          <input type="checkbox" class="form-check-input line-hide-toggle" title="Hide this line's price from the customer">
+        </td>
         <td class="line-total">$0.00</td>
-        <td><button type="button" class="btn btn-sm btn-link text-danger remove-line">&times;</button></td>
+        <td class="text-nowrap">
+          <button type="button" class="btn btn-sm btn-link text-secondary p-0 me-1 move-up" title="Move up">&uarr;</button>
+          <button type="button" class="btn btn-sm btn-link text-secondary p-0 me-1 move-down" title="Move down">&darr;</button>
+          <button type="button" class="btn btn-sm btn-link text-danger p-0 remove-line" title="Remove">&times;</button>
+        </td>
       </tr>
     </template>
 
-    <div class="row justify-content-end">
-      <div class="col-md-4">
-        <div class="d-flex justify-content-between">
-          <span>Subtotal</span><span id="summary-subtotal">$0.00</span>
+    <div class="row mt-3 g-3">
+      <div class="col-md-6">
+        <%- include('../partials/costing-panel', { costing: (typeof costing !== 'undefined' ? costing : null) }) %>
+      </div>
+      <div class="col-md-6">
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" id="flat-toggle" <%= (estimate && estimate.flat_price != null) ? 'checked' : '' %>>
+          <label class="form-check-label" for="flat-toggle">Flat package price <span class="text-muted small">(hide itemized costs from the customer)</span></label>
         </div>
+        <div id="flat-price-wrap" class="<%= (estimate && estimate.flat_price != null) ? 'd-flex' : 'd-none' %> justify-content-between align-items-center mb-2">
+          <span>Package price</span>
+          <input type="number" step="0.01" name="flat_price" id="flat_price" class="form-control form-control-sm w-50 text-end" value="<%= (estimate && estimate.flat_price != null) ? estimate.flat_price : '' %>">
+        </div>
+        <div class="d-flex justify-content-between"><span>Subtotal</span><span id="summary-subtotal">$0.00</span></div>
         <div class="d-flex justify-content-between align-items-center">
           <span>Tax %</span>
           <input type="number" step="0.01" name="tax_percent" id="tax_percent" class="form-control form-control-sm w-50 text-end" value="<%= estimate ? estimate.tax_percent : 0 %>">
         </div>
-        <div class="d-flex justify-content-between">
-          <span>Tax</span><span id="summary-tax">$0.00</span>
-        </div>
-        <div class="d-flex justify-content-between fs-5">
-          <strong>Total</strong><strong id="summary-total">$0.00</strong>
-        </div>
+        <div class="d-flex justify-content-between"><span>Tax</span><span id="summary-tax">$0.00</span></div>
+        <div class="d-flex justify-content-between fs-5"><strong>Total</strong><strong id="summary-total">$0.00</strong></div>
+        <p class="text-muted small mt-1 mb-0">When a flat package price is set, the customer sees the included items with no per-line prices and this single total; the deposit is billed off it.</p>
       </div>
     </div>
 
     <% if (!isNew) { %>
       <div class="mt-4 d-flex flex-wrap gap-3 align-items-start">
-        <% if (typeof costing !== 'undefined' && costing && costing.hasMaterials) { %>
-          <div class="card" style="min-width: 320px;">
-            <div class="card-header py-2">Job costing <span class="text-muted small">(materials)</span></div>
-            <div class="card-body py-2 small">
-              <div class="d-flex justify-content-between"><span class="text-muted">Material cost</span><span>$<%= Number(costing.materialCost).toFixed(2) %></span></div>
-              <div class="d-flex justify-content-between"><span class="text-muted">Material revenue</span><span>$<%= Number(costing.materialRevenue).toFixed(2) %></span></div>
-              <div class="d-flex justify-content-between fw-semibold"><span>Material margin</span><span><%= costing.materialMargin < 0 ? '-' : '' %>$<%= Math.abs(costing.materialMargin).toFixed(2) %><%= costing.marginPct !== null ? ' (' + costing.marginPct + '%)' : '' %></span></div>
-              <% if (costing.laborRevenue > 0) { %><div class="d-flex justify-content-between text-muted"><span>Labor revenue</span><span>$<%= Number(costing.laborRevenue).toFixed(2) %></span></div><% } %>
-            </div>
-          </div>
-        <% } %>
         <a href="<%= basePath %>/admin/estimates/<%= estimate.id %>/materials" class="btn btn-outline-secondary">
           <i class="bi bi-box-seam"></i> Material list
         </a>
@@ -197,6 +222,7 @@
   window.CHO_HUB_CATALOG = {
     products: <%- JSON.stringify(products) %>,
     laborRates: <%- JSON.stringify(laborRates) %>,
+    subcontractors: <%- JSON.stringify(subcontractors || []) %>,
   };
   // Confirm before emailing the estimate (inline onsubmit is blocked by the CSP).
   const sendForm = document.getElementById('send-estimate-form');

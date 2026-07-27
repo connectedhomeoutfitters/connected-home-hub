@@ -63,36 +63,59 @@ function generateEstimatePdf({ estimate, items, customer, company = {} }) {
     if (customer.phone) doc.text(customer.phone);
     doc.moveDown(1.5);
 
-    // Line items table — simple fixed-column layout, no external table library.
-    const colX = { desc: 50, qty: 350, price: 410, total: 480 };
-    doc.fontSize(10).fillColor(BRAND.dark);
-    doc.text('Description', colX.desc, doc.y, { continued: false });
-    doc.text('Qty', colX.qty, doc.y - doc.currentLineHeight());
-    doc.text('Price', colX.price, doc.y - doc.currentLineHeight());
-    doc.text('Total', colX.total, doc.y - doc.currentLineHeight());
-    doc.moveTo(50, doc.y + 3).lineTo(545, doc.y + 3).strokeColor(BRAND.primary).stroke();
-    doc.moveDown(0.5);
+    if (estimate.flat_price != null) {
+      // Flat-rate package: the customer sees what's included, with no per-line pricing.
+      if (items.length) {
+        doc.fontSize(11).fillColor(BRAND.dark).text('This package includes:');
+        doc.moveDown(0.3);
+        doc.fontSize(10).fillColor('#000');
+        for (const item of items) {
+          doc.text(`•  ${item.description}`, { indent: 10 });
+        }
+      }
+      doc.moveDown(0.6);
+      doc.moveTo(50, doc.y + 3).lineTo(545, doc.y + 3).strokeColor('#ccc').stroke();
+      doc.moveDown(0.8);
+      doc.fontSize(13).fillColor(BRAND.accent).text(`Package price: ${money(estimate.total)}`, { align: 'right' });
+    } else {
+      // Line items table — simple fixed-column layout, no external table library.
+      const colX = { desc: 50, qty: 350, price: 410, total: 480 };
+      doc.fontSize(10).fillColor(BRAND.dark);
+      doc.text('Description', colX.desc, doc.y, { continued: false });
+      doc.text('Qty', colX.qty, doc.y - doc.currentLineHeight());
+      doc.text('Price', colX.price, doc.y - doc.currentLineHeight());
+      doc.text('Total', colX.total, doc.y - doc.currentLineHeight());
+      doc.moveTo(50, doc.y + 3).lineTo(545, doc.y + 3).strokeColor(BRAND.primary).stroke();
+      doc.moveDown(0.5);
 
-    for (const item of items) {
-      const lineTotal = item.quantity * item.unit_price;
-      const rowY = doc.y;
+      for (const item of items) {
+        // A hidden-price line shows "Included" to the customer instead of a dollar amount
+        // (its cost still counts toward the estimate subtotal/total).
+        const rowY = doc.y;
+        doc.fontSize(10).fillColor('#000');
+        doc.text(item.description, colX.desc, rowY, { width: 290 });
+        const afterDescY = doc.y;
+        doc.text(String(item.quantity), colX.qty, rowY);
+        if (item.hide_price) {
+          doc.fillColor(BRAND.text).text('Included', colX.price, rowY);
+          doc.fillColor('#000');
+        } else {
+          doc.text(money(item.unit_price), colX.price, rowY);
+          doc.text(money(item.quantity * item.unit_price), colX.total, rowY);
+        }
+        doc.y = Math.max(afterDescY, rowY + doc.currentLineHeight());
+        doc.moveDown(0.3);
+      }
+
+      doc.moveTo(50, doc.y + 3).lineTo(545, doc.y + 3).strokeColor('#ccc').stroke();
+      doc.moveDown(0.8);
+
       doc.fontSize(10).fillColor('#000');
-      doc.text(item.description, colX.desc, rowY, { width: 290 });
-      const afterDescY = doc.y;
-      doc.text(String(item.quantity), colX.qty, rowY);
-      doc.text(money(item.unit_price), colX.price, rowY);
-      doc.text(money(lineTotal), colX.total, rowY);
-      doc.y = Math.max(afterDescY, rowY + doc.currentLineHeight());
-      doc.moveDown(0.3);
+      doc.text(`Subtotal: ${money(estimate.subtotal)}`, { align: 'right' });
+      doc.text(`Tax: ${money(estimate.tax)}`, { align: 'right' });
+      doc.fontSize(13).fillColor(BRAND.accent).text(`Total: ${money(estimate.total)}`, { align: 'right' });
     }
 
-    doc.moveTo(50, doc.y + 3).lineTo(545, doc.y + 3).strokeColor('#ccc').stroke();
-    doc.moveDown(0.8);
-
-    doc.fontSize(10).fillColor('#000');
-    doc.text(`Subtotal: ${money(estimate.subtotal)}`, { align: 'right' });
-    doc.text(`Tax: ${money(estimate.tax)}`, { align: 'right' });
-    doc.fontSize(13).fillColor(BRAND.accent).text(`Total: ${money(estimate.total)}`, { align: 'right' });
     doc.moveDown(0.5);
     doc.fontSize(10).fillColor(BRAND.text).text(
       `Deposit due to begin (${estimate.deposit_percent}%): ${money(estimate.deposit_amount)}`,
