@@ -1,20 +1,22 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../../config/db');
 const stripe = require('../../config/stripe');
 const { requireAuth, requireAdmin } = require('../../middleware/auth');
 const { reconcileRefunds } = require('../../services/paymentsSync');
 const { sendMail } = require('../../services/mailer');
+const { getCompany } = require('../../services/companySettings');
 const activity = require('../../services/activityLog');
 
 router.use(requireAuth);
 
 // Shared WHERE builder for the list + CSV export + summary, so all three stay in sync.
+// The org filter is seeded here rather than added per-caller, so no query built from this
+// helper can ever be un-scoped.
 // Filters: status (of the payment), invoice type (deposit/final/standalone), a from/to
 // date range on the payment date, and a free-text search over customer name/email.
-function buildFilters(query) {
-  const where = [];
-  const params = [];
+function buildFilters(query, orgId) {
+  const where = ['p.org_id = ?'];
+  const params = [orgId];
   if (query.status && ['pending', 'succeeded', 'failed'].includes(query.status)) {
     where.push('p.status = ?');
     params.push(query.status);
@@ -35,15 +37,15 @@ function buildFilters(query) {
     where.push('(c.name LIKE ? OR c.email LIKE ?)');
     params.push(`%${query.q}%`, `%${query.q}%`);
   }
-  return { clause: where.length ? `WHERE ${where.join(' AND ')}` : '', params };
+  return { clause: `WHERE ${where.join(' AND ')}`, params };
 }
 
 const LIST_SQL = (clause) => `
   SELECT p.*, i.type AS invoice_type, i.status AS invoice_status,
          c.name AS customer_name, c.email AS customer_email
   FROM payments p
-  JOIN invoices i ON i.id = p.invoice_id
-  JOIN customers c ON c.id = i.customer_id
+  JOIN invoices i ON i.id = p.invoice_id AND i.org_id = p.org_id
+  JOIN customers c ON c.id = i.customer_id AND c.org_id = i.org_id
   ${clause}
   ORDER BY p.created_at DESC`;
 
@@ -51,20 +53,20 @@ const LIST_SQL = (clause) => `
 // e.g. filtering to a month gives that month's collected/refunded/net at a glance.
 router.get('/', async (req, res, next) => {
   try {
-    const { clause, params } = buildFilters(req.query);
-    const [payments] = await db.execute(LIST_SQL(clause), params);
+    const { clause, params } = buildFilters(req.query, req.orgId);
+    const [payments] = await req.db.execute(LIST_SQL(clause), params);
 
     // Totals over the filtered set. gross = successfully collected; refunded = money
     // returned; net = what the business actually kept.
-    const [[summary]] = await db.execute(
+    const [[summary]] = await req.db.execute(
       `SELECT
          COALESCE(SUM(CASE WHEN p.status = 'succeeded' THEN p.amount ELSE 0 END), 0) AS gross,
          COALESCE(SUM(p.amount_refunded), 0) AS refunded,
          COUNT(CASE WHEN p.status = 'succeeded' THEN 1 END) AS succeeded_count,
          COUNT(CASE WHEN p.status = 'pending' THEN 1 END) AS pending_count
        FROM payments p
-       JOIN invoices i ON i.id = p.invoice_id
-       JOIN customers c ON c.id = i.customer_id
+       JOIN invoices i ON i.id = p.invoice_id AND i.org_id = p.org_id
+       JOIN customers c ON c.id = i.customer_id AND c.org_id = i.org_id
        ${clause}`,
       params
     );
@@ -85,8 +87,8 @@ router.get('/', async (req, res, next) => {
 // accounting / importing into a spreadsheet. Honors the same query filters as the list.
 router.get('/export.csv', async (req, res, next) => {
   try {
-    const { clause, params } = buildFilters(req.query);
-    const [payments] = await db.execute(LIST_SQL(clause), params);
+    const { clause, params } = buildFilters(req.query, req.orgId);
+    const [payments] = await req.db.execute(LIST_SQL(clause), params);
 
     const esc = (v) => {
       const s = v === null || v === undefined ? '' : String(v);
@@ -119,23 +121,23 @@ router.get('/export.csv', async (req, res, next) => {
 // history, and (admins only) the refund form.
 router.get('/:id', async (req, res, next) => {
   try {
-    const [rows] = await db.execute(
+    const [rows] = await req.db.execute(
       `SELECT p.*, i.type AS invoice_type, i.status AS invoice_status, i.id AS invoice_id,
               c.name AS customer_name, c.email AS customer_email, c.id AS customer_id
        FROM payments p
-       JOIN invoices i ON i.id = p.invoice_id
-       JOIN customers c ON c.id = i.customer_id
-       WHERE p.id = ?`,
-      [req.params.id]
+       JOIN invoices i ON i.id = p.invoice_id AND i.org_id = p.org_id
+       JOIN customers c ON c.id = i.customer_id AND c.org_id = i.org_id
+       WHERE p.id = ? AND p.org_id = ?`,
+      [req.params.id, req.orgId]
     );
     const payment = rows[0];
     if (!payment) return res.status(404).render('error', { message: 'Payment not found' });
 
-    const [refunds] = await db.execute(
+    const [refunds] = await req.db.execute(
       `SELECT r.*, u.name AS created_by_name FROM refunds r
-       LEFT JOIN users u ON u.id = r.created_by
-       WHERE r.payment_id = ? ORDER BY r.created_at DESC`,
-      [payment.id]
+       LEFT JOIN users u ON u.id = r.created_by AND u.org_id = r.org_id
+       WHERE r.payment_id = ? AND r.org_id = ? ORDER BY r.created_at DESC`,
+      [payment.id, req.orgId]
     );
 
     const refundable = Number(payment.amount) - Number(payment.amount_refunded);
@@ -158,7 +160,10 @@ router.get('/:id', async (req, res, next) => {
 router.post('/:id/refund', requireAdmin, async (req, res, next) => {
   const back = (err) => res.redirect(`${res.locals.basePath}/admin/payments/${req.params.id}${err ? `?error=${encodeURIComponent(err)}` : '?refunded=1'}`);
   try {
-    const [rows] = await db.execute('SELECT * FROM payments WHERE id = ?', [req.params.id]);
+    const [rows] = await req.db.execute(
+      'SELECT * FROM payments WHERE id = ? AND org_id = ?',
+      [req.params.id, req.orgId]
+    );
     const payment = rows[0];
     if (!payment) return res.status(404).render('error', { message: 'Payment not found' });
     if (payment.status !== 'succeeded') return back('Only a succeeded payment can be refunded.');
@@ -179,7 +184,12 @@ router.post('/:id/refund', requireAdmin, async (req, res, next) => {
     if (!chargeId) {
       const intent = await stripe.paymentIntents.retrieve(payment.stripe_payment_intent_id);
       chargeId = intent.latest_charge;
-      if (chargeId) await db.execute('UPDATE payments SET stripe_charge_id = ? WHERE id = ?', [chargeId, payment.id]);
+      if (chargeId) {
+        await req.db.execute(
+          'UPDATE payments SET stripe_charge_id = ? WHERE id = ? AND org_id = ?',
+          [chargeId, payment.id, req.orgId]
+        );
+      }
     }
     if (!chargeId) return back('No Stripe charge found for this payment.');
 
@@ -191,16 +201,19 @@ router.post('/:id/refund', requireAdmin, async (req, res, next) => {
       charge: chargeId,
       amount: Math.round(amount * 100),
       ...(reason ? { reason } : {}),
-      metadata: { source: 'cho-hub', payment_id: String(payment.id), issued_by: String(req.user.id) },
+      metadata: {
+        source: 'cho-hub', org_id: String(req.orgId),
+        payment_id: String(payment.id), issued_by: String(req.user.id),
+      },
     });
 
     // Record our side first (captures note + who issued it), then reconcile totals from
     // Stripe's authoritative refund list.
-    await db.execute(
-      `INSERT INTO refunds (payment_id, stripe_refund_id, amount, reason, note, status, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
+    await req.db.execute(
+      `INSERT INTO refunds (org_id, payment_id, stripe_refund_id, amount, reason, note, status, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE note = VALUES(note), created_by = VALUES(created_by)`,
-      [payment.id, refund.id, amount, reason || null, note,
+      [req.orgId, payment.id, refund.id, amount, reason || null, note,
         ['succeeded', 'failed', 'canceled', 'pending'].includes(refund.status) ? refund.status : 'pending',
         req.user.id]
     );
@@ -209,20 +222,24 @@ router.post('/:id/refund', requireAdmin, async (req, res, next) => {
     // Notify the customer, matching the auto-sent payment receipt. Non-blocking: a mail
     // failure never undoes a completed Stripe refund.
     if (refund.status === 'succeeded') {
-      const [[info]] = await db.execute(
+      const [[info]] = await req.db.execute(
         `SELECT c.id AS customer_id, c.name AS customer_name, c.email AS customer_email, i.type AS invoice_type
-         FROM payments p JOIN invoices i ON i.id = p.invoice_id
-         JOIN customers c ON c.id = i.customer_id WHERE p.id = ?`,
-        [payment.id]
+         FROM payments p
+         JOIN invoices i ON i.id = p.invoice_id AND i.org_id = p.org_id
+         JOIN customers c ON c.id = i.customer_id AND c.org_id = i.org_id
+         WHERE p.id = ? AND p.org_id = ?`,
+        [payment.id, req.orgId]
       );
       if (info) {
         await activity.log({
           ...activity.staff(req), action: 'refund.issued', entityType: 'payment', entityId: payment.id,
           customerId: info.customer_id, detail: `Refunded $${amount.toFixed(2)} to ${info.customer_name}${result && result.fullyRefunded ? ' (full)' : ''}`,
         });
+        const company = await getCompany(req.orgId);
         await sendMail({
+          orgId: req.orgId,
           to: info.customer_email,
-          subject: 'Refund issued — Connected Home Outfitters',
+          subject: `Refund issued — ${company.company_name}`,
           template: 'refund-issued',
           data: {
             customerName: info.customer_name,

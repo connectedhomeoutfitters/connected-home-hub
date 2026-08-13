@@ -721,6 +721,82 @@ the email (`consultation-on-the-way`), from the consultation's `consultant_id` �
 
 ---
 
+## Multi-tenancy — PHASE 1 COMPLETE (2026-08-13)
+
+Hub is being turned into a **multi-tenant SaaS sold to Connected Home Ledger's business
+customers**. Full rationale, rejected alternatives, and the 5-phase plan live in
+**`docs/adr/0001-multi-tenancy.md`** — read that before touching schema or queries.
+
+Shape: three apps stay separate. **Ledger becomes the identity + subscription layer**
+(its `business_workspaces` row is the tenant), **Hub becomes the multi-tenant ops
+product**. Hub's new `orgs` table is the tenant boundary; **Connected Home Outfitters is
+org #1** and runs the same code path as every other tenant (no special-casing).
+
+**Where it stands — phase 1 (1a + 1b) complete, applied to the TEST DB only. Prod is
+still single-tenant and un-migrated.**
+
+- `030_orgs_multitenancy.sql` creates `orgs` (with `ledger_workspace_id`,
+  `stripe_account_id`, `entitlement_expires_at`, per-tenant `lead_webhook_secret`) and
+  adds `org_id` to all **27 tenant tables**. `users.email`/`google_id` uniqueness became
+  **per-org**; `company_settings` stopped being the single `id=1` row and is now one row
+  per org (`UNIQUE(org_id)`). `031_orgs_drop_default.sql` then drops the backfill default.
+- **Expand/contract, deliberately two migrations**: 030 leaves `org_id NOT NULL DEFAULT 1`
+  so existing queries keep working while they're rewritten; 031 drops it so a forgotten
+  `org_id` fails loudly (`ER_NO_DEFAULT_FOR_FIELD`) instead of silently writing into CHO's
+  data. The first attempt dropped it inside 030 and instantly broke every INSERT — hence
+  two files. **Don't re-merge them**; the same pattern applies to any future NOT NULL add.
+- **`config/scopedDb.js`** is the isolation control. It wraps the mysql2 pool with an
+  org id and **throws** on any statement touching a tenant table without constraining
+  `org_id`. **Routes use `req.db`** (set by `middleware/orgContext.js`, mounted in
+  `server.js` right after `passport.session()`) and must never import `config/db`.
+  Genuinely cross-org queries use **`req.db.unscoped.execute(...)`** so the exception is
+  greppable.
+- **`npm test`** (Node's built-in runner, no new dependency) — 23 tests covering the
+  guard, `orgContext`, a drift check that `TENANT_TABLES` matches migration 030, and a
+  **static sweep (`test/queryScoping.test.js`) that extracts every SQL literal in
+  `routes/`/`services/`/`middleware/` and fails if one touches a tenant table without
+  `org_id`**. Run it after touching any query. Its `ALLOWED_UNSCOPED` map is the list of
+  deliberate cross-org lookups; adding to it should be a conscious decision.
+- **Conventions** (full list in the ADR): services taking a `conn` also take an `orgId`;
+  cron jobs sweep tenants via `services/orgs.js`'s `forEachActiveOrg`; routes accepting a
+  `customer_id` from a form body **verify it belongs to `req.orgId` before inserting**
+  (org_id on the new row alone doesn't stop a forged id); an interpolated column list must
+  still spell `org_id` literally in the SQL or the static sweep can't see it.
+- **Verified**: 23/23 tests; all 26 admin pages + 3 portal login pages return 200; a full
+  write workflow (customer → product → estimate with catalog-linked line items → edit →
+  PDF → materials → save-as-template → invoice → void → consultation → auto-created job →
+  company settings) all round-trips with `org_id` set; and a live throwaway **org 2** was
+  created to confirm org 1 cannot read, update, or delete any of its rows (and vice versa).
+
+**Auth lookups are deliberately unscoped** (`config/passport.js`) — authentication is
+what *establishes* the org, so there's no context to scope by yet. Since email is now
+unique per-org rather than globally, login gains an org-selection step in phase 3. The
+customer and subcontractor magic-link flows already handle this correctly: a matching
+email sends **one link per org** the address exists in, since each token is per-customer.
+
+**Next up is phase 3 (Ledger SSO) then phase 4 (Stripe Connect)** — see the ADR. Phase 2
+(per-org branding/uploads/terms) is small and can slot in anywhere.
+
+**Two things that must not be forgotten later:**
+1. **Stripe Connect is required before a second tenant can take payments.**
+   `routes/portal.js:246` creates PaymentIntents on *our* account — another contractor's
+   customer money would land in CHO's bank account, making us a payment facilitator for
+   their revenue (their chargebacks, their income on our 1099-K). Phase 4 moves to
+   Connect Standard; webhook org resolution then shifts from `metadata.source` to
+   `event.account`.
+2. **The Windows scheduled task "CHO Hub prod-to-test sync" is DISABLED (2026-08-13).**
+   It replaces the test DB with a prod dump, which would wipe migrations 030/031 from test
+   while prod is still un-migrated. **Re-enable it once prod has been migrated**:
+   `Enable-ScheduledTask -TaskName "CHO Hub prod-to-test sync"`. If it does run before
+   then, `npm run migrate` puts test back.
+3. **Prod deploy of this phase needs care**: prod runs the old single-tenant code against
+   an un-migrated DB. Deploying requires running 030 + 031 on the VPS in the same window as
+   the code push (the migrated schema and the rewritten queries only work together — old
+   code against a 031'd schema fails every INSERT). Take a backup first
+   (`/usr/local/bin/cho-hub-backup.sh`).
+
+---
+
 ## Local Dev / Test Hosting (NAS: `N:\` and `W:\` drives)
 
 This repo's source lives on the mapped `N:\choHubProject` NAS drive (same NAS as

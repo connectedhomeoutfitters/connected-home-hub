@@ -1,13 +1,17 @@
-// Loads the single company_settings row (id=1) with sensible fallbacks, so the estimate
-// PDF and Terms & Conditions show the configured business name/address/tax ID instead of
+// Loads a tenant's company_settings row with sensible fallbacks, so the estimate PDF and
+// Terms & Conditions show the configured business name/address/tax ID instead of
 // hardcoded values. Falls back to the legal name if a field is unset, so nothing breaks
 // before Settings → Company is filled in.
-const db = require('../config/db');
+//
+// Was a single always-id=1 row; migration 030 made it one row per org, keyed by
+// UNIQUE(org_id). See docs/adr/0001-multi-tenancy.md.
+const scopedDb = require('../config/scopedDb');
 
 const DEFAULT_NAME = 'Connected Home Outfitters LLC';
 
-async function getCompany() {
-  const [rows] = await db.execute('SELECT * FROM company_settings WHERE id = 1');
+async function getCompany(orgId) {
+  const db = scopedDb(orgId);
+  const [rows] = await db.execute('SELECT * FROM company_settings WHERE org_id = ?', [orgId]);
   const s = rows[0] || {};
   const trimmed = (v) => (v && String(v).trim()) || null;
   return {

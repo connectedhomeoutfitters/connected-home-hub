@@ -4,6 +4,12 @@ const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const bcrypt = require('bcrypt');
 const db = require('./db');
 
+// These lookups deliberately use the unscoped pool, not config/scopedDb: authentication
+// is what *establishes* the org, so there is no org context to scope by yet. Since
+// migration 030 made users.email unique per-org rather than globally, an email could in
+// principle match staff rows in two orgs — see docs/adr/0001-multi-tenancy.md phase 3,
+// which adds org selection at login. Harmless while org 1 is the only tenant.
+
 // Staff-only auth. Customers never log in — they use signed token links (see middleware/customerAccess.js).
 passport.use(
   new LocalStrategy({ usernameField: 'email' }, async (email, password, done) => {
@@ -63,7 +69,12 @@ passport.serializeUser((user, done) => done(null, user.id));
 
 passport.deserializeUser(async (id, done) => {
   try {
-    const [rows] = await db.execute('SELECT id, email, name, role, avatar_url FROM users WHERE id = ?', [id]);
+    // org_id is required here: middleware/orgContext.js builds this request's scoped
+    // db handle from it, so omitting it leaves every staff request tenant-less.
+    const [rows] = await db.execute(
+      'SELECT id, org_id, email, name, role, avatar_url FROM users WHERE id = ?',
+      [id]
+    );
     done(null, rows[0] || false);
   } catch (err) {
     done(err);

@@ -10,6 +10,7 @@ const cron = require('node-cron');
 const passport = require('./config/passport');
 const db = require('./config/db');
 const { setLocals } = require('./middleware/auth');
+const orgContext = require('./middleware/orgContext');
 const { sendDueReminders } = require('./services/consultationReminders');
 const { sendExpiryReminders } = require('./services/warrantyReminders');
 const { expireStaleEstimates } = require('./services/estimateExpiry');
@@ -87,6 +88,10 @@ app.use(
 
 app.use(passport.initialize());
 app.use(passport.session());
+// Must run after passport.session() — it reads req.user.org_id (and the customer/
+// subcontractor portals' req.session.orgId) to build this request's tenant-scoped
+// db handle. See docs/adr/0001-multi-tenancy.md.
+app.use(orgContext);
 app.use(setLocals);
 
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20 });

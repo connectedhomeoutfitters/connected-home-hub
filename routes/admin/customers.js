@@ -1,13 +1,15 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../../config/db');
 const { requireAuth } = require('../../middleware/auth');
 
 router.use(requireAuth);
 
 router.get('/', async (req, res, next) => {
   try {
-    const [customers] = await db.execute('SELECT * FROM customers ORDER BY created_at DESC');
+    const [customers] = await req.db.execute(
+      'SELECT * FROM customers WHERE org_id = ? ORDER BY created_at DESC',
+      [req.orgId]
+    );
     res.render('admin/customers', { pageScript: 'page-customers.js', customers });
   } catch (err) {
     next(err);
@@ -17,9 +19,9 @@ router.get('/', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const { name, email, phone, address, notes } = req.body;
-    await db.execute(
-      'INSERT INTO customers (name, email, phone, address, notes) VALUES (?, ?, ?, ?, ?)',
-      [name, email, phone || null, address || null, notes || null]
+    await req.db.execute(
+      'INSERT INTO customers (org_id, name, email, phone, address, notes) VALUES (?, ?, ?, ?, ?, ?)',
+      [req.orgId, name, email, phone || null, address || null, notes || null]
     );
     res.redirect(`${res.locals.basePath}/admin/customers`);
   } catch (err) {
@@ -69,26 +71,28 @@ const JOB_STATUS = {
 // this is the richest view obtainable from the current schema.
 router.get('/:id', async (req, res, next) => {
   try {
-    const [customerRows] = await db.execute(
+    const [customerRows] = await req.db.execute(
       `SELECT c.*, b.name AS builder_name FROM customers c
-       LEFT JOIN builders b ON b.id = c.builder_id WHERE c.id = ?`,
-      [req.params.id]
+       LEFT JOIN builders b ON b.id = c.builder_id AND b.org_id = c.org_id
+       WHERE c.id = ? AND c.org_id = ?`,
+      [req.params.id, req.orgId]
     );
     const customer = customerRows[0];
     if (!customer) return res.status(404).render('error', { message: 'Customer not found' });
 
-    const [leads] = await db.execute('SELECT * FROM leads WHERE customer_id = ?', [req.params.id]);
-    const [consultations] = await db.execute('SELECT * FROM consultations WHERE customer_id = ?', [req.params.id]);
-    const [estimates] = await db.execute('SELECT * FROM estimates WHERE customer_id = ?', [req.params.id]);
-    const [invoices] = await db.execute('SELECT * FROM invoices WHERE customer_id = ?', [req.params.id]);
-    const [jobs] = await db.execute('SELECT * FROM jobs WHERE customer_id = ?', [req.params.id]);
-    const [warranties] = await db.execute('SELECT * FROM warranties WHERE customer_id = ?', [req.params.id]);
-    const [documents] = await db.execute(
+    const scoped = [req.params.id, req.orgId];
+    const [leads] = await req.db.execute('SELECT * FROM leads WHERE customer_id = ? AND org_id = ?', scoped);
+    const [consultations] = await req.db.execute('SELECT * FROM consultations WHERE customer_id = ? AND org_id = ?', scoped);
+    const [estimates] = await req.db.execute('SELECT * FROM estimates WHERE customer_id = ? AND org_id = ?', scoped);
+    const [invoices] = await req.db.execute('SELECT * FROM invoices WHERE customer_id = ? AND org_id = ?', scoped);
+    const [jobs] = await req.db.execute('SELECT * FROM jobs WHERE customer_id = ? AND org_id = ?', scoped);
+    const [warranties] = await req.db.execute('SELECT * FROM warranties WHERE customer_id = ? AND org_id = ?', scoped);
+    const [documents] = await req.db.execute(
       `SELECT d.*, j.title AS job_title, u.name AS uploaded_by_name FROM documents d
-       LEFT JOIN jobs j ON j.id = d.job_id
-       LEFT JOIN users u ON u.id = d.uploaded_by
-       WHERE d.customer_id = ? ORDER BY d.created_at DESC`,
-      [req.params.id]
+       LEFT JOIN jobs j ON j.id = d.job_id AND j.org_id = d.org_id
+       LEFT JOIN users u ON u.id = d.uploaded_by AND u.org_id = d.org_id
+       WHERE d.customer_id = ? AND d.org_id = ? ORDER BY d.created_at DESC`,
+      scoped
     );
 
     const events = [];
@@ -180,10 +184,16 @@ router.get('/:id', async (req, res, next) => {
 
 router.get('/:id/edit', async (req, res, next) => {
   try {
-    const [rows] = await db.execute('SELECT * FROM customers WHERE id = ?', [req.params.id]);
+    const [rows] = await req.db.execute(
+      'SELECT * FROM customers WHERE id = ? AND org_id = ?',
+      [req.params.id, req.orgId]
+    );
     const customer = rows[0];
     if (!customer) return res.status(404).render('error', { message: 'Customer not found' });
-    const [builders] = await db.execute('SELECT id, name FROM builders WHERE active = 1 ORDER BY name');
+    const [builders] = await req.db.execute(
+      'SELECT id, name FROM builders WHERE org_id = ? AND active = 1 ORDER BY name',
+      [req.orgId]
+    );
     res.render('admin/customer-edit', { pageScript: null, customer, builders, returnTo: req.query.returnTo || null });
   } catch (err) {
     next(err);
@@ -195,9 +205,9 @@ router.get('/:id/edit', async (req, res, next) => {
 router.post('/:id', async (req, res, next) => {
   try {
     const { name, email, phone, address, notes, builder_id } = req.body;
-    await db.execute(
-      'UPDATE customers SET name = ?, email = ?, phone = ?, address = ?, builder_id = ?, notes = ? WHERE id = ?',
-      [name, email, phone || null, address || null, builder_id || null, notes || null, req.params.id]
+    await req.db.execute(
+      'UPDATE customers SET name = ?, email = ?, phone = ?, address = ?, builder_id = ?, notes = ? WHERE id = ? AND org_id = ?',
+      [name, email, phone || null, address || null, builder_id || null, notes || null, req.params.id, req.orgId]
     );
     res.redirect(req.body.return_to || `${res.locals.basePath}/admin/customers`);
   } catch (err) {

@@ -3,11 +3,14 @@
 // daily tick from server.js. Idempotent: it only touches estimates still in 'sent'. Staff
 // can re-send an expired estimate, which resets status + expires_at (routes/admin/
 // estimates.js), so this never permanently closes a quote.
-const db = require('../config/db');
+//
+// Sweeps every active tenant, one scoped handle at a time — see services/orgs.js.
+const { forEachActiveOrg } = require('./orgs');
 
-async function expireStaleEstimates() {
+async function expireForOrg(db, org) {
   const [stale] = await db.execute(
-    "SELECT id FROM estimates WHERE status = 'sent' AND expires_at IS NOT NULL AND expires_at < NOW()"
+    "SELECT id FROM estimates WHERE org_id = ? AND status = 'sent' AND expires_at IS NOT NULL AND expires_at < NOW()",
+    [org.id]
   );
   if (!stale.length) return 0;
 
@@ -18,14 +21,14 @@ async function expireStaleEstimates() {
   try {
     await conn.beginTransaction();
     await conn.execute(
-      `UPDATE estimates SET status = 'expired' WHERE id IN (${placeholders})`,
-      ids
+      `UPDATE estimates SET status = 'expired' WHERE org_id = ? AND id IN (${placeholders})`,
+      [org.id, ...ids]
     );
     await conn.execute(
       `UPDATE jobs SET status = 'cancelled'
-       WHERE estimate_id IN (${placeholders}) AND type = 'estimate_followup'
+       WHERE org_id = ? AND estimate_id IN (${placeholders}) AND type = 'estimate_followup'
          AND status IN ('pending', 'in_progress')`,
-      ids
+      [org.id, ...ids]
     );
     await conn.commit();
   } catch (err) {
@@ -35,6 +38,10 @@ async function expireStaleEstimates() {
     conn.release();
   }
   return ids.length;
+}
+
+async function expireStaleEstimates() {
+  return forEachActiveOrg(expireForOrg, 'estimate expiry');
 }
 
 module.exports = { expireStaleEstimates };

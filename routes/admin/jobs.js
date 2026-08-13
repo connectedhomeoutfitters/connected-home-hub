@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../../config/db');
 const { requireAuth } = require('../../middleware/auth');
 const { createInvoice, remainingBalanceForEstimate } = require('../../services/invoicing');
 const { consumeForJob } = require('../../services/inventory');
@@ -11,13 +10,13 @@ const activity = require('../../services/activityLog');
 // Payment picture for a job's estimate: how much is invoiced, paid, and still outstanding
 // (pending invoices). Used on the job page so staff know whether it's fully collected
 // before closing the project out.
-async function paymentStatusForEstimate(estimateId) {
+async function paymentStatusForEstimate(db, orgId, estimateId) {
   const [[row]] = await db.execute(
     `SELECT COALESCE(SUM(CASE WHEN status='paid' THEN amount ELSE 0 END),0) AS paid,
             COALESCE(SUM(CASE WHEN status='pending' THEN amount ELSE 0 END),0) AS outstanding,
             COUNT(*) AS invoice_count
-     FROM invoices WHERE estimate_id = ? AND status <> 'void'`,
-    [estimateId]
+     FROM invoices WHERE estimate_id = ? AND org_id = ? AND status <> 'void'`,
+    [estimateId, orgId]
   );
   return {
     paid: Number(row.paid),
@@ -35,21 +34,28 @@ router.use(requireAuth);
 // out invoices already raised), so re-marking a job done won't double-consume or
 // double-bill. Returns the new invoice id (staff get redirected there) or null.
 async function onInstallJobDone(req, jobId) {
-  const [jrows] = await db.execute('SELECT * FROM jobs WHERE id = ?', [jobId]);
+  const [jrows] = await req.db.execute(
+    'SELECT * FROM jobs WHERE id = ? AND org_id = ?',
+    [jobId, req.orgId]
+  );
   const job = jrows[0];
   if (!job || job.type !== 'install' || !job.estimate_id) return null;
-  const [erows] = await db.execute('SELECT * FROM estimates WHERE id = ?', [job.estimate_id]);
+  const [erows] = await req.db.execute(
+    'SELECT * FROM estimates WHERE id = ? AND org_id = ?',
+    [job.estimate_id, req.orgId]
+  );
   const estimate = erows[0];
   if (!estimate || estimate.status !== 'accepted') return null;
 
-  const conn = await db.getConnection();
+  const conn = await req.db.getConnection();
   let invoiceId = null;
   try {
     await conn.beginTransaction();
-    await consumeForJob(conn, { estimateId: estimate.id, jobId, userId: req.user.id });
-    const remaining = await remainingBalanceForEstimate(conn, estimate.id);
+    await consumeForJob(conn, { orgId: req.orgId, estimateId: estimate.id, jobId, userId: req.user.id });
+    const remaining = await remainingBalanceForEstimate(conn, req.orgId, estimate.id);
     if (remaining > 0.005) {
       invoiceId = await createInvoice(conn, {
+        org_id: req.orgId,
         estimate_id: estimate.id, customer_id: estimate.customer_id, type: 'final',
         amount: remaining, description: `Final balance — ${estimate.title}`,
       });
@@ -73,16 +79,23 @@ async function onInstallJobDone(req, jobId) {
 router.get('/', async (req, res, next) => {
   try {
     const showAll = req.query.all === '1';
-    const [jobs] = await db.execute(
+    const [jobs] = await req.db.execute(
       `SELECT j.*, c.name AS customer_name, u.name AS assigned_name FROM jobs j
-       JOIN customers c ON c.id = j.customer_id
-       LEFT JOIN users u ON u.id = j.assigned_to
-       ${showAll ? '' : "WHERE j.status IN ('pending', 'in_progress')"}
+       JOIN customers c ON c.id = j.customer_id AND c.org_id = j.org_id
+       LEFT JOIN users u ON u.id = j.assigned_to AND u.org_id = j.org_id
+       WHERE j.org_id = ? ${showAll ? '' : "AND j.status IN ('pending', 'in_progress')"}
        ORDER BY FIELD(j.status, 'in_progress', 'pending', 'done', 'cancelled'),
-         (j.scheduled_at IS NULL), j.scheduled_at, (j.due_date IS NULL), j.due_date`
+         (j.scheduled_at IS NULL), j.scheduled_at, (j.due_date IS NULL), j.due_date`,
+      [req.orgId]
     );
-    const [customers] = await db.execute('SELECT id, name FROM customers ORDER BY name');
-    const [staff] = await db.execute("SELECT id, name FROM users ORDER BY name");
+    const [customers] = await req.db.execute(
+      'SELECT id, name FROM customers WHERE org_id = ? ORDER BY name',
+      [req.orgId]
+    );
+    const [staff] = await req.db.execute(
+      'SELECT id, name FROM users WHERE org_id = ? ORDER BY name',
+      [req.orgId]
+    );
     res.render('admin/jobs', { pageScript: null, jobs, customers, staff, showAll });
   } catch (err) {
     next(err);
@@ -92,10 +105,17 @@ router.get('/', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const { type, title, customer_id, due_date, assigned_to, notes } = req.body;
-    await db.execute(
-      `INSERT INTO jobs (type, title, customer_id, due_date, assigned_to, notes)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [type || 'other', title, customer_id, due_date || null, assigned_to || null, notes || null]
+    // Guard against a forged customer_id attaching a job to another tenant's customer.
+    const [[customer]] = await req.db.execute(
+      'SELECT id FROM customers WHERE id = ? AND org_id = ?',
+      [customer_id, req.orgId]
+    );
+    if (!customer) return res.status(404).render('error', { message: 'Customer not found' });
+
+    await req.db.execute(
+      `INSERT INTO jobs (org_id, type, title, customer_id, due_date, assigned_to, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [req.orgId, type || 'other', title, customer_id, due_date || null, assigned_to || null, notes || null]
     );
     res.redirect(`${res.locals.basePath}/admin/jobs`);
   } catch (err) {
@@ -105,23 +125,32 @@ router.post('/', async (req, res, next) => {
 
 router.get('/:id/edit', async (req, res, next) => {
   try {
-    const [rows] = await db.execute(
+    const [rows] = await req.db.execute(
       `SELECT j.*, c.name AS customer_name, c.email AS customer_email FROM jobs j
-       JOIN customers c ON c.id = j.customer_id WHERE j.id = ?`,
-      [req.params.id]
+       JOIN customers c ON c.id = j.customer_id AND c.org_id = j.org_id
+       WHERE j.id = ? AND j.org_id = ?`,
+      [req.params.id, req.orgId]
     );
     const job = rows[0];
     if (!job) return res.status(404).render('error', { message: 'Job not found' });
-    const [staff] = await db.execute('SELECT id, name FROM users ORDER BY name');
-    const [subcontractors] = await db.execute("SELECT id, name, trade FROM subcontractors WHERE active = 1 ORDER BY name");
+    const [staff] = await req.db.execute(
+      'SELECT id, name FROM users WHERE org_id = ? ORDER BY name',
+      [req.orgId]
+    );
+    const [subcontractors] = await req.db.execute(
+      'SELECT id, name, trade FROM subcontractors WHERE org_id = ? AND active = 1 ORDER BY name',
+      [req.orgId]
+    );
 
     // Close-out context: payment status (if tied to an estimate) + the customer's active
     // warranties (what will be emailed on close-out).
-    const payment = job.estimate_id ? await paymentStatusForEstimate(job.estimate_id) : null;
-    const [warranties] = await db.execute(
+    const payment = job.estimate_id
+      ? await paymentStatusForEstimate(req.db, req.orgId, job.estimate_id)
+      : null;
+    const [warranties] = await req.db.execute(
       `SELECT item, provider, start_date, expires_on FROM warranties
-       WHERE customer_id = ? AND active = 1 ORDER BY (expires_on IS NULL), expires_on`,
-      [job.customer_id]
+       WHERE customer_id = ? AND org_id = ? AND active = 1 ORDER BY (expires_on IS NULL), expires_on`,
+      [job.customer_id, req.orgId]
     );
 
     res.render('admin/job-edit', {
@@ -137,10 +166,10 @@ router.get('/:id/edit', async (req, res, next) => {
 router.post('/:id', async (req, res, next) => {
   try {
     const { title, status, due_date, scheduled_at, assigned_to, subcontractor_id, notes } = req.body;
-    await db.execute(
-      `UPDATE jobs SET title=?, status=?, due_date=?, scheduled_at=?, assigned_to=?, subcontractor_id=?, notes=? WHERE id=?`,
+    await req.db.execute(
+      `UPDATE jobs SET title=?, status=?, due_date=?, scheduled_at=?, assigned_to=?, subcontractor_id=?, notes=? WHERE id=? AND org_id=?`,
       [title, status, due_date || null, scheduled_at ? scheduled_at.replace('T', ' ') + ':00' : null,
-        assigned_to || null, subcontractor_id || null, notes || null, req.params.id]
+        assigned_to || null, subcontractor_id || null, notes || null, req.params.id, req.orgId]
     );
     if (status === 'done') {
       const invoiceId = await onInstallJobDone(req, req.params.id);
@@ -154,7 +183,10 @@ router.post('/:id', async (req, res, next) => {
 
 router.post('/:id/status', async (req, res, next) => {
   try {
-    await db.execute('UPDATE jobs SET status = ? WHERE id = ?', [req.body.status, req.params.id]);
+    await req.db.execute(
+      'UPDATE jobs SET status = ? WHERE id = ? AND org_id = ?',
+      [req.body.status, req.params.id, req.orgId]
+    );
     if (req.body.status === 'done') {
       const invoiceId = await onInstallJobDone(req, req.params.id);
       if (invoiceId) return res.redirect(`${res.locals.basePath}/admin/invoices/${invoiceId}?created=1`);
@@ -172,10 +204,11 @@ router.post('/:id/status', async (req, res, next) => {
 // confirm it's done first). Idempotent — a job already closed just redirects back.
 router.post('/:id/close-out', async (req, res, next) => {
   try {
-    const [rows] = await db.execute(
+    const [rows] = await req.db.execute(
       `SELECT j.*, c.name AS customer_name, c.email AS customer_email FROM jobs j
-       JOIN customers c ON c.id = j.customer_id WHERE j.id = ?`,
-      [req.params.id]
+       JOIN customers c ON c.id = j.customer_id AND c.org_id = j.org_id
+       WHERE j.id = ? AND j.org_id = ?`,
+      [req.params.id, req.orgId]
     );
     const job = rows[0];
     if (!job) return res.status(404).render('error', { message: 'Job not found' });
@@ -184,7 +217,10 @@ router.post('/:id/close-out', async (req, res, next) => {
     }
     if (job.closed_at) return res.redirect(`${res.locals.basePath}/admin/jobs/${job.id}/edit?closed=1`);
 
-    await db.execute('UPDATE jobs SET closed_at = NOW() WHERE id = ?', [job.id]);
+    await req.db.execute(
+      'UPDATE jobs SET closed_at = NOW() WHERE id = ? AND org_id = ?',
+      [job.id, req.orgId]
+    );
 
     // Send the step-appropriate customer email, if this job type has one configured.
     const step = jobStepMessages[job.type];
@@ -192,14 +228,14 @@ router.post('/:id/close-out', async (req, res, next) => {
     if (step && step.template && job.customer_email) {
       const data = { customerName: job.customer_name, projectTitle: job.title };
       if (step.includeWarranties) {
-        const [warranties] = await db.execute(
+        const [warranties] = await req.db.execute(
           `SELECT item, provider, type, start_date, expires_on, coverage_notes FROM warranties
-           WHERE customer_id = ? AND active = 1 ORDER BY (expires_on IS NULL), expires_on`,
-          [job.customer_id]
+           WHERE customer_id = ? AND org_id = ? AND active = 1 ORDER BY (expires_on IS NULL), expires_on`,
+          [job.customer_id, req.orgId]
         );
         data.warranties = warranties;
       }
-      await sendMail({ to: job.customer_email, subject: step.subject, template: step.template, data });
+      await sendMail({ orgId: req.orgId, to: job.customer_email, subject: step.subject, template: step.template, data });
       notified = true;
     }
 

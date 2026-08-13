@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../../config/db');
 const { requireAuth } = require('../../middleware/auth');
 
 router.use(requireAuth);
@@ -32,28 +31,30 @@ router.get('/', async (req, res, next) => {
     const gridEnd = new Date(gridStart);
     gridEnd.setDate(gridEnd.getDate() + 42);
 
-    const [consultations] = await db.execute(
+    const [consultations] = await req.db.execute(
       `SELECT co.id, co.consultation_date, co.status, c.name AS customer_name
-       FROM consultations co JOIN customers c ON c.id = co.customer_id
-       WHERE co.consultation_date >= ? AND co.consultation_date < ? AND co.status <> 'cancelled'`,
-      [gridStart, gridEnd]
+       FROM consultations co
+       JOIN customers c ON c.id = co.customer_id AND c.org_id = co.org_id
+       WHERE co.org_id = ? AND co.consultation_date >= ? AND co.consultation_date < ?
+         AND co.status <> 'cancelled'`,
+      [req.orgId, gridStart, gridEnd]
     );
     // A job tied to a consultation (auto-created when the consultation is booked) is a
     // task-list item, not its own calendar appointment — the consultation itself is the
     // canonical calendar entry, so skip consultation-linked jobs here to avoid a duplicate
     // entry at the same time. Such jobs still appear on the Jobs list.
-    const [scheduledJobs] = await db.execute(
+    const [scheduledJobs] = await req.db.execute(
       `SELECT j.id, j.title, j.type, j.status, j.scheduled_at, u.name AS assigned_name
-       FROM jobs j LEFT JOIN users u ON u.id = j.assigned_to
-       WHERE j.scheduled_at >= ? AND j.scheduled_at < ? AND j.consultation_id IS NULL`,
-      [gridStart, gridEnd]
+       FROM jobs j LEFT JOIN users u ON u.id = j.assigned_to AND u.org_id = j.org_id
+       WHERE j.org_id = ? AND j.scheduled_at >= ? AND j.scheduled_at < ? AND j.consultation_id IS NULL`,
+      [req.orgId, gridStart, gridEnd]
     );
-    const [dueJobs] = await db.execute(
+    const [dueJobs] = await req.db.execute(
       `SELECT j.id, j.title, j.type, j.status, j.due_date, u.name AS assigned_name
-       FROM jobs j LEFT JOIN users u ON u.id = j.assigned_to
-       WHERE j.scheduled_at IS NULL AND j.due_date >= ? AND j.due_date < ?
+       FROM jobs j LEFT JOIN users u ON u.id = j.assigned_to AND u.org_id = j.org_id
+       WHERE j.org_id = ? AND j.scheduled_at IS NULL AND j.due_date >= ? AND j.due_date < ?
          AND j.status NOT IN ('done', 'cancelled') AND j.consultation_id IS NULL`,
-      [ymd(gridStart), ymd(gridEnd)]
+      [req.orgId, ymd(gridStart), ymd(gridEnd)]
     );
 
     // Bucket events by day key.

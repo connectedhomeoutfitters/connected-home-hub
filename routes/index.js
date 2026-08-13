@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/db');
 
 // Public landing for anyone not signed in as staff — explains what CHO Hub is and offers
 // the two entry points (staff login / customer portal). Logged-in staff fall through to
@@ -14,27 +13,35 @@ router.get('/', (req, res, next) => {
 
 router.get('/', async (req, res, next) => {
   try {
-    const [[{ c: newLeads }]] = await db.execute("SELECT COUNT(*) AS c FROM leads WHERE status = 'new'");
-    const [[{ c: draftConsultations }]] = await db.execute("SELECT COUNT(*) AS c FROM consultations WHERE status = 'scheduled'");
-    const [[{ c: sentEstimates, total: sentEstimatesTotal }]] = await db.execute(
-      "SELECT COUNT(*) AS c, COALESCE(SUM(total), 0) AS total FROM estimates WHERE status = 'sent'"
-    );
-    const [[{ c: pendingInvoices, total: pendingInvoicesTotal }]] = await db.execute(
-      "SELECT COUNT(*) AS c, COALESCE(SUM(amount), 0) AS total FROM invoices WHERE status = 'pending'"
-    );
-    const [[{ c: totalCustomers }]] = await db.execute('SELECT COUNT(*) AS c FROM customers');
-    const [[{ c: openJobs }]] = await db.execute("SELECT COUNT(*) AS c FROM jobs WHERE status IN ('pending', 'in_progress')");
+    const org = [req.orgId];
+    const [[{ c: newLeads }]] = await req.db.execute(
+      "SELECT COUNT(*) AS c FROM leads WHERE org_id = ? AND status = 'new'", org);
+    const [[{ c: draftConsultations }]] = await req.db.execute(
+      "SELECT COUNT(*) AS c FROM consultations WHERE org_id = ? AND status = 'scheduled'", org);
+    const [[{ c: sentEstimates, total: sentEstimatesTotal }]] = await req.db.execute(
+      "SELECT COUNT(*) AS c, COALESCE(SUM(total), 0) AS total FROM estimates WHERE org_id = ? AND status = 'sent'", org);
+    const [[{ c: pendingInvoices, total: pendingInvoicesTotal }]] = await req.db.execute(
+      "SELECT COUNT(*) AS c, COALESCE(SUM(amount), 0) AS total FROM invoices WHERE org_id = ? AND status = 'pending'", org);
+    const [[{ c: totalCustomers }]] = await req.db.execute(
+      'SELECT COUNT(*) AS c FROM customers WHERE org_id = ?', org);
+    const [[{ c: openJobs }]] = await req.db.execute(
+      "SELECT COUNT(*) AS c FROM jobs WHERE org_id = ? AND status IN ('pending', 'in_progress')", org);
 
-    const [recentLeads] = await db.execute(
-      "SELECT id, name, email, created_at FROM leads WHERE status = 'new' ORDER BY created_at DESC LIMIT 5"
+    const [recentLeads] = await req.db.execute(
+      "SELECT id, name, email, created_at FROM leads WHERE org_id = ? AND status = 'new' ORDER BY created_at DESC LIMIT 5",
+      org
     );
-    const [recentEstimates] = await db.execute(
+    const [recentEstimates] = await req.db.execute(
       `SELECT e.id, e.title, e.total, e.sent_at, c.name AS customer_name FROM estimates e
-       JOIN customers c ON c.id = e.customer_id WHERE e.status = 'sent' ORDER BY e.sent_at DESC LIMIT 5`
+       JOIN customers c ON c.id = e.customer_id AND c.org_id = e.org_id
+       WHERE e.org_id = ? AND e.status = 'sent' ORDER BY e.sent_at DESC LIMIT 5`,
+      org
     );
-    const [recentConsultations] = await db.execute(
+    const [recentConsultations] = await req.db.execute(
       `SELECT co.id, c.name AS customer_name, co.created_at FROM consultations co
-       JOIN customers c ON c.id = co.customer_id WHERE co.status = 'scheduled' ORDER BY co.created_at DESC LIMIT 5`
+       JOIN customers c ON c.id = co.customer_id AND c.org_id = co.org_id
+       WHERE co.org_id = ? AND co.status = 'scheduled' ORDER BY co.created_at DESC LIMIT 5`,
+      org
     );
 
     res.render('dashboard', {

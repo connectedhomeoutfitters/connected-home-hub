@@ -2,21 +2,24 @@
 // lapses, so they (and the business) have a chance to renew or schedule service. Run on a
 // daily tick from server.js. reminder_sent_at makes re-running idempotent, and is reset to
 // NULL whenever a warranty's expiry is edited (see routes/admin/warranties.js) so a new
-// date can notify again. Mirrors services/consultationReminders.js.
-const db = require('../config/db');
+// date can notify again. Mirrors services/consultationReminders.js, including the
+// per-tenant sweep.
+const { forEachActiveOrg } = require('./orgs');
 const { sendMail } = require('./mailer');
 
 const REMINDER_WINDOW_DAYS = 30;
 
-async function sendExpiryReminders() {
+async function remindersForOrg(db, org) {
   const [rows] = await db.execute(
     `SELECT w.id, w.item, w.provider, w.expires_on, c.name AS customer_name, c.email AS customer_email
-     FROM warranties w JOIN customers c ON c.id = w.customer_id
-     WHERE w.active = 1
+     FROM warranties w
+     JOIN customers c ON c.id = w.customer_id AND c.org_id = w.org_id
+     WHERE w.org_id = ?
+       AND w.active = 1
        AND w.expires_on IS NOT NULL
        AND w.reminder_sent_at IS NULL
        AND w.expires_on BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL ? DAY)`,
-    [REMINDER_WINDOW_DAYS]
+    [org.id, REMINDER_WINDOW_DAYS]
   );
 
   for (const row of rows) {
@@ -24,6 +27,7 @@ async function sendExpiryReminders() {
 
     const expires = new Date(row.expires_on).toLocaleDateString('en-US', { dateStyle: 'long' });
     const sent = await sendMail({
+      orgId: org.id,
       to: row.customer_email,
       subject: `Your ${row.item} warranty expires soon`,
       template: 'warranty-expiring',
@@ -31,11 +35,18 @@ async function sendExpiryReminders() {
     });
 
     if (sent) {
-      await db.execute('UPDATE warranties SET reminder_sent_at = NOW() WHERE id = ?', [row.id]);
+      await db.execute(
+        'UPDATE warranties SET reminder_sent_at = NOW() WHERE id = ? AND org_id = ?',
+        [row.id, org.id]
+      );
     }
   }
 
   return rows.length;
+}
+
+async function sendExpiryReminders() {
+  return forEachActiveOrg(remindersForOrg, 'warranty reminders');
 }
 
 module.exports = { sendExpiryReminders };

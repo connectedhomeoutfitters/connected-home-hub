@@ -20,9 +20,18 @@ function parseMoney(value) {
 async function main() {
   const csvPath = process.argv[2];
   if (!csvPath) {
-    console.error('Usage: node scripts/import-products-csv.js <path-to-csv>');
+    console.error('Usage: node scripts/import-products-csv.js <path-to-csv> [orgId]');
     process.exit(1);
   }
+
+  // Which tenant's catalog to import into; defaults to 1 (Connected Home Outfitters).
+  const orgId = Number(process.argv[3] || 1);
+  const [orgs] = await db.execute('SELECT id, name FROM orgs WHERE id = ?', [orgId]);
+  if (!orgs[0]) {
+    console.error(`No org with id ${orgId}.`);
+    process.exit(1);
+  }
+  console.log(`Importing into org ${orgId} — ${orgs[0].name}`);
 
   const rows = parse(fs.readFileSync(csvPath, 'utf8'), { columns: true, skip_empty_lines: true });
 
@@ -61,28 +70,28 @@ async function main() {
     };
 
     const [existing] = await db.execute(
-      'SELECT id FROM products WHERE category = ? AND name = ?',
-      [product.category, product.name]
+      'SELECT id FROM products WHERE org_id = ? AND category = ? AND name = ?',
+      [orgId, product.category, product.name]
     );
 
     if (existing[0]) {
       await db.execute(
         `UPDATE products SET vendor=?, product_line=?, description=?, part_number=?,
           vendor_cost=?, retail_price=?, markup_percent=?, markup_enabled=?, taxable=?,
-          unit_of_measure=?, reference_url=? WHERE id=?`,
+          unit_of_measure=?, reference_url=? WHERE id=? AND org_id=?`,
         [product.vendor, product.product_line, product.description, product.part_number,
           product.vendor_cost, product.retail_price, product.markup_percent,
           product.markup_enabled, product.taxable, product.unit_of_measure,
-          product.reference_url, existing[0].id]
+          product.reference_url, existing[0].id, orgId]
       );
       updated++;
     } else {
       await db.execute(
         `INSERT INTO products
-          (category, vendor, product_line, name, description, part_number, vendor_cost,
+          (org_id, category, vendor, product_line, name, description, part_number, vendor_cost,
            retail_price, markup_percent, markup_enabled, taxable, unit_of_measure, reference_url)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [product.category, product.vendor, product.product_line, product.name,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [orgId, product.category, product.vendor, product.product_line, product.name,
           product.description, product.part_number, product.vendor_cost, product.retail_price,
           product.markup_percent, product.markup_enabled, product.taxable,
           product.unit_of_measure, product.reference_url]

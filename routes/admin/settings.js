@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
-const db = require('../../config/db');
 const { requireAuth, requireAdmin } = require('../../middleware/auth');
 
 // Whole Settings area is admin-only — staff/company config and who else gets to be
-// admin isn't something regular staff should be able to see or touch.
+// admin isn't something regular staff should be able to see or touch. Admin is scoped to
+// the tenant: an org admin administers their own org only, never another's.
 router.use(requireAuth, requireAdmin);
 
 router.get('/', (req, res) => {
@@ -16,15 +16,17 @@ router.get('/', (req, res) => {
 router.get('/email-log', async (req, res, next) => {
   try {
     const failedOnly = req.query.failed === '1';
-    const [rows] = await db.execute(
-      `SELECT * FROM email_log ${failedOnly ? "WHERE status <> 'sent'" : ''}
-       ORDER BY created_at DESC LIMIT 200`
+    const [rows] = await req.db.execute(
+      `SELECT * FROM email_log WHERE org_id = ? ${failedOnly ? "AND status <> 'sent'" : ''}
+       ORDER BY created_at DESC LIMIT 200`,
+      [req.orgId]
     );
-    const [[counts]] = await db.execute(
+    const [[counts]] = await req.db.execute(
       `SELECT COUNT(*) AS total,
               SUM(status = 'sent') AS sent,
               SUM(status <> 'sent') AS problems
-       FROM email_log`
+       FROM email_log WHERE org_id = ?`,
+      [req.orgId]
     );
     res.render('admin/settings-email-log', { pageScript: null, rows, counts, failedOnly });
   } catch (err) {
@@ -34,7 +36,10 @@ router.get('/email-log', async (req, res, next) => {
 
 router.get('/company', async (req, res, next) => {
   try {
-    const [rows] = await db.execute('SELECT * FROM company_settings WHERE id = 1');
+    const [rows] = await req.db.execute(
+      'SELECT * FROM company_settings WHERE org_id = ?',
+      [req.orgId]
+    );
     res.render('admin/settings-company', { pageScript: null, settings: rows[0] || {}, saved: req.query.saved === '1' });
   } catch (err) {
     next(err);
@@ -44,13 +49,15 @@ router.get('/company', async (req, res, next) => {
 router.post('/company', async (req, res, next) => {
   try {
     const { company_name, tax_id, default_tax_percent, address, phone, email } = req.body;
-    await db.execute(
-      `INSERT INTO company_settings (id, company_name, tax_id, default_tax_percent, address, phone, email)
-       VALUES (1, ?, ?, ?, ?, ?, ?)
+    // Upsert keys off UNIQUE(org_id) (migration 030) rather than the old hardcoded id=1.
+    await req.db.execute(
+      `INSERT INTO company_settings (org_id, company_name, tax_id, default_tax_percent, address, phone, email)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE company_name = VALUES(company_name), tax_id = VALUES(tax_id),
          default_tax_percent = VALUES(default_tax_percent), address = VALUES(address),
          phone = VALUES(phone), email = VALUES(email)`,
-      [company_name || null, tax_id || null, parseFloat(default_tax_percent) || 0, address || null, phone || null, email || null]
+      [req.orgId, company_name || null, tax_id || null, parseFloat(default_tax_percent) || 0,
+        address || null, phone || null, email || null]
     );
     res.redirect(`${res.locals.basePath}/admin/settings/company?saved=1`);
   } catch (err) {
@@ -59,18 +66,22 @@ router.post('/company', async (req, res, next) => {
 });
 
 // Excludes the given user id so a role/active change can check "would this leave zero
-// active admins behind" before it's applied, not after.
-async function countOtherActiveAdmins(excludeUserId) {
+// active admins behind" before it's applied, not after. Counts within this org only —
+// another tenant's admins are irrelevant to whether this one is locking itself out.
+async function countOtherActiveAdmins(db, orgId, excludeUserId) {
   const [rows] = await db.execute(
-    "SELECT COUNT(*) AS c FROM users WHERE role = 'admin' AND active = 1 AND id != ?",
-    [excludeUserId]
+    "SELECT COUNT(*) AS c FROM users WHERE org_id = ? AND role = 'admin' AND active = 1 AND id != ?",
+    [orgId, excludeUserId]
   );
   return rows[0].c;
 }
 
 router.get('/users', async (req, res, next) => {
   try {
-    const [users] = await db.execute('SELECT * FROM users ORDER BY name');
+    const [users] = await req.db.execute(
+      'SELECT * FROM users WHERE org_id = ? ORDER BY name',
+      [req.orgId]
+    );
     res.render('admin/settings-users', { pageScript: null, users });
   } catch (err) {
     next(err);
@@ -84,9 +95,9 @@ router.post('/users', async (req, res, next) => {
   try {
     const { name, email, password, role, phone } = req.body;
     const passwordHash = password ? await bcrypt.hash(password, 12) : null;
-    await db.execute(
-      "INSERT INTO users (name, email, password_hash, role, phone) VALUES (?, ?, ?, ?, ?)",
-      [name, email, passwordHash, role === 'admin' ? 'admin' : 'staff', phone || null]
+    await req.db.execute(
+      'INSERT INTO users (org_id, name, email, password_hash, role, phone) VALUES (?, ?, ?, ?, ?, ?)',
+      [req.orgId, name, email, passwordHash, role === 'admin' ? 'admin' : 'staff', phone || null]
     );
     res.redirect(`${res.locals.basePath}/admin/settings/users`);
   } catch (err) {
@@ -96,7 +107,10 @@ router.post('/users', async (req, res, next) => {
 
 router.get('/users/:id/edit', async (req, res, next) => {
   try {
-    const [rows] = await db.execute('SELECT * FROM users WHERE id = ?', [req.params.id]);
+    const [rows] = await req.db.execute(
+      'SELECT * FROM users WHERE id = ? AND org_id = ?',
+      [req.params.id, req.orgId]
+    );
     const targetUser = rows[0];
     if (!targetUser) return res.status(404).render('error', { message: 'User not found' });
     res.render('admin/settings-user-edit', { pageScript: null, targetUser, error: null });
@@ -107,7 +121,10 @@ router.get('/users/:id/edit', async (req, res, next) => {
 
 router.post('/users/:id', async (req, res, next) => {
   try {
-    const [rows] = await db.execute('SELECT * FROM users WHERE id = ?', [req.params.id]);
+    const [rows] = await req.db.execute(
+      'SELECT * FROM users WHERE id = ? AND org_id = ?',
+      [req.params.id, req.orgId]
+    );
     const targetUser = rows[0];
     if (!targetUser) return res.status(404).render('error', { message: 'User not found' });
 
@@ -118,7 +135,7 @@ router.post('/users/:id', async (req, res, next) => {
     const wasActiveAdmin = targetUser.role === 'admin' && targetUser.active;
     const staysActiveAdmin = nextRole === 'admin' && nextActive;
     if (wasActiveAdmin && !staysActiveAdmin) {
-      const remaining = await countOtherActiveAdmins(targetUser.id);
+      const remaining = await countOtherActiveAdmins(req.db, req.orgId, targetUser.id);
       if (remaining === 0) {
         return res.status(400).render('admin/settings-user-edit', {
           pageScript: null, targetUser,
@@ -129,14 +146,14 @@ router.post('/users/:id', async (req, res, next) => {
 
     const passwordHash = password ? await bcrypt.hash(password, 12) : null;
     if (passwordHash) {
-      await db.execute(
-        'UPDATE users SET name = ?, phone = ?, role = ?, active = ?, password_hash = ? WHERE id = ?',
-        [name, phone || null, nextRole, nextActive, passwordHash, req.params.id]
+      await req.db.execute(
+        'UPDATE users SET name = ?, phone = ?, role = ?, active = ?, password_hash = ? WHERE id = ? AND org_id = ?',
+        [name, phone || null, nextRole, nextActive, passwordHash, req.params.id, req.orgId]
       );
     } else {
-      await db.execute(
-        'UPDATE users SET name = ?, phone = ?, role = ?, active = ? WHERE id = ?',
-        [name, phone || null, nextRole, nextActive, req.params.id]
+      await req.db.execute(
+        'UPDATE users SET name = ?, phone = ?, role = ?, active = ? WHERE id = ? AND org_id = ?',
+        [name, phone || null, nextRole, nextActive, req.params.id, req.orgId]
       );
     }
     res.redirect(`${res.locals.basePath}/admin/settings/users`);

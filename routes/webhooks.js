@@ -1,10 +1,17 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
+const scopedDb = require('../config/scopedDb');
 const stripe = require('../config/stripe');
 const { sendMail } = require('../services/mailer');
+const { getCompany } = require('../services/companySettings');
 const { reconcileRefunds } = require('../services/paymentsSync');
 const activity = require('../services/activityLog');
+
+// Webhooks arrive with no session, so there is no req.db here. Each handler resolves its
+// own tenant first — from the row the event refers to — and then works through a scoped
+// handle. The unscoped lookups below are deliberate and are the only ones in this file.
+// See docs/adr/0001-multi-tenancy.md.
 
 // Stripe requires the raw, unparsed body to verify the webhook signature.
 router.post('/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
@@ -27,6 +34,20 @@ router.post('/stripe', express.raw({ type: 'application/json' }), async (req, re
   if (event.type === 'payment_intent.succeeded' && event.data.object.metadata?.source === 'cho-hub') {
     const intent = event.data.object;
 
+    // Which tenant does this belong to? New PaymentIntents carry org_id in metadata;
+    // fall back to looking the payment row up by intent id for any created before that
+    // was added. Either way the payments row is authoritative.
+    const [payRows] = await db.execute(
+      'SELECT id, org_id FROM payments WHERE stripe_payment_intent_id = ?',
+      [intent.id]
+    );
+    const orgId = payRows[0]?.org_id ?? (intent.metadata?.org_id ? Number(intent.metadata.org_id) : null);
+    if (!orgId) {
+      console.error('payment_intent.succeeded for an unknown payment:', intent.id);
+      return res.json({ received: true });
+    }
+    const sdb = scopedDb(orgId);
+
     // Pull the charge so the Payments section can show "Visa ••••4242" + a receipt link
     // and the refund flow has a charge id cached — best-effort, a lookup failure must not
     // block marking the invoice paid.
@@ -43,34 +64,37 @@ router.post('/stripe', express.raw({ type: 'application/json' }), async (req, re
       }
     }
 
-    const conn = await db.getConnection();
+    const conn = await sdb.getConnection();
     try {
       await conn.beginTransaction();
       await conn.execute(
         `UPDATE payments SET status = 'succeeded', stripe_charge_id = ?, card_brand = ?,
-           card_last4 = ?, receipt_url = ? WHERE stripe_payment_intent_id = ?`,
-        [chargeId, cardBrand, cardLast4, receiptUrl, intent.id]
+           card_last4 = ?, receipt_url = ? WHERE stripe_payment_intent_id = ? AND org_id = ?`,
+        [chargeId, cardBrand, cardLast4, receiptUrl, intent.id, orgId]
       );
       await conn.execute(
-        "UPDATE invoices SET status = 'paid', paid_at = NOW() WHERE id = ?",
-        [intent.metadata.invoice_id]
+        "UPDATE invoices SET status = 'paid', paid_at = NOW() WHERE id = ? AND org_id = ?",
+        [intent.metadata.invoice_id, orgId]
       );
       await conn.commit();
 
       const [invoiceRows] = await conn.execute(
         `SELECT i.*, c.name AS customer_name, c.email AS customer_email FROM invoices i
-         JOIN customers c ON c.id = i.customer_id WHERE i.id = ?`,
-        [intent.metadata.invoice_id]
+         JOIN customers c ON c.id = i.customer_id AND c.org_id = i.org_id
+         WHERE i.id = ? AND i.org_id = ?`,
+        [intent.metadata.invoice_id, orgId]
       );
       const invoice = invoiceRows[0];
       if (invoice) {
         await activity.log({
-          actorType: 'system', action: 'invoice.paid', entityType: 'invoice', entityId: invoice.id,
+          orgId, actorType: 'system', action: 'invoice.paid', entityType: 'invoice', entityId: invoice.id,
           customerId: invoice.customer_id, detail: `Payment of $${invoice.amount} received (${invoice.type})`,
         });
+        const company = await getCompany(orgId);
         await sendMail({
+          orgId,
           to: invoice.customer_email,
-          subject: 'Payment received — Connected Home Outfitters',
+          subject: `Payment received — ${company.company_name}`,
           template: 'payment-receipt',
           data: { customerName: invoice.customer_name, amount: invoice.amount, invoiceType: invoice.type },
         });
@@ -87,8 +111,9 @@ router.post('/stripe', express.raw({ type: 'application/json' }), async (req, re
   // dashboard. The charge object doesn't carry our PaymentIntent's metadata.source, so
   // instead of a metadata check reconcileRefunds() looks the charge up in our own
   // payments table: if it isn't one of ours (e.g. a ConnectedHomeLedger charge on the
-  // shared account) it returns null and we ignore it. Idempotent, so re-delivery and the
-  // admin route both landing here is harmless.
+  // shared account) it returns null and we ignore it. That same lookup is what resolves
+  // the tenant. Idempotent, so re-delivery and the admin route both landing here is
+  // harmless.
   if (event.type === 'charge.refunded') {
     const charge = event.data.object;
     try {
@@ -101,16 +126,30 @@ router.post('/stripe', express.raw({ type: 'application/json' }), async (req, re
   res.json({ received: true });
 });
 
-// Lead intake from choProject's WordPress site — the "FreeConsultForm" Elementor Pro
-// form on /free-smart-home-consultation-form/, hooked via a custom
-// elementor_pro/forms/new_record mu-plugin (see choProject's CLAUDE.md "Relationship
-// to Connected Home Hub" section for the WordPress-side half). Auth is a shared secret
-// rather than a signature scheme, since this is a low-stakes internal integration
-// (unlike Stripe's webhook, nothing here moves money).
+// Lead intake from a tenant's WordPress site. For Connected Home Outfitters this is the
+// "FreeConsultForm" Elementor Pro form on /free-smart-home-consultation-form/, hooked via
+// a custom elementor_pro/forms/new_record mu-plugin (see choProject's CLAUDE.md
+// "Relationship to Connected Home Hub" section for the WordPress-side half). Auth is a
+// shared secret rather than a signature scheme, since this is a low-stakes internal
+// integration (unlike Stripe's webhook, nothing here moves money).
+//
+// The secret now identifies the tenant: each org gets its own orgs.lead_webhook_secret.
+// The legacy LEAD_WEBHOOK_SECRET env var still resolves to org 1 so CHO's existing
+// WordPress plugin keeps working without being re-keyed.
+async function orgFromLeadSecret(secret) {
+  if (!secret) return null;
+  const [rows] = await db.execute(
+    "SELECT id FROM orgs WHERE lead_webhook_secret = ? AND status = 'active'",
+    [secret]
+  );
+  if (rows[0]) return rows[0].id;
+  if (process.env.LEAD_WEBHOOK_SECRET && secret === process.env.LEAD_WEBHOOK_SECRET) return 1;
+  return null;
+}
+
 router.post('/lead-intake', express.json(), async (req, res) => {
-  if (req.headers['x-cho-hub-secret'] !== process.env.LEAD_WEBHOOK_SECRET) {
-    return res.status(401).json({ error: 'Invalid secret' });
-  }
+  const orgId = await orgFromLeadSecret(req.headers['x-cho-hub-secret']);
+  if (!orgId) return res.status(401).json({ error: 'Invalid secret' });
 
   const { name, email, phone, property_address, home_size, home_type, interests,
     budget, timeline, additional_details, form_id, raw_fields } = req.body;
@@ -119,12 +158,12 @@ router.post('/lead-intake', express.json(), async (req, res) => {
   }
 
   try {
-    await db.execute(
+    await scopedDb(orgId).execute(
       `INSERT INTO leads
-        (name, email, phone, property_address, home_size, home_type, interests, budget,
+        (org_id, name, email, phone, property_address, home_size, home_type, interests, budget,
          timeline, additional_details, source, raw_payload)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [name, email, phone || null, property_address || null, home_size || null,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [orgId, name, email, phone || null, property_address || null, home_size || null,
         home_type || null, interests ? JSON.stringify(interests) : null, budget || null,
         timeline || null, additional_details || null, 'website',
         JSON.stringify({ form_id, raw_fields })]

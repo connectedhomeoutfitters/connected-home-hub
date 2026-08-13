@@ -3,14 +3,15 @@ const router = express.Router();
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
-const db = require('../../config/db');
 const { requireAuth } = require('../../middleware/auth');
 
 router.use(requireAuth);
 
 // Files live under uploads/documents/<customer_id>/ — never served via express.static
 // (contracts/permits can be sensitive); streamed only through the authenticated download
-// route below. Mirrors routes/admin/subcontractors.js.
+// route below. Mirrors routes/admin/subcontractors.js. Customer ids are globally unique
+// across tenants, so two orgs can't share a directory; re-homing under uploads/<org_id>/
+// is phase 2 of docs/adr/0001-multi-tenancy.md.
 const UPLOAD_ROOT = path.join(__dirname, '../../uploads/documents');
 
 const upload = multer({
@@ -33,11 +34,23 @@ router.post('/', upload.array('documents', 20), async (req, res, next) => {
   try {
     const { customer_id, job_id, category, notes } = req.body;
     if (!customer_id) return res.status(400).render('error', { message: 'Missing customer' });
+
+    // multer has already written the files by this point (destination is chosen from the
+    // request body), so confirm the customer is this tenant's before recording them.
+    const [[owned]] = await req.db.execute(
+      'SELECT id FROM customers WHERE id = ? AND org_id = ?',
+      [customer_id, req.orgId]
+    );
+    if (!owned) {
+      for (const file of req.files || []) fs.unlink(file.path, () => {});
+      return res.status(404).render('error', { message: 'Customer not found' });
+    }
+
     for (const file of req.files || []) {
-      await db.execute(
-        `INSERT INTO documents (customer_id, job_id, category, filename, original_name, mime_type, size_bytes, notes, uploaded_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [customer_id, job_id || null, category || null, file.filename, file.originalname,
+      await req.db.execute(
+        `INSERT INTO documents (org_id, customer_id, job_id, category, filename, original_name, mime_type, size_bytes, notes, uploaded_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [req.orgId, customer_id, job_id || null, category || null, file.filename, file.originalname,
           file.mimetype || null, file.size || null, (notes || '').trim() || null, req.user.id]
       );
     }
@@ -49,7 +62,10 @@ router.post('/', upload.array('documents', 20), async (req, res, next) => {
 
 router.get('/:id/download', async (req, res, next) => {
   try {
-    const [rows] = await db.execute('SELECT * FROM documents WHERE id = ?', [req.params.id]);
+    const [rows] = await req.db.execute(
+      'SELECT * FROM documents WHERE id = ? AND org_id = ?',
+      [req.params.id, req.orgId]
+    );
     const doc = rows[0];
     if (!doc) return res.status(404).render('error', { message: 'Document not found' });
     const filePath = path.join(UPLOAD_ROOT, String(doc.customer_id), doc.filename);
@@ -61,10 +77,16 @@ router.get('/:id/download', async (req, res, next) => {
 
 router.post('/:id/delete', async (req, res, next) => {
   try {
-    const [rows] = await db.execute('SELECT * FROM documents WHERE id = ?', [req.params.id]);
+    const [rows] = await req.db.execute(
+      'SELECT * FROM documents WHERE id = ? AND org_id = ?',
+      [req.params.id, req.orgId]
+    );
     const doc = rows[0];
     if (doc) {
-      await db.execute('DELETE FROM documents WHERE id = ?', [doc.id]);
+      await req.db.execute(
+        'DELETE FROM documents WHERE id = ? AND org_id = ?',
+        [doc.id, req.orgId]
+      );
       fs.unlink(path.join(UPLOAD_ROOT, String(doc.customer_id), doc.filename), () => {});
     }
     res.redirect(`${res.locals.basePath}/admin/customers/${doc ? doc.customer_id : ''}#documents`);

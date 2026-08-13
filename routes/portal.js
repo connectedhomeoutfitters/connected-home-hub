@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
-const db = require('../config/db');
 const stripe = require('../config/stripe');
 const { resolveToken } = require('../middleware/customerAccess');
 const { createDepositInvoice } = require('./admin/estimates');
@@ -13,16 +12,23 @@ const activity = require('../services/activityLog');
 
 const TOKEN_TTL_DAYS = 30;
 
+// These routes have no session — resolveToken() resolves the access token and calls
+// attachOrg() from the token row's org_id, so req.db/req.orgId are set by the time any
+// handler below runs. See middleware/customerAccess.js.
+
 // Customer view of an estimate — accept it, or pay the deposit if already accepted.
 router.get('/e/:token', resolveToken('estimate'), async (req, res, next) => {
   try {
-    const [rows] = await db.execute('SELECT * FROM estimates WHERE id = ?', [req.resourceId]);
-    const [items] = await db.execute(
-      'SELECT * FROM estimate_line_items WHERE estimate_id = ? ORDER BY sort_order',
-      [req.resourceId]
+    const [rows] = await req.db.execute(
+      'SELECT * FROM estimates WHERE id = ? AND org_id = ?',
+      [req.resourceId, req.orgId]
+    );
+    const [items] = await req.db.execute(
+      'SELECT * FROM estimate_line_items WHERE estimate_id = ? AND org_id = ? ORDER BY sort_order',
+      [req.resourceId, req.orgId]
     );
     if (!rows[0]) return res.status(404).render('portal/expired');
-    const company = await getCompany();
+    const company = await getCompany(req.orgId);
     res.render('portal/estimate', {
       estimate: rows[0],
       items,
@@ -42,27 +48,30 @@ router.get('/e/:token', resolveToken('estimate'), async (req, res, next) => {
 // the source of truth for whether the deposit actually gets paid — this just gets the
 // invoice in front of them.
 router.post('/e/:token/accept', resolveToken('estimate'), async (req, res, next) => {
-  const conn = await db.getConnection();
+  const conn = await req.db.getConnection();
   try {
     const [rows] = await conn.execute(
       `SELECT e.*, c.name AS customer_name, c.email AS customer_email FROM estimates e
-       JOIN customers c ON c.id = e.customer_id WHERE e.id = ?`,
-      [req.resourceId]
+       JOIN customers c ON c.id = e.customer_id AND c.org_id = e.org_id
+       WHERE e.id = ? AND e.org_id = ?`,
+      [req.resourceId, req.orgId]
     );
     const estimate = rows[0];
-    if (!estimate) return res.status(404).render('portal/expired');
+    if (!estimate) { conn.release(); return res.status(404).render('portal/expired'); }
 
     if (estimate.status !== 'sent') {
+      conn.release();
       return res.redirect(`${res.locals.basePath}/e/${req.params.token}`);
     }
 
     const signatureName = (req.body.signature_name || '').trim();
     if (req.body.agree_terms !== 'on' || !signatureName) {
       const [items] = await conn.execute(
-        'SELECT * FROM estimate_line_items WHERE estimate_id = ? ORDER BY sort_order',
-        [req.resourceId]
+        'SELECT * FROM estimate_line_items WHERE estimate_id = ? AND org_id = ? ORDER BY sort_order',
+        [req.resourceId, req.orgId]
       );
-      const company = await getCompany();
+      const company = await getCompany(req.orgId);
+      conn.release();
       return res.status(400).render('portal/estimate', {
         estimate, items, token: req.params.token, pageScript: null, terms: estimateTerms(company.company_name),
         signatureName,
@@ -75,35 +84,37 @@ router.post('/e/:token/accept', resolveToken('estimate'), async (req, res, next)
     await conn.beginTransaction();
     await conn.execute(
       `UPDATE estimates SET status = 'accepted', accepted_at = NOW(), accepted_ip = ?,
-        signature_name = ?, accepted_user_agent = ? WHERE id = ?`,
-      [req.ip, signatureName, req.headers['user-agent'] || null, estimate.id]
+        signature_name = ?, accepted_user_agent = ? WHERE id = ? AND org_id = ?`,
+      [req.ip, signatureName, req.headers['user-agent'] || null, estimate.id, req.orgId]
     );
     const invoiceId = await createDepositInvoice(conn, estimate);
 
     const invoiceToken = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000);
     await conn.execute(
-      'INSERT INTO access_tokens (token, resource_type, resource_id, expires_at) VALUES (?, ?, ?, ?)',
-      [invoiceToken, 'invoice', invoiceId, expiresAt]
+      'INSERT INTO access_tokens (org_id, token, resource_type, resource_id, expires_at) VALUES (?, ?, ?, ?, ?)',
+      [req.orgId, invoiceToken, 'invoice', invoiceId, expiresAt]
     );
 
     // No staff session exists in this customer-facing route, so this can't default to
     // "whoever's doing it" the way estimate-send's follow-up job does — left
     // unassigned for staff to claim from the Jobs list.
     await conn.execute(
-      `INSERT INTO jobs (type, title, customer_id, estimate_id, status)
-       VALUES ('install', ?, ?, ?, 'pending')`,
-      [`Install: ${estimate.title}`, estimate.customer_id, estimate.id]
+      `INSERT INTO jobs (org_id, type, title, customer_id, estimate_id, status)
+       VALUES (?, 'install', ?, ?, ?, 'pending')`,
+      [req.orgId, `Install: ${estimate.title}`, estimate.customer_id, estimate.id]
     );
 
     await conn.commit();
 
     await activity.log({
+      orgId: req.orgId,
       actorType: 'customer', actorId: estimate.customer_id, actorName: estimate.customer_name,
       action: 'estimate.accepted', entityType: 'estimate', entityId: estimate.id, customerId: estimate.customer_id,
       detail: `Accepted estimate "${estimate.title}" (signed: ${signatureName})`,
     });
     await activity.log({
+      orgId: req.orgId,
       actorType: 'customer', actorId: estimate.customer_id, actorName: estimate.customer_name,
       action: 'invoice.created', entityType: 'invoice', entityId: invoiceId, customerId: estimate.customer_id,
       detail: `Deposit invoice ($${estimate.deposit_amount}) created on acceptance`,
@@ -111,9 +122,11 @@ router.post('/e/:token/accept', resolveToken('estimate'), async (req, res, next)
 
     const basePath = process.env.BASE_PATH || '';
     const payUrl = `${process.env.BASE_URL || ''}${basePath}/i/${invoiceToken}`;
+    const company = await getCompany(req.orgId);
     await sendMail({
+      orgId: req.orgId,
       to: estimate.customer_email,
-      subject: 'Your deposit invoice — Connected Home Outfitters',
+      subject: `Your deposit invoice — ${company.company_name}`,
       template: 'deposit-invoice',
       data: { customerName: estimate.customer_name, amount: estimate.deposit_amount, payUrl },
     });
@@ -130,28 +143,35 @@ router.post('/e/:token/accept', resolveToken('estimate'), async (req, res, next)
 // Customer declines the estimate. Sets status + declined_at and cancels the outstanding
 // "follow up" job staff created when it was sent (no point chasing a declined estimate).
 router.post('/e/:token/decline', resolveToken('estimate'), async (req, res, next) => {
-  const conn = await db.getConnection();
+  const conn = await req.db.getConnection();
   try {
-    const [rows] = await conn.execute('SELECT * FROM estimates WHERE id = ?', [req.resourceId]);
+    const [rows] = await conn.execute(
+      'SELECT * FROM estimates WHERE id = ? AND org_id = ?',
+      [req.resourceId, req.orgId]
+    );
     const estimate = rows[0];
-    if (!estimate) return res.status(404).render('portal/expired');
+    if (!estimate) { conn.release(); return res.status(404).render('portal/expired'); }
     // Only a still-open (sent) estimate can be declined; ignore double-submits.
     if (estimate.status !== 'sent') {
+      conn.release();
       return res.redirect(`${res.locals.basePath}/e/${req.params.token}`);
     }
 
     await conn.beginTransaction();
     await conn.execute(
-      "UPDATE estimates SET status = 'declined', declined_at = NOW() WHERE id = ?",
-      [estimate.id]
+      "UPDATE estimates SET status = 'declined', declined_at = NOW() WHERE id = ? AND org_id = ?",
+      [estimate.id, req.orgId]
     );
     await conn.execute(
-      "UPDATE jobs SET status = 'cancelled' WHERE estimate_id = ? AND type = 'estimate_followup' AND status IN ('pending', 'in_progress')",
-      [estimate.id]
+      `UPDATE jobs SET status = 'cancelled'
+       WHERE estimate_id = ? AND org_id = ? AND type = 'estimate_followup'
+         AND status IN ('pending', 'in_progress')`,
+      [estimate.id, req.orgId]
     );
     await conn.commit();
 
     await activity.log({
+      orgId: req.orgId,
       actorType: 'customer', actorId: estimate.customer_id,
       action: 'estimate.declined', entityType: 'estimate', entityId: estimate.id, customerId: estimate.customer_id,
       detail: `Declined estimate "${estimate.title}"`,
@@ -169,22 +189,23 @@ router.post('/e/:token/decline', resolveToken('estimate'), async (req, res, next
 // PDF version of the estimate, accessible with the same customer token as the web view.
 router.get('/e/:token/pdf', resolveToken('estimate'), async (req, res, next) => {
   try {
-    const [rows] = await db.execute(
+    const [rows] = await req.db.execute(
       `SELECT e.*, c.name AS customer_name, c.email AS customer_email, c.phone AS customer_phone,
         c.address AS customer_address FROM estimates e
-       JOIN customers c ON c.id = e.customer_id WHERE e.id = ?`,
-      [req.resourceId]
+       JOIN customers c ON c.id = e.customer_id AND c.org_id = e.org_id
+       WHERE e.id = ? AND e.org_id = ?`,
+      [req.resourceId, req.orgId]
     );
     const estimate = rows[0];
     if (!estimate) return res.status(404).render('portal/expired');
-    const [items] = await db.execute(
-      'SELECT * FROM estimate_line_items WHERE estimate_id = ? ORDER BY sort_order',
-      [req.resourceId]
+    const [items] = await req.db.execute(
+      'SELECT * FROM estimate_line_items WHERE estimate_id = ? AND org_id = ? ORDER BY sort_order',
+      [req.resourceId, req.orgId]
     );
     const pdf = await generateEstimatePdf({
       estimate, items,
       customer: { name: estimate.customer_name, email: estimate.customer_email, phone: estimate.customer_phone, address: estimate.customer_address },
-      company: await getCompany(),
+      company: await getCompany(req.orgId),
     });
     res.set('Content-Type', 'application/pdf');
     res.set('Content-Disposition', `inline; filename="estimate-${estimate.id}.pdf"`);
@@ -197,10 +218,11 @@ router.get('/e/:token/pdf', resolveToken('estimate'), async (req, res, next) => 
 // Customer view of an invoice (deposit or final) with a Stripe payment button.
 router.get('/i/:token', resolveToken('invoice'), async (req, res, next) => {
   try {
-    const [rows] = await db.execute(
+    const [rows] = await req.db.execute(
       `SELECT i.*, c.name AS customer_name, c.email AS customer_email
-       FROM invoices i JOIN customers c ON c.id = i.customer_id WHERE i.id = ?`,
-      [req.resourceId]
+       FROM invoices i JOIN customers c ON c.id = i.customer_id AND c.org_id = i.org_id
+       WHERE i.id = ? AND i.org_id = ?`,
+      [req.resourceId, req.orgId]
     );
     if (!rows[0]) return res.status(404).render('portal/expired');
     res.render('portal/invoice', {
@@ -221,7 +243,10 @@ router.get('/i/:token', resolveToken('invoice'), async (req, res, next) => {
 // pay page rather than showing a false "you're all set" message.
 router.get('/i/:token/next-steps', resolveToken('invoice'), async (req, res, next) => {
   try {
-    const [rows] = await db.execute('SELECT * FROM invoices WHERE id = ?', [req.resourceId]);
+    const [rows] = await req.db.execute(
+      'SELECT * FROM invoices WHERE id = ? AND org_id = ?',
+      [req.resourceId, req.orgId]
+    );
     const invoice = rows[0];
     if (!invoice) return res.status(404).render('portal/expired');
     if (invoice.status !== 'paid') {
@@ -237,24 +262,35 @@ router.get('/i/:token/next-steps', resolveToken('invoice'), async (req, res, nex
 // with Stripe.js (Payment Element); the webhook is the source of truth for marking it paid.
 router.post('/i/:token/pay', resolveToken('invoice'), async (req, res, next) => {
   try {
-    const [rows] = await db.execute('SELECT * FROM invoices WHERE id = ?', [req.resourceId]);
+    const [rows] = await req.db.execute(
+      'SELECT * FROM invoices WHERE id = ? AND org_id = ?',
+      [req.resourceId, req.orgId]
+    );
     const invoice = rows[0];
     if (!invoice || invoice.status !== 'pending') {
       return res.status(400).json({ error: 'Invoice is not payable' });
     }
 
+    // NOTE: this still charges the PLATFORM Stripe account. Once a second tenant exists
+    // this must become a Connect call — stripe.paymentIntents.create({...},
+    // { stripeAccount: org.stripe_account_id }) — or their customer's money lands in
+    // Connected Home Outfitters' bank account. Phase 4 of docs/adr/0001-multi-tenancy.md.
     const intent = await stripe.paymentIntents.create({
       amount: Math.round(invoice.amount * 100),
       currency: 'usd',
       // source: 'cho-hub' keeps this distinguishable from GYMR subscription charges
       // in Stripe's dashboard/reports/reconciliation, since both share one account.
-      metadata: { source: 'cho-hub', invoice_id: String(invoice.id), type: invoice.type },
+      // org_id lets the webhook resolve the tenant without a DB lookup.
+      metadata: {
+        source: 'cho-hub', org_id: String(req.orgId),
+        invoice_id: String(invoice.id), type: invoice.type,
+      },
       statement_descriptor_suffix: 'CHO JOB',
     });
 
-    await db.execute(
-      'INSERT INTO payments (invoice_id, stripe_payment_intent_id, amount, status) VALUES (?, ?, ?, ?)',
-      [invoice.id, intent.id, invoice.amount, 'pending']
+    await req.db.execute(
+      'INSERT INTO payments (org_id, invoice_id, stripe_payment_intent_id, amount, status) VALUES (?, ?, ?, ?, ?)',
+      [req.orgId, invoice.id, intent.id, invoice.amount, 'pending']
     );
 
     res.json({ clientSecret: intent.client_secret });

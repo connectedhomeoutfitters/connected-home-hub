@@ -3,7 +3,6 @@ const router = express.Router();
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
-const db = require('../../config/db');
 const { requireAuth } = require('../../middleware/auth');
 const consultationOptions = require('../../config/consultationOptions');
 const { mapLeadToConsultation } = require('../../config/leadToConsultationMapping');
@@ -13,6 +12,11 @@ const { generateConsultationInvite } = require('../../services/calendarInvite');
 
 router.use(requireAuth);
 
+// Photos stay under uploads/consultations/<consultation_id>/ rather than being nested
+// per-org: consultation ids are globally unique (one auto-increment across all tenants),
+// so two orgs can never share a directory, and the DB lookup that resolves a photo is
+// org-scoped. Re-homing these under uploads/<org_id>/ is phase 2 of
+// docs/adr/0001-multi-tenancy.md — deferred here to avoid orphaning existing files.
 const UPLOAD_ROOT = path.join(__dirname, '../../uploads/consultations');
 
 const upload = multer({
@@ -73,12 +77,17 @@ function fieldsFromBody(body) {
 
 router.get('/', async (req, res, next) => {
   try {
-    const [consultations] = await db.execute(
+    const [consultations] = await req.db.execute(
       `SELECT co.*, c.name AS customer_name FROM consultations co
-       JOIN customers c ON c.id = co.customer_id
-       ORDER BY co.created_at DESC`
+       JOIN customers c ON c.id = co.customer_id AND c.org_id = co.org_id
+       WHERE co.org_id = ?
+       ORDER BY co.created_at DESC`,
+      [req.orgId]
     );
-    const [customers] = await db.execute('SELECT id, name FROM customers ORDER BY name');
+    const [customers] = await req.db.execute(
+      'SELECT id, name FROM customers WHERE org_id = ? ORDER BY name',
+      [req.orgId]
+    );
 
     // Feedback for the "On My Way" action (redirected here with the consultation id).
     let omw = null;
@@ -97,12 +106,15 @@ router.get('/', async (req, res, next) => {
 router.get('/new', async (req, res, next) => {
   try {
     const customerId = req.query.customer_id;
-    const [customerRows] = await db.execute('SELECT * FROM customers WHERE id = ?', [customerId]);
+    const [customerRows] = await req.db.execute(
+      'SELECT * FROM customers WHERE id = ? AND org_id = ?',
+      [customerId, req.orgId]
+    );
     if (!customerRows[0]) return res.status(404).render('error', { message: 'Customer not found' });
 
-    const [leadRows] = await db.execute(
-      'SELECT * FROM leads WHERE customer_id = ? ORDER BY created_at DESC LIMIT 1',
-      [customerId]
+    const [leadRows] = await req.db.execute(
+      'SELECT * FROM leads WHERE customer_id = ? AND org_id = ? ORDER BY created_at DESC LIMIT 1',
+      [customerId, req.orgId]
     );
     const lead = leadRows[0] || null;
 
@@ -121,33 +133,41 @@ router.get('/new', async (req, res, next) => {
 });
 
 router.post('/', async (req, res, next) => {
-  const conn = await db.getConnection();
+  const conn = await req.db.getConnection();
   try {
     const fields = fieldsFromBody(req.body);
     const [leadRows] = await conn.execute(
-      'SELECT id FROM leads WHERE customer_id = ? ORDER BY created_at DESC LIMIT 1',
-      [req.body.customer_id]
+      'SELECT id FROM leads WHERE customer_id = ? AND org_id = ? ORDER BY created_at DESC LIMIT 1',
+      [req.body.customer_id, req.orgId]
     );
-    const [customerRows] = await conn.execute('SELECT name FROM customers WHERE id = ?', [req.body.customer_id]);
+    const [customerRows] = await conn.execute(
+      'SELECT name FROM customers WHERE id = ? AND org_id = ?',
+      [req.body.customer_id, req.orgId]
+    );
+    if (!customerRows[0]) { conn.release(); return res.status(404).render('error', { message: 'Customer not found' }); }
 
     await conn.beginTransaction();
     // New consultations always start 'scheduled' — this route is only ever hit from
     // the schedule-only form (contact info + Section 1), never the full site-visit
     // survey, so there's nothing else to conditionally set status from yet.
+    // org_id is spelled out in the literal rather than folded into `columns` so that both
+    // the runtime guard (config/scopedDb.js) and the static sweep (test/queryScoping.test.js)
+    // can see it — the rest of the column list is interpolated and opaque to the latter.
     const columns = ['customer_id', 'lead_id', 'consultant_id', 'status', ...Object.keys(fields)];
     const values = [req.body.customer_id, leadRows[0]?.id || null, req.user.id, 'scheduled', ...Object.values(fields)];
     const [result] = await conn.execute(
-      `INSERT INTO consultations (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`,
-      values
+      `INSERT INTO consultations (org_id, ${columns.join(', ')})
+       VALUES (?, ${columns.map(() => '?').join(', ')})`,
+      [req.orgId, ...values]
     );
 
     // "Job" here means any lifecycle task, not just an installation — this one tracks
     // the consultation visit itself. Defaults to whoever created it; reassignable
     // later from the Jobs list.
     await conn.execute(
-      `INSERT INTO jobs (type, title, customer_id, consultation_id, assigned_to, scheduled_at)
-       VALUES ('consultation', ?, ?, ?, ?, ?)`,
-      [`Consultation — ${customerRows[0].name}`, req.body.customer_id, result.insertId, req.user.id, fields.consultation_date]
+      `INSERT INTO jobs (org_id, type, title, customer_id, consultation_id, assigned_to, scheduled_at)
+       VALUES (?, 'consultation', ?, ?, ?, ?, ?)`,
+      [req.orgId, `Consultation — ${customerRows[0].name}`, req.body.customer_id, result.insertId, req.user.id, fields.consultation_date]
     );
     await conn.commit();
     res.redirect(`${res.locals.basePath}/admin/consultations/${result.insertId}/edit`);
@@ -161,23 +181,27 @@ router.post('/', async (req, res, next) => {
 
 router.get('/:id/edit', async (req, res, next) => {
   try {
-    const [rows] = await db.execute(
+    const [rows] = await req.db.execute(
       `SELECT co.*, c.name AS customer_name, c.email AS customer_email, c.phone AS customer_phone,
         c.address AS customer_address, c.notes AS customer_notes FROM consultations co
-       JOIN customers c ON c.id = co.customer_id WHERE co.id = ?`,
-      [req.params.id]
+       JOIN customers c ON c.id = co.customer_id AND c.org_id = co.org_id
+       WHERE co.id = ? AND co.org_id = ?`,
+      [req.params.id, req.orgId]
     );
     const consultation = rows[0];
     if (!consultation) return res.status(404).render('error', { message: 'Consultation not found' });
 
-    const [photos] = await db.execute(
-      'SELECT * FROM consultation_photos WHERE consultation_id = ? ORDER BY created_at',
-      [req.params.id]
+    const [photos] = await req.db.execute(
+      'SELECT * FROM consultation_photos WHERE consultation_id = ? AND org_id = ? ORDER BY created_at',
+      [req.params.id, req.orgId]
     );
 
     let lead = null;
     if (consultation.lead_id) {
-      const [leadRows] = await db.execute('SELECT * FROM leads WHERE id = ?', [consultation.lead_id]);
+      const [leadRows] = await req.db.execute(
+        'SELECT * FROM leads WHERE id = ? AND org_id = ?',
+        [consultation.lead_id, req.orgId]
+      );
       lead = leadRows[0] || null;
     }
 
@@ -209,16 +233,19 @@ router.get('/:id/edit', async (req, res, next) => {
 // from that point on.
 router.post('/:id', async (req, res, next) => {
   try {
-    const [rows] = await db.execute('SELECT status FROM consultations WHERE id = ?', [req.params.id]);
+    const [rows] = await req.db.execute(
+      'SELECT status FROM consultations WHERE id = ? AND org_id = ?',
+      [req.params.id, req.orgId]
+    );
     const current = rows[0];
     if (!current) return res.status(404).render('error', { message: 'Consultation not found' });
 
     const fields = fieldsFromBody(req.body);
     const nextStatus = current.status === 'scheduled' ? 'completed' : current.status;
     const setClause = Object.keys(fields).map((k) => `${k} = ?`).join(', ');
-    await db.execute(
-      `UPDATE consultations SET ${setClause}, status = ? WHERE id = ?`,
-      [...Object.values(fields), nextStatus, req.params.id]
+    await req.db.execute(
+      `UPDATE consultations SET ${setClause}, status = ? WHERE id = ? AND org_id = ?`,
+      [...Object.values(fields), nextStatus, req.params.id, req.orgId]
     );
     res.redirect(`${res.locals.basePath}/admin/consultations/${req.params.id}/edit`);
   } catch (err) {
@@ -228,7 +255,10 @@ router.post('/:id', async (req, res, next) => {
 
 router.post('/:id/hold', async (req, res, next) => {
   try {
-    await db.execute("UPDATE consultations SET status = 'on_hold' WHERE id = ?", [req.params.id]);
+    await req.db.execute(
+      "UPDATE consultations SET status = 'on_hold' WHERE id = ? AND org_id = ?",
+      [req.params.id, req.orgId]
+    );
     res.redirect(`${res.locals.basePath}/admin/consultations/${req.params.id}/edit`);
   } catch (err) {
     next(err);
@@ -237,7 +267,10 @@ router.post('/:id/hold', async (req, res, next) => {
 
 router.post('/:id/resume', async (req, res, next) => {
   try {
-    await db.execute("UPDATE consultations SET status = 'completed' WHERE id = ?", [req.params.id]);
+    await req.db.execute(
+      "UPDATE consultations SET status = 'completed' WHERE id = ? AND org_id = ?",
+      [req.params.id, req.orgId]
+    );
     res.redirect(`${res.locals.basePath}/admin/consultations/${req.params.id}/edit`);
   } catch (err) {
     next(err);
@@ -246,7 +279,10 @@ router.post('/:id/resume', async (req, res, next) => {
 
 router.post('/:id/cancel', async (req, res, next) => {
   try {
-    await db.execute("UPDATE consultations SET status = 'cancelled' WHERE id = ?", [req.params.id]);
+    await req.db.execute(
+      "UPDATE consultations SET status = 'cancelled' WHERE id = ? AND org_id = ?",
+      [req.params.id, req.orgId]
+    );
     res.redirect(`${res.locals.basePath}/admin/consultations/${req.params.id}/edit`);
   } catch (err) {
     next(err);
@@ -262,14 +298,14 @@ router.post('/:id/cancel', async (req, res, next) => {
 // can confirm it went through (or warn if the customer has no email on file).
 router.post('/:id/on-the-way', async (req, res, next) => {
   try {
-    const [rows] = await db.execute(
+    const [rows] = await req.db.execute(
       `SELECT co.id, c.name AS customer_name, c.email AS customer_email, c.address AS customer_address,
               u.name AS consultant_name, u.phone AS consultant_phone
        FROM consultations co
-       JOIN customers c ON c.id = co.customer_id
-       LEFT JOIN users u ON u.id = co.consultant_id
-       WHERE co.id = ?`,
-      [req.params.id]
+       JOIN customers c ON c.id = co.customer_id AND c.org_id = co.org_id
+       LEFT JOIN users u ON u.id = co.consultant_id AND u.org_id = co.org_id
+       WHERE co.id = ? AND co.org_id = ?`,
+      [req.params.id, req.orgId]
     );
     const consultation = rows[0];
     if (!consultation) return res.status(404).render('error', { message: 'Consultation not found' });
@@ -278,8 +314,9 @@ router.post('/:id/on-the-way', async (req, res, next) => {
       return res.redirect(`${res.locals.basePath}/admin/consultations?omw_noemail=${consultation.id}`);
     }
 
-    const company = await getCompany();
+    const company = await getCompany(req.orgId);
     await sendMail({
+      orgId: req.orgId,
       to: consultation.customer_email,
       subject: `On our way — ${consultation.customer_name}'s consultation`,
       template: 'consultation-on-the-way',
@@ -290,7 +327,10 @@ router.post('/:id/on-the-way', async (req, res, next) => {
         consultantPhone: consultation.consultant_phone || company.phone || null,
       },
     });
-    await db.execute('UPDATE consultations SET on_the_way_sent_at = NOW() WHERE id = ?', [consultation.id]);
+    await req.db.execute(
+      'UPDATE consultations SET on_the_way_sent_at = NOW() WHERE id = ? AND org_id = ?',
+      [consultation.id, req.orgId]
+    );
     res.redirect(`${res.locals.basePath}/admin/consultations?omw_sent=${consultation.id}`);
   } catch (err) {
     next(err);
@@ -300,11 +340,13 @@ router.post('/:id/on-the-way', async (req, res, next) => {
 // Shared by the initial "Send Calendar Invite" action and reschedule — emails an .ics
 // invite to both the consultant (whoever's sending it — "for myself to use on Google
 // Calendar", per how this was scoped) and the customer. Throws if no date is set.
-async function sendConsultationInvite(consultationId, user, { rescheduled = false } = {}) {
+async function sendConsultationInvite(db, orgId, consultationId, user, { rescheduled = false } = {}) {
   const [rows] = await db.execute(
     `SELECT co.*, c.name AS customer_name, c.email AS customer_email, c.address AS customer_address
-     FROM consultations co JOIN customers c ON c.id = co.customer_id WHERE co.id = ?`,
-    [consultationId]
+     FROM consultations co
+     JOIN customers c ON c.id = co.customer_id AND c.org_id = co.org_id
+     WHERE co.id = ? AND co.org_id = ?`,
+    [consultationId, orgId]
   );
   const consultation = rows[0];
   if (!consultation) throw Object.assign(new Error('Consultation not found'), { status: 404 });
@@ -326,6 +368,7 @@ async function sendConsultationInvite(consultationId, user, { rescheduled = fals
   const recipients = [user.email, consultation.customer_email].filter(Boolean);
   for (const to of recipients) {
     await sendMail({
+      orgId,
       to,
       subject: `Consultation ${rescheduled ? 'rescheduled' : 'confirmed'} — ${when}`,
       template: 'consultation-scheduled',
@@ -334,12 +377,15 @@ async function sendConsultationInvite(consultationId, user, { rescheduled = fals
     });
   }
 
-  await db.execute('UPDATE consultations SET calendar_invite_sent_at = NOW() WHERE id = ?', [consultationId]);
+  await db.execute(
+    'UPDATE consultations SET calendar_invite_sent_at = NOW() WHERE id = ? AND org_id = ?',
+    [consultationId, orgId]
+  );
 }
 
 router.post('/:id/send-invite', async (req, res, next) => {
   try {
-    await sendConsultationInvite(req.params.id, req.user);
+    await sendConsultationInvite(req.db, req.orgId, req.params.id, req.user);
     res.redirect(`${res.locals.basePath}/admin/consultations/${req.params.id}/edit`);
   } catch (err) {
     if (err.status) return res.status(err.status).render('error', { message: err.message });
@@ -358,11 +404,11 @@ router.post('/:id/reschedule', async (req, res, next) => {
       return res.status(400).render('error', { message: 'A new date/time is required to reschedule' });
     }
 
-    await db.execute(
-      'UPDATE consultations SET consultation_date = ?, duration_minutes = ?, reminder_sent_at = NULL WHERE id = ?',
-      [consultation_date, duration_minutes, req.params.id]
+    await req.db.execute(
+      'UPDATE consultations SET consultation_date = ?, duration_minutes = ?, reminder_sent_at = NULL WHERE id = ? AND org_id = ?',
+      [consultation_date, duration_minutes, req.params.id, req.orgId]
     );
-    await sendConsultationInvite(req.params.id, req.user, { rescheduled: true });
+    await sendConsultationInvite(req.db, req.orgId, req.params.id, req.user, { rescheduled: true });
     res.redirect(`${res.locals.basePath}/admin/consultations/${req.params.id}/edit`);
   } catch (err) {
     if (err.status) return res.status(err.status).render('error', { message: err.message });
@@ -372,10 +418,17 @@ router.post('/:id/reschedule', async (req, res, next) => {
 
 router.post('/:id/photos', upload.array('photos', 20), async (req, res, next) => {
   try {
+    // Confirm the consultation is this tenant's before attaching photos to it.
+    const [[owned]] = await req.db.execute(
+      'SELECT id FROM consultations WHERE id = ? AND org_id = ?',
+      [req.params.id, req.orgId]
+    );
+    if (!owned) return res.status(404).render('error', { message: 'Consultation not found' });
+
     for (const file of req.files || []) {
-      await db.execute(
-        'INSERT INTO consultation_photos (consultation_id, category, filename, original_name) VALUES (?, ?, ?, ?)',
-        [req.params.id, req.body.category || null, file.filename, file.originalname]
+      await req.db.execute(
+        'INSERT INTO consultation_photos (org_id, consultation_id, category, filename, original_name) VALUES (?, ?, ?, ?, ?)',
+        [req.orgId, req.params.id, req.body.category || null, file.filename, file.originalname]
       );
     }
     res.redirect(`${res.locals.basePath}/admin/consultations/${req.params.id}/edit`);
@@ -388,9 +441,9 @@ router.post('/:id/photos', upload.array('photos', 20), async (req, res, next) =>
 // only streamed here behind requireAuth.
 router.get('/:id/photos/:photoId', async (req, res, next) => {
   try {
-    const [rows] = await db.execute(
-      'SELECT * FROM consultation_photos WHERE id = ? AND consultation_id = ?',
-      [req.params.photoId, req.params.id]
+    const [rows] = await req.db.execute(
+      'SELECT * FROM consultation_photos WHERE id = ? AND consultation_id = ? AND org_id = ?',
+      [req.params.photoId, req.params.id, req.orgId]
     );
     const photo = rows[0];
     if (!photo) return res.status(404).render('error', { message: 'Photo not found' });
@@ -402,13 +455,16 @@ router.get('/:id/photos/:photoId', async (req, res, next) => {
 
 router.post('/:id/photos/:photoId/delete', async (req, res, next) => {
   try {
-    const [rows] = await db.execute(
-      'SELECT * FROM consultation_photos WHERE id = ? AND consultation_id = ?',
-      [req.params.photoId, req.params.id]
+    const [rows] = await req.db.execute(
+      'SELECT * FROM consultation_photos WHERE id = ? AND consultation_id = ? AND org_id = ?',
+      [req.params.photoId, req.params.id, req.orgId]
     );
     const photo = rows[0];
     if (photo) {
-      await db.execute('DELETE FROM consultation_photos WHERE id = ?', [photo.id]);
+      await req.db.execute(
+        'DELETE FROM consultation_photos WHERE id = ? AND org_id = ?',
+        [photo.id, req.orgId]
+      );
       fs.unlink(path.join(UPLOAD_ROOT, req.params.id, photo.filename), () => {});
     }
     res.redirect(`${res.locals.basePath}/admin/consultations/${req.params.id}/edit`);

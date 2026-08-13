@@ -3,7 +3,7 @@ require('dotenv').config();
 const nodemailer = require('nodemailer');
 const ejs = require('ejs');
 const path = require('path');
-const db = require('./../config/db');
+const scopedDb = require('./../config/scopedDb');
 
 const APP_NAME = 'Connected Home Outfitters';
 const APP_URL = process.env.BASE_URL || '';
@@ -32,21 +32,23 @@ if (process.env.SMTP_HOST) {
 // server never blocks the underlying action (e.g. accepting an estimate still works,
 // it just won't also email a confirmation).
 // Records every send attempt. Wrapped so a logging failure never affects the send itself.
-async function logEmail(recipient, template, subject, status, error) {
+async function logEmail(orgId, recipient, template, subject, status, error) {
   try {
-    await db.execute(
-      'INSERT INTO email_log (recipient, template, subject, status, error) VALUES (?, ?, ?, ?, ?)',
-      [recipient || '', template || null, subject || null, status, error ? String(error).slice(0, 500) : null]
+    await scopedDb(orgId).execute(
+      'INSERT INTO email_log (org_id, recipient, template, subject, status, error) VALUES (?, ?, ?, ?, ?, ?)',
+      [orgId, recipient || '', template || null, subject || null, status, error ? String(error).slice(0, 500) : null]
     );
   } catch (err) {
     console.error('email_log insert failed:', err.message);
   }
 }
 
-async function sendMail({ to, subject, template, data = {}, attachments, icalEvent }) {
+// orgId identifies which tenant this mail belongs to — it scopes the email_log row so
+// Settings → Email log only ever shows that tenant's deliveries.
+async function sendMail({ orgId, to, subject, template, data = {}, attachments, icalEvent }) {
   if (!transporter) {
     console.warn(`sendMail('${template}') skipped — SMTP not configured`);
-    await logEmail(to, template, subject, 'skipped', 'SMTP not configured');
+    await logEmail(orgId, to, template, subject, 'skipped', 'SMTP not configured');
     return false;
   }
 
@@ -64,11 +66,11 @@ async function sendMail({ to, subject, template, data = {}, attachments, icalEve
       attachments,
       icalEvent, // { filename, method: 'REQUEST', content } — see services/calendarInvite.js
     });
-    await logEmail(to, template, subject, 'sent', null);
+    await logEmail(orgId, to, template, subject, 'sent', null);
     return true;
   } catch (err) {
     console.error(`Email send failed (${template} -> ${to}):`, err.message);
-    await logEmail(to, template, subject, 'failed', err.message);
+    await logEmail(orgId, to, template, subject, 'failed', err.message);
     return false;
   }
 }
