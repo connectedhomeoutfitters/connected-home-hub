@@ -31,6 +31,8 @@ const ALLOWED_UNSCOPED = {
   'routes/webhooks.js': 'Stripe/lead webhooks arrive with no session; org resolved from the row',
   'services/paymentsSync.js': 'refund reconciliation resolves the org from the charge id',
   'services/orgs.js': 'reads the orgs table itself to enumerate tenants',
+  'routes/sso.js': 'Ledger SSO handshake — runs before any org context exists',
+  'services/orgProvisioning.js': 'finds-or-creates the org/user an SSO request resolves to',
   'scripts/create-admin.js': 'CLI; takes an explicit orgId argument',
   'scripts/import-products-csv.js': 'CLI; takes an explicit orgId argument',
   'scripts/sync-prod-to-test.js': 'whole-database dump/restore; its row counts are a post-load sanity check, not a tenant query',

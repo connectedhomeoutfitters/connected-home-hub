@@ -1,8 +1,10 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const db = require('../config/db');
 const scopedDb = require('../config/scopedDb');
 const stripe = require('../config/stripe');
+const { setEntitlement } = require('../services/orgProvisioning');
 const { sendMail } = require('../services/mailer');
 const { getCompany } = require('../services/companySettings');
 const { reconcileRefunds } = require('../services/paymentsSync');
@@ -146,6 +148,42 @@ async function orgFromLeadSecret(secret) {
   if (process.env.LEAD_WEBHOOK_SECRET && secret === process.env.LEAD_WEBHOOK_SECRET) return 1;
   return null;
 }
+
+// Entitlement push from Connected Home Ledger. Ledger owns billing, so when a
+// subscription changes there (upgrade, downgrade, cancel, payment failure) it tells Hub,
+// and Hub flips the org's status. Without this a cancelled customer would keep full
+// access until their next SSO handshake.
+//
+// Auth is the same shared secret used to sign SSO tokens — a timing-safe compare rather
+// than `!==`, since unlike the lead webhook this one is reachable from the internet and
+// controls access. Suspending never deletes anything: the org's data stays put so a
+// customer who resubscribes finds it waiting.
+router.post('/ledger-entitlement', express.json(), async (req, res) => {
+  const secret = process.env.LEDGER_SSO_SECRET;
+  const provided = req.headers['x-ledger-secret'];
+  if (!secret || typeof provided !== 'string') return res.status(401).json({ error: 'Unauthorized' });
+
+  const a = Buffer.from(provided);
+  const b = Buffer.from(secret);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { workspace_id: workspaceId, hub_entitled: hubEntitled, plan } = req.body || {};
+  if (!workspaceId) return res.status(400).json({ error: 'workspace_id is required' });
+
+  try {
+    const orgId = await setEntitlement(workspaceId, { hubEntitled: !!hubEntitled, plan });
+    // A workspace Hub has never seen isn't an error — the customer simply hasn't clicked
+    // through yet, and the SSO handshake will provision them with current entitlement.
+    if (!orgId) return res.json({ received: true, matched: false });
+    console.log(`Ledger entitlement: workspace ${workspaceId} -> org ${orgId}, entitled=${!!hubEntitled}, plan=${plan || 'none'}`);
+    res.json({ received: true, matched: true, org_id: orgId });
+  } catch (err) {
+    console.error('Failed to apply Ledger entitlement:', err);
+    res.status(500).json({ error: 'Failed to apply entitlement' });
+  }
+});
 
 router.post('/lead-intake', express.json(), async (req, res) => {
   const orgId = await orgFromLeadSecret(req.headers['x-cho-hub-secret']);

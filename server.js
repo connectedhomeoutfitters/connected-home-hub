@@ -99,6 +99,9 @@ app.use(`${BASE_PATH}/login`, authLimiter);
 
 app.use(`${BASE_PATH}/`, require('./routes/index'));
 app.use(`${BASE_PATH}/`, require('./routes/auth'));
+// Connected Home Ledger SSO — establishes an ordinary staff session from a signed
+// handoff token (see docs/adr/0001-multi-tenancy.md phase 3).
+app.use(`${BASE_PATH}/sso`, require('./routes/sso'));
 app.use(`${BASE_PATH}/admin/leads`, require('./routes/admin/leads'));
 app.use(`${BASE_PATH}/admin/customers`, require('./routes/admin/customers'));
 app.use(`${BASE_PATH}/admin/documents`, require('./routes/admin/documents'));

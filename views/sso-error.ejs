@@ -1,0 +1,15 @@
+<%- include('partials/head', { title: 'Sign-in problem', portalBranded: true, bodyClass: 'portal-page' }) %>
+<%- include('partials/portal-header') %>
+<div class="container py-5">
+  <div class="mx-auto text-center" style="max-width: 34rem;">
+    <h1 class="h3 mb-3"><%= message %></h1>
+    <% if (detail) { %>
+      <p class="text-muted mb-4"><%= detail %></p>
+    <% } %>
+    <a class="btn btn-primary" href="https://connectedhomeledger.com/dashboard">Back to Connected Home Ledger</a>
+    <p class="mt-4 mb-0 text-muted small">
+      Staff with a CHO Hub password can <a href="<%= basePath %>/login">sign in directly</a>.
+    </p>
+  </div>
+</div>
+<%- include('partials/footer') %>

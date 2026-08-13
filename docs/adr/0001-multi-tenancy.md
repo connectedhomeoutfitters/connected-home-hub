@@ -190,7 +190,7 @@ custom domains are deferred until there is demand.
 | **1a** | `orgs` table, `org_id` on 27 tables (migration 030), `config/scopedDb.js` + tests, `middleware/orgContext.js` | **Done 2026-08-13.** No user-visible change; org 1 = CHO |
 | **1b** | Rewrote all query sites onto `req.db`; per-tenant cron sweeps; migration 031 dropped the backfill defaults | **Done 2026-08-13.** Foundation is safe; isolation verified with a live second org |
 | **2** | Per-org settings, branding, uploads, mailer, terms | CHO still the only tenant, but nothing is hardcoded |
-| **3** | Ledger SSO, org provisioning, entitlement webhook | A second tenant can sign in and run jobs — **but cannot take payments** |
+| **3** | Ledger SSO, org provisioning, entitlement webhook | **Built + verified on test 2026-08-13, not yet deployed.** A second tenant can sign in and run jobs — **but cannot take payments** |
 | **4** | Stripe Connect | A second tenant is commercially usable |
 | **5** | Ledger add-on billing, pricing page, Hub → Ledger bookkeeping sync | The differentiated product |
 

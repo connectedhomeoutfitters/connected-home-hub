@@ -732,8 +732,9 @@ Shape: three apps stay separate. **Ledger becomes the identity + subscription la
 product**. Hub's new `orgs` table is the tenant boundary; **Connected Home Outfitters is
 org #1** and runs the same code path as every other tenant (no special-casing).
 
-**Where it stands — phase 1 (1a + 1b) complete, applied to the TEST DB only. Prod is
-still single-tenant and un-migrated.**
+**Where it stands — phase 1 (1a + 1b) complete and DEPLOYED TO PROD (2026-08-13).**
+Both test and prod are migrated; prod is org 1 with all existing data backfilled.
+Deployed as commit `83c6f8a`, pushed to `main`.
 
 - `030_orgs_multitenancy.sql` creates `orgs` (with `ledger_workspace_id`,
   `stripe_account_id`, `entitlement_expires_at`, per-tenant `lead_webhook_secret`) and
@@ -774,8 +775,48 @@ unique per-org rather than globally, login gains an org-selection step in phase 
 customer and subcontractor magic-link flows already handle this correctly: a matching
 email sends **one link per org** the address exists in, since each token is per-customer.
 
-**Next up is phase 3 (Ledger SSO) then phase 4 (Stripe Connect)** — see the ADR. Phase 2
-(per-org branding/uploads/terms) is small and can slot in anywhere.
+### Phase 3 — Ledger SSO (built + verified on test 2026-08-13, NOT yet deployed)
+
+A Connected Home Ledger customer with a Business Workspace clicks **"Open CHO Hub"** on
+their workspace page and lands signed in here, with their org auto-provisioned.
+`032_ledger_sso.sql` adds `sso_used_tokens`, `users.origin`/`ledger_user_id`, and
+`orgs.ledger_plan`/`entitlement_checked_at`.
+
+- **Not a fourth principal type.** `routes/sso.js` establishes the ordinary **staff
+  Passport session** via `req.login()`, so `serializeUser`/`deserializeUser` and every
+  `requireAuth` are untouched. This is what let SSO land without the `{type,id}` rework.
+- **Token format** — `services/ledgerSso.js`, **byte-identical to
+  `N:\gymrProject\services\hubSso.js`** (Ledger signs, Hub verifies). Dependency-free
+  HMAC-SHA256 over a base64url JSON payload: `b64url(payload).b64url(sig)`. 60-second TTL,
+  single-use via a `jti` PRIMARY KEY insert (atomic — a concurrent replay loses the insert
+  rather than racing a SELECT-then-INSERT). **A change to the payload shape must land in
+  both files at once**; `test/ledgerSso.test.js` asserts they haven't drifted whenever both
+  checkouts are present.
+- **Entitlement policy lives in Ledger**, which owns billing — `config/hubAccess.js` there.
+  Hub only honours the token's `hubEntitled` flag and the entitlement webhook. Currently
+  `plan === 'premium'` (business workspaces are already Premium-gated); phase 5 replaces
+  that with the paid add-on's subscription-item lookup.
+- **Revocation**: Ledger's `syncSubscription()`/`cancelSubscription()` call
+  `services/hubEntitlement.js`, which POSTs `/webhooks/ledger-entitlement` (timing-safe
+  compare on `X-Ledger-Secret`). **Suspending never deletes** — the org's data stays put so
+  a customer who resubscribes finds it waiting. The push is non-blocking and never throws,
+  so Hub being down can't break Ledger's Stripe webhook; a missed push is caught at the
+  next SSO handshake, which also carries entitlement.
+- **`LEDGER_SSO_SECRET` (Hub) must equal `HUB_SSO_SECRET` (Ledger)**, plus `HUB_URL` on
+  Ledger. Set in both local `.env`s; **still needs setting on the VPS and on Ledger's
+  prod/NAS environments** before this works anywhere but local.
+- **Verified on test**: org auto-provisioned from a workspace (name → unique slug), first
+  SSO user created as `admin` with no password, working staff session, **new org sees zero
+  products and none of org 1's customers**, token replay/bad-signature/expired/malformed
+  all refused, un-entitled workspace provisions nothing, webhook suspends and restores, and
+  the org + staff survive a suspend/resubscribe cycle.
+
+**Not yet deployed.** Deploying needs: migration 032 on prod, `LEDGER_SSO_SECRET` in the
+VPS `.env`, and a matching Ledger deploy (`HUB_SSO_SECRET` + `HUB_URL`). Until Ledger ships
+its half, nothing here is reachable — `/sso/ledger` just returns a 400/503.
+
+**Next is phase 4 (Stripe Connect)** — the blocker before a second tenant can take money.
+Phase 2 (per-org branding/uploads/terms) is small and can slot in anywhere.
 
 **Two things that must not be forgotten later:**
 1. **Stripe Connect is required before a second tenant can take payments.**
@@ -784,16 +825,22 @@ email sends **one link per org** the address exists in, since each token is per-
    their revenue (their chargebacks, their income on our 1099-K). Phase 4 moves to
    Connect Standard; webhook org resolution then shifts from `metadata.source` to
    `event.account`.
-2. **The Windows scheduled task "CHO Hub prod-to-test sync" is DISABLED (2026-08-13).**
-   It replaces the test DB with a prod dump, which would wipe migrations 030/031 from test
-   while prod is still un-migrated. **Re-enable it once prod has been migrated**:
-   `Enable-ScheduledTask -TaskName "CHO Hub prod-to-test sync"`. If it does run before
-   then, `npm run migrate` puts test back.
-3. **Prod deploy of this phase needs care**: prod runs the old single-tenant code against
-   an un-migrated DB. Deploying requires running 030 + 031 on the VPS in the same window as
-   the code push (the migrated schema and the rewritten queries only work together — old
-   code against a 031'd schema fails every INSERT). Take a backup first
-   (`/usr/local/bin/cho-hub-backup.sh`).
+2. **Schema and code must deploy together from now on.** The migrated schema and the
+   rewritten queries only work as a pair — old code against a 031'd schema fails every
+   INSERT, and new code against an un-migrated schema fails every query. The phase-1
+   deploy ran `npm run migrate && pm2 restart cho-hub --update-env` as one chained command
+   to keep that window to seconds. Always back up first
+   (`/usr/local/bin/cho-hub-backup.sh` → `/var/backups/cho-hub/`); restore is
+   `gunzip -c <file> | mysql choHub` as root.
+3. **Dev→prod is still a manual tar-over-SSH push** (the dev machine has no GitHub auth,
+   so there's no local `git push`). Phase 1 was deployed by tarring the source — excluding
+   `node_modules`/`.git`/`.env`/`uploads`/`public/vendor` — scp'ing it to `/tmp`, extracting
+   as the `deploy` user over `/var/www/cho-hub`, then committing and pushing **from the VPS**
+   (which does have a working deploy key). Two gotchas hit during that deploy: Git Bash's
+   `tar` treats a `C:\...` destination as a remote host (use `/c/Users/...`), and neither
+   `node` nor `pm2` is on the default PATH for `sudo -u deploy` (prepend
+   `/home/deploy/.nvm/versions/node/v20.20.2/bin`). Worth fixing the dev-side GitHub auth
+   before phases 3–5, since phase 3 needs coordinated deploys across two repos.
 
 ---
 
