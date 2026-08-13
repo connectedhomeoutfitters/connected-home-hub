@@ -775,7 +775,7 @@ unique per-org rather than globally, login gains an org-selection step in phase 
 customer and subcontractor magic-link flows already handle this correctly: a matching
 email sends **one link per org** the address exists in, since each token is per-customer.
 
-### Phase 3 — Ledger SSO (built + verified on test 2026-08-13, NOT yet deployed)
+### Phase 3 — Ledger SSO (DEPLOYED to prod 2026-08-13, commit `0243d82`)
 
 A Connected Home Ledger customer with a Business Workspace clicks **"Open CHO Hub"** on
 their workspace page and lands signed in here, with their org auto-provisioned.
@@ -803,17 +803,26 @@ their workspace page and lands signed in here, with their org auto-provisioned.
   so Hub being down can't break Ledger's Stripe webhook; a missed push is caught at the
   next SSO handshake, which also carries entitlement.
 - **`LEDGER_SSO_SECRET` (Hub) must equal `HUB_SSO_SECRET` (Ledger)**, plus `HUB_URL` on
-  Ledger. Set in both local `.env`s; **still needs setting on the VPS and on Ledger's
-  prod/NAS environments** before this works anywhere but local.
+  Ledger. Set in both local `.env`s **and on both prod apps on the VPS** (verified matching
+  by comparing sha256 of the two values). Pre-change copies saved as `.env.bak-pre-sso`
+  (Hub) and `.env.bak-pre-hub` (Ledger). **Still unset on the NAS test instances.**
 - **Verified on test**: org auto-provisioned from a workspace (name → unique slug), first
   SSO user created as `admin` with no password, working staff session, **new org sees zero
   products and none of org 1's customers**, token replay/bad-signature/expired/malformed
   all refused, un-entitled workspace provisions nothing, webhook suspends and restores, and
   the org + staff survive a suspend/resubscribe cycle.
 
-**Not yet deployed.** Deploying needs: migration 032 on prod, `LEDGER_SSO_SECRET` in the
-VPS `.env`, and a matching Ledger deploy (`HUB_SSO_SECRET` + `HUB_URL`). Until Ledger ships
-its half, nothing here is reachable — `/sso/ledger` just returns a 400/503.
+**Deployed and verified on prod** (2026-08-13): migration 032 applied, secret wired on both
+apps, and probed live — no token / garbage / wrong-secret all return 400, while a token
+signed with the *correct* secret for an un-entitled workspace returns **403**. That
+400-vs-403 split is the proof the shared secret matches, and it provisions nothing (prod
+still has exactly 1 org, 2 users). The entitlement webhook returns 401 on a bad secret and
+200 `{matched:false}` on a good one for an unknown workspace.
+
+**Untested in prod: a real end-to-end handshake**, which needs an actual Premium Ledger
+account with a Business Workspace clicking "Open CHO Hub". Doing that will create a second
+real org — worth doing deliberately, then checking `SELECT * FROM orgs` before letting a
+customer near it.
 
 **Next is phase 4 (Stripe Connect)** — the blocker before a second tenant can take money.
 Phase 2 (per-org branding/uploads/terms) is small and can slot in anywhere.
@@ -1063,14 +1072,29 @@ cert. Ledger was verified untouched throughout (its `chl` PM2 process kept its u
   fails. Redeploy = get code onto `main` → on the VPS `cd /var/www/cho-hub && git pull &&
   npm install --omit=dev && pm2 restart cho-hub --update-env`.
   - **Initial deploy (2026-07-25) was a tar-over-ssh push** from the dev machine, not a
-    git clone, because the dev machine has no GitHub auth (its `id_rsa` isn't registered)
-    and there's no `gh` CLI anywhere. `public/vendor/` (gitignored, 9 MB) had to ride
-    along in that tar since the VPS has no gulp/devDeps to regenerate it; a fresh `git
-    clone` would be missing it — run `gulp build`'s vendor copy, or keep the existing
-    `vendor/` in place across pulls (git won't touch the untracked dir).
-  - **Ongoing dev→prod is still a gap:** dev happens on `N:` (no GitHub auth), so there's
-    no local `git push` yet. Until the dev machine gets GitHub auth, changes reach the VPS
-    by committing/pushing from the VPS itself or another tar push.
+    git clone. `public/vendor/` (gitignored, 9 MB) had to ride along in that tar since the
+    VPS has no gulp/devDeps to regenerate it; a fresh `git clone` would be missing it —
+    run `gulp build`'s vendor copy, or keep the existing `vendor/` in place across pulls
+    (git won't touch the untracked dir).
+  - **The old "dev machine has no GitHub auth" note was wrong** (corrected 2026-08-13).
+    Its `id_rsa` isn't registered with GitHub, but **Git Credential Manager is configured
+    and HTTPS push works fine** — `gymrProject` had been pushing that way all along. The
+    real gap was that `N:\choHubProject` simply **wasn't a git repo**. Fixed by
+    `git init -b main` + `git remote add origin https://github.com/…/connected-home-hub.git`
+    + `git fetch` + `git reset origin/main` (mixed reset — leaves the working tree alone and
+    shows uncommitted work as a normal diff). No SSH keys were created.
+  - **Gotcha: `N:` is a UNC network share, so git refuses it as "dubious ownership"** until
+    you add an exception — `git config --global --add safe.directory
+    '%(prefix)///192.168.4.199/npm/choHubProject'`. `gymrProject` already had its own such
+    entry, which is why it worked and this didn't. (Note the share resolves as lowercase
+    `npm`, not `NPM`.)
+  - **Dev→prod is now just git**: commit and `git push origin main` from `N:`, then on the
+    VPS `cd /var/www/cho-hub && git pull --ff-only origin main && npm run migrate &&
+    pm2 restart cho-hub --update-env`. The VPS keeps using its SSH deploy-key remote
+    (`git@github-cho-hub:…`); dev uses HTTPS. Both push to the same `main`.
+  - **`core.autocrlf=true`** comes from Git for Windows' system config, so files committed
+    from dev are normalized to LF in the repo while the original tar-deployed files are
+    stored CRLF. Harmless (Node doesn't care), just don't be surprised by the mixed state.
 - **npm `allow-scripts` gotcha:** the VPS npm blocks package install scripts by default,
   so `bcrypt`'s `node-gyp-build` postinstall is skipped with a warning. bcrypt still works
   because its shipped **prebuilt** linux-x64 binary resolves at require time — verified
