@@ -41,9 +41,40 @@ function entitlementFields(payload) {
   };
 }
 
+// A contractor onboarded into Hub by hand (staff account created in Settings → Users)
+// who LATER connects through Ledger has an org that no workspace points at yet. Without
+// this, their first SSO click provisions a second, empty org and their catalog/customers
+// appear to have vanished — which is exactly what happened to CHO itself when SSO shipped
+// (see migration 033).
+//
+// So before creating anything, look for an unlinked org whose ACTIVE ADMIN matches the
+// email Ledger has already verified, and adopt it. Requiring admin+active+exact-email, and
+// refusing when more than one org matches, keeps this from being a way to walk into
+// somebody else's tenant.
+async function findAdoptableOrg(email) {
+  const [rows] = await db.execute(
+    `SELECT o.* FROM orgs o
+       JOIN users u ON u.org_id = o.id
+      WHERE o.ledger_workspace_id IS NULL
+        AND u.email = ? AND u.role = 'admin' AND u.active = 1
+      GROUP BY o.id`,
+    [email.toLowerCase()]
+  );
+  if (rows.length === 1) return rows[0];
+  if (rows.length > 1) {
+    // Ambiguous — don't guess which tenant they meant. Fall through to creating a new org
+    // and let a human merge; logged loudly because it should be vanishingly rare.
+    console.warn(
+      `[orgProvisioning] ${rows.length} unlinked orgs have an active admin ${email} ` +
+      `(ids ${rows.map((r) => r.id).join(', ')}); not adopting any.`
+    );
+  }
+  return null;
+}
+
 /**
  * Find (or create) the org for a Ledger workspace, and refresh its cached entitlement.
- * Returns the org row.
+ * Returns the org row, or null if the customer isn't entitled to Hub.
  */
 async function findOrCreateOrg(payload) {
   const { status, ledger_plan } = entitlementFields(payload);
@@ -63,9 +94,27 @@ async function findOrCreateOrg(payload) {
     return { ...org, status, ledger_plan, created: false };
   }
 
-  // Never auto-create an org for a customer who isn't entitled — otherwise anyone with a
-  // free Ledger account could provision a tenant just by clicking through.
+  // Never auto-create or adopt an org for a customer who isn't entitled — otherwise anyone
+  // with a free Ledger account could provision (or claim) a tenant just by clicking through.
   if (!payload.hubEntitled) return null;
+
+  const adoptable = await findAdoptableOrg(payload.email);
+  if (adoptable) {
+    await db.execute(
+      `UPDATE orgs SET ledger_workspace_id = ?, ledger_user_id = ?, status = ?,
+         ledger_plan = ?, entitlement_checked_at = NOW() WHERE id = ?`,
+      [payload.workspaceId, payload.ledgerUserId || null, status, ledger_plan, adoptable.id]
+    );
+    console.log(
+      `[orgProvisioning] adopted existing org ${adoptable.id} (${adoptable.slug}) ` +
+      `into Ledger workspace ${payload.workspaceId} via admin ${payload.email}`
+    );
+    return {
+      ...adoptable, status, ledger_plan,
+      ledger_workspace_id: payload.workspaceId,
+      created: false, adopted: true,
+    };
+  }
 
   const name = payload.workspaceName || `${payload.email}'s business`;
   const slug = await uniqueSlug(name);
@@ -128,4 +177,6 @@ async function setEntitlement(workspaceId, { hubEntitled, plan }) {
   return rows[0].id;
 }
 
-module.exports = { findOrCreateOrg, findOrCreateUser, setEntitlement, slugify, uniqueSlug };
+module.exports = {
+  findOrCreateOrg, findOrCreateUser, findAdoptableOrg, setEntitlement, slugify, uniqueSlug,
+};

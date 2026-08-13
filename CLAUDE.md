@@ -819,10 +819,28 @@ signed with the *correct* secret for an un-entitled workspace returns **403**. T
 still has exactly 1 org, 2 users). The entitlement webhook returns 401 on a bad secret and
 200 `{matched:false}` on a good one for an unknown workspace.
 
-**Untested in prod: a real end-to-end handshake**, which needs an actual Premium Ledger
-account with a Business Workspace clicking "Open CHO Hub". Doing that will create a second
-real org — worth doing deliberately, then checking `SELECT * FROM orgs` before letting a
-customer near it.
+**Gotcha found by the first real end-to-end click (2026-08-13): an org that already exists
+gets a SECOND, empty org.** CHO existed as org 1 (catalog, templates, customers, staff)
+long before SSO shipped, so the first click from Ledger workspace 1 found no matching
+`ledger_workspace_id`, did the correct thing for a brand-new customer, and provisioned an
+empty org 2 — making it look like the catalog and customers had vanished. **Nothing was
+lost; the owner just landed in the wrong tenant.** Two fixes:
+
+- **`services/orgProvisioning.js#findAdoptableOrg`** — before creating an org, look for an
+  **unlinked** org with an **active admin whose email matches** the (Ledger-verified) SSO
+  email, and adopt it instead. Requires exactly one match; more than one logs a warning and
+  adopts nothing rather than guessing its way into someone else's tenant. This is the path
+  every manually-onboarded contractor will take.
+- **`033_adopt_cho_org.sql`** — one-off data fix for the org 2 that already existed. It
+  **relinks rather than migrating**: org 1 keeps every row and is simply pointed at
+  workspace 1; the empty org 2 and its auto-created staff row are removed. Every statement
+  is guarded, so it's a no-op once applied and refuses to act if org 2 ever turns out to
+  hold real data. Verified on test against a faithful reproduction of the prod state,
+  including idempotency.
+
+**Do not "migrate the data" to fix this.** Moving 27 tables' worth of rows between orgs is
+strictly worse than flipping one foreign key — the relink reaches the identical end state
+with no data touched.
 
 **Next is phase 4 (Stripe Connect)** — the blocker before a second tenant can take money.
 Phase 2 (per-org branding/uploads/terms) is small and can slot in anywhere.
