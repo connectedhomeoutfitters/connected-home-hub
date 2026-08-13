@@ -34,7 +34,7 @@ router.get('/e/:token', resolveToken('estimate'), async (req, res, next) => {
       items,
       token: req.params.token,
       pageScript: null,
-      terms: estimateTerms(company.company_name),
+      terms: estimateTerms(company.company_name, company.terms_override),
       error: null,
     });
   } catch (err) {
@@ -73,7 +73,7 @@ router.post('/e/:token/accept', resolveToken('estimate'), async (req, res, next)
       const company = await getCompany(req.orgId);
       conn.release();
       return res.status(400).render('portal/estimate', {
-        estimate, items, token: req.params.token, pageScript: null, terms: estimateTerms(company.company_name),
+        estimate, items, token: req.params.token, pageScript: null, terms: estimateTerms(company.company_name, company.terms_override),
         signatureName,
         error: !signatureName
           ? 'Please type your name to sign electronically before accepting.'

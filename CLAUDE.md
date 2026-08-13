@@ -842,8 +842,49 @@ lost; the owner just landed in the wrong tenant.** Two fixes:
 strictly worse than flipping one foreign key — the relink reaches the identical end state
 with no data touched.
 
+### Phase 2 — per-org branding (2026-08-13)
+
+`034_org_branding.sql` adds `logo_filename`, `accent_color`, `website`, `license_number`,
+`email_reply_to`, `terms_override` to `company_settings`. Before this every tenant rendered
+**CHO's logo, CHO's accent colour, and CHO's legal terms** — invisible while CHO was the
+only org, unacceptable the moment a second contractor signs in.
+
+- **Logo** — uploaded in Settings → Company to `uploads/logos/<org_id>/`, served by
+  **`routes/branding.js` (`GET /branding/:orgId/logo`), which is deliberately PUBLIC and
+  unauthenticated** — the exact opposite of every other upload route here. An email client
+  has no session, so a logo referenced in an email must be fetchable without one; it's the
+  business's public identity anyway. **Do not copy this pattern for anything else in
+  `uploads/`.** Not `express.static`, so a re-upload takes effect at once and an old file
+  can't be fetched by guessing its name. Falls back to the bundled `public/img/logo.png`
+  for any org that hasn't uploaded one, so CHO looks unchanged until it overrides.
+- **Accent colour** — both `app.css` and `portal.css` derive every themed colour from a
+  single `--cho-accent`, so `views/partials/head.ejs` overrides just that one variable in a
+  nonce'd `<style>` block. The value is validated as a hex colour in
+  `services/companySettings.js#safeAccent` — **never interpolate an unvalidated string into
+  a stylesheet**.
+- **Terms** — `config/estimateTerms.js` now takes `(companyName, override)`. The built-in
+  default stays author-controlled HTML; an override is **tenant input, stored and rendered
+  as escaped plain text** (`white-space: pre-wrap`), because the portal renders terms with
+  `<%- %>` and rendering tenant HTML raw would let an org admin inject script into their own
+  customers' estimate pages.
+- **Email identity** — `services/mailer.js` sets the From *display name* to the org's
+  company name and `replyTo` to its reply-to, while the envelope address stays global (one
+  verified sending domain keeps SPF/DKIM working). Templates get the org's absolute
+  `logoUrl` and a `company` local.
+- **`middleware/branding.js`** puts `res.locals.branding` (logo path, accent, name) on every
+  render, cached in-process for 60s so it isn't a query per request; Settings → Company calls
+  `bustBranding(orgId)` on save so an admin sees the change immediately.
+- **Verified**: 24 end-to-end checks including a throwaway second org proving it inherits
+  **none** of org 1's logo, accent, or terms, that the logo endpoint works with no session,
+  that an unknown org falls back rather than 404ing, and that `<script>` in a terms override
+  comes out escaped.
+
+**Still hardcoded / not done in phase 2**: `favicon.png`, the Roboto/Roboto&nbsp;Slab font
+pairing, and the `uploads/` re-homing under `uploads/<org_id>/` for consultation photos,
+documents and subcontractor files (safe as-is because those ids are globally unique, so no
+two orgs can collide — it's tidiness, not isolation).
+
 **Next is phase 4 (Stripe Connect)** — the blocker before a second tenant can take money.
-Phase 2 (per-org branding/uploads/terms) is small and can slot in anywhere.
 
 **Two things that must not be forgotten later:**
 1. **Stripe Connect is required before a second tenant can take payments.**

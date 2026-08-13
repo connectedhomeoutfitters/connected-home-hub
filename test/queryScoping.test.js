@@ -32,6 +32,7 @@ const ALLOWED_UNSCOPED = {
   'services/paymentsSync.js': 'refund reconciliation resolves the org from the charge id',
   'services/orgs.js': 'reads the orgs table itself to enumerate tenants',
   'routes/sso.js': 'Ledger SSO handshake — runs before any org context exists',
+  'routes/branding.js': 'public logo endpoint — no session; the org id is the whole address',
   'services/orgProvisioning.js': 'finds-or-creates the org/user an SSO request resolves to',
   'scripts/create-admin.js': 'CLI; takes an explicit orgId argument',
   'scripts/import-products-csv.js': 'CLI; takes an explicit orgId argument',

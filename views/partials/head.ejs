@@ -14,5 +14,15 @@
   <% if (typeof portalBranded !== 'undefined' && portalBranded) { %>
     <link rel="stylesheet" href="<%= basePath %>/css/portal.css">
   <% } %>
+  <%
+    // Per-tenant accent. Both app.css and portal.css derive every themed colour from
+    // --cho-accent, so overriding that one variable recolours the whole page. Loaded last
+    // so it wins. The value is validated as a hex colour in services/companySettings.js —
+    // never interpolate an unvalidated string into a stylesheet.
+    const _accent = (typeof branding !== 'undefined' && branding && branding.accent) || null;
+  %>
+  <% if (_accent && _accent.toLowerCase() !== '#0799d6') { %>
+    <style nonce="<%= cspNonce %>">:root { --cho-accent: <%= _accent %>; }</style>
+  <% } %>
 </head>
 <body class="<%= typeof bodyClass !== 'undefined' ? bodyClass : '' %>">

@@ -1,12 +1,18 @@
 <%- include('../partials/head', { title: 'Company Settings' }) %>
 <%- include('../partials/nav') %>
-<div class="container" style="max-width: 600px;">
+<div class="container" style="max-width: 720px;">
   <h1 class="h3 mb-4">Company Settings</h1>
   <% if (saved) { %><div class="alert alert-success">Settings saved.</div><% } %>
-  <form action="<%= basePath %>/admin/settings/company" method="POST">
+  <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-danger"><%= error %></div><% } %>
+
+  <!-- enctype is required for the logo upload; every other field still posts normally. -->
+  <form action="<%= basePath %>/admin/settings/company" method="POST" enctype="multipart/form-data">
+
+    <h2 class="h6 text-uppercase text-muted mt-2 mb-3">Business details</h2>
     <div class="mb-3">
       <label class="form-label">Company Name</label>
       <input type="text" name="company_name" class="form-control" value="<%= settings.company_name || '' %>">
+      <div class="form-text">Shown on estimates, invoices, the PDF, and as the sender name on customer email.</div>
     </div>
     <div class="row g-2 mb-3">
       <div class="col-md-6">
@@ -33,6 +39,75 @@
         <input type="email" name="email" class="form-control" value="<%= settings.email || '' %>">
       </div>
     </div>
+    <div class="row g-2 mb-4">
+      <div class="col-md-6">
+        <label class="form-label">Website</label>
+        <input type="text" name="website" class="form-control" value="<%= settings.website || '' %>" placeholder="https://">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">License Number</label>
+        <input type="text" name="license_number" class="form-control" value="<%= settings.license_number || '' %>">
+      </div>
+    </div>
+
+    <h2 class="h6 text-uppercase text-muted mt-4 mb-3">Branding</h2>
+    <div class="row g-3 mb-3 align-items-center">
+      <div class="col-md-4">
+        <div class="border rounded p-3 text-center bg-light">
+          <img src="<%= branding.logoPath %>?v=<%= Date.now() %>" alt="Current logo"
+               style="max-width: 100%; max-height: 70px;">
+        </div>
+        <div class="form-text text-center">
+          <%= settings.logo_filename ? 'Your uploaded logo' : 'Default logo' %>
+        </div>
+      </div>
+      <div class="col-md-8">
+        <label class="form-label">Replace logo</label>
+        <input type="file" name="logo" class="form-control" accept="image/png,image/jpeg,image/gif,image/webp">
+        <div class="form-text">
+          PNG with a transparent background works best. Max 2&nbsp;MB. Appears on the staff
+          nav, the customer portal, the estimate PDF, and customer emails.
+        </div>
+        <% if (settings.logo_filename) { %>
+          <div class="form-check mt-2">
+            <input class="form-check-input" type="checkbox" name="remove_logo" id="remove_logo" value="1">
+            <label class="form-check-label" for="remove_logo">Remove my logo and use the default</label>
+          </div>
+        <% } %>
+      </div>
+    </div>
+    <div class="row g-2 mb-4">
+      <div class="col-md-6">
+        <label class="form-label">Accent Colour</label>
+        <div class="input-group">
+          <input type="color" name="accent_color" class="form-control form-control-color"
+                 value="<%= settings.accent_color || '#0799D6' %>" title="Accent colour">
+          <input type="text" class="form-control" value="<%= settings.accent_color || '#0799D6' %>" disabled>
+        </div>
+        <div class="form-text">Buttons, links, and headings throughout the app.</div>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Reply-To Email</label>
+        <input type="email" name="email_reply_to" class="form-control" value="<%= settings.email_reply_to || '' %>">
+        <div class="form-text">
+          Where customer replies go. Messages are always sent from the platform's verified
+          address, but they'll show your company name and reply to you.
+        </div>
+      </div>
+    </div>
+
+    <h2 class="h6 text-uppercase text-muted mt-4 mb-3">Estimate Terms &amp; Conditions</h2>
+    <div class="mb-4">
+      <label class="form-label">Your Terms &amp; Conditions</label>
+      <textarea name="terms_override" class="form-control" rows="8"
+                placeholder="Leave blank to use the built-in default terms."><%= settings.terms_override || '' %></textarea>
+      <div class="form-text">
+        Shown to the customer above the accept-and-sign box on every estimate. Plain text —
+        line breaks are preserved. <strong>Leave blank and the built-in default is used;
+        that default is written for Connected Home Outfitters, so enter your own.</strong>
+      </div>
+    </div>
+
     <button class="btn btn-primary" type="submit">Save</button>
     <a class="btn btn-outline-secondary" href="<%= basePath %>/admin/settings">Cancel</a>
   </form>

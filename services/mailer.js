@@ -43,8 +43,22 @@ async function logEmail(orgId, recipient, template, subject, status, error) {
   }
 }
 
+// Per-tenant sender identity. The envelope address stays global — one verified sending
+// domain keeps SPF/DKIM working, and per-tenant verified domains are a support tarpit
+// (see docs/adr/0001-multi-tenancy.md). What varies is the display NAME the customer sees
+// and the reply-to, so a reply reaches the contractor rather than us.
+function fromHeader(company) {
+  const address = process.env.MAIL_FROM || process.env.SMTP_USER || '';
+  if (!company || !company.company_name) return address;
+  // MAIL_FROM may already be "Name <addr>" — pull out just the address before renaming.
+  const match = /<([^>]+)>/.exec(address);
+  const bare = match ? match[1] : address;
+  return `"${company.company_name.replace(/"/g, '')}" <${bare}>`;
+}
+
 // orgId identifies which tenant this mail belongs to — it scopes the email_log row so
-// Settings → Email log only ever shows that tenant's deliveries.
+// Settings → Email log only ever shows that tenant's deliveries, and it selects the
+// branding (logo, name, reply-to) the recipient sees.
 async function sendMail({ orgId, to, subject, template, data = {}, attachments, icalEvent }) {
   if (!transporter) {
     console.warn(`sendMail('${template}') skipped — SMTP not configured`);
@@ -52,14 +66,31 @@ async function sendMail({ orgId, to, subject, template, data = {}, attachments, 
     return false;
   }
 
+  // Required lazily to avoid a require cycle at module load (companySettings pulls in the
+  // db layer, which several callers of this module are already inside).
+  let company = null;
+  try {
+    company = orgId ? await require('./companySettings').getCompany(orgId) : null;
+  } catch (err) {
+    console.error('mailer: branding lookup failed, using defaults:', err.message);
+  }
+
   try {
     const html = await ejs.renderFile(
       path.join(__dirname, '..', 'views', 'emails', `${template}.ejs`),
-      { ...data, appName: APP_NAME, appUrl: APP_URL, logoUrl: `${APP_URL}/img/logo.png` }
+      {
+        ...data,
+        appName: company?.company_name || APP_NAME,
+        appUrl: APP_URL,
+        // Absolute — an email client has no session and no notion of basePath.
+        logoUrl: company?.logo_url || `${APP_URL}/img/logo.png`,
+        company,
+      }
     );
 
     await transporter.sendMail({
-      from: process.env.MAIL_FROM || process.env.SMTP_USER,
+      from: fromHeader(company),
+      replyTo: company?.email_reply_to || undefined,
       to,
       subject,
       html,

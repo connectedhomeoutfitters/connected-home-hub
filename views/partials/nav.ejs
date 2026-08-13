@@ -33,7 +33,7 @@
 <!-- Desktop: fixed left sidebar (hidden below lg) -->
 <nav class="cho-sidebar d-none d-lg-flex flex-column">
   <a class="cho-brand" href="<%= basePath %>/">
-    <img src="<%= basePath %>/img/logo.png" alt="Connected Home Outfitters">
+    <img src="<%= branding.logoPath %>" alt="<%= branding.companyName || 'Connected Home Outfitters' %>">
   </a>
   <div class="cho-nav flex-grow-1">
     <% navItems.forEach(i => { %><%- navLink(i) %><% }) %>
@@ -53,7 +53,7 @@
 <nav class="navbar navbar-light bg-white d-lg-none mb-4" style="border-bottom: 3px solid #6EC1E4;">
   <div class="container-fluid">
     <a class="navbar-brand d-flex align-items-center" href="<%= basePath %>/">
-      <img src="<%= basePath %>/img/logo.png" alt="Connected Home Outfitters" height="32">
+      <img src="<%= branding.logoPath %>" alt="<%= branding.companyName || 'Connected Home Outfitters' %>" height="32">
     </a>
     <button class="navbar-toggler" type="button" data-bs-toggle="offcanvas" data-bs-target="#choOffcanvas"
       aria-controls="choOffcanvas" aria-label="Toggle navigation">
@@ -64,7 +64,7 @@
 
 <div class="offcanvas offcanvas-start cho-offcanvas" tabindex="-1" id="choOffcanvas" aria-labelledby="choOffcanvasLabel">
   <div class="offcanvas-header">
-    <img src="<%= basePath %>/img/logo.png" alt="Connected Home Outfitters" height="28" id="choOffcanvasLabel">
+    <img src="<%= branding.logoPath %>" alt="<%= branding.companyName || 'Connected Home Outfitters' %>" height="28" id="choOffcanvasLabel">
     <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
   </div>
   <div class="offcanvas-body d-flex flex-column">

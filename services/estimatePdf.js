@@ -1,6 +1,7 @@
 // services/estimatePdf.js — lightweight, coded-layout PDF (pdfkit, no browser engine).
 // Deliberately not a literal copy of the web view's design — this has its own simpler
 // layout, built for print rather than screen.
+const fs = require('fs');
 const path = require('path');
 const PDFDocument = require('pdfkit');
 
@@ -31,7 +32,17 @@ function generateEstimatePdf({ estimate, items, customer, company = {} }) {
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    doc.image(LOGO_PATH, 50, 45, { width: 180 });
+    // The tenant's own logo when they've uploaded one, else the bundled default. Wrapped
+    // because a missing/corrupt upload must not fail the whole PDF — pdfkit throws on an
+    // unreadable image, and an estimate without a logo still beats no estimate.
+    try {
+      const logo = (company.logo_file && fs.existsSync(company.logo_file))
+        ? company.logo_file
+        : LOGO_PATH;
+      doc.image(logo, 50, 45, { width: 180 });
+    } catch (err) {
+      console.error('estimatePdf: logo render failed, continuing without it:', err.message);
+    }
 
     // Company identity block, top-right (name/address/phone/email/tax ID from
     // company_settings) — makes the estimate a proper business document.

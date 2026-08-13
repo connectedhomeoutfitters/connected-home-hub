@@ -6,8 +6,27 @@
 // Now a function of the company name (from company_settings, see services/companySettings.js)
 // so the legal contracting party matches the configured business; falls back to the legal
 // name if unset. `co` is interpolated wherever the company name appears below.
-module.exports = function estimateTerms(companyName) {
+// Escapes tenant-supplied text so it can go through the same `<%- terms %>` unescaped
+// render as the built-in HTML below. An org admin's override is USER INPUT — rendering it
+// raw would let them inject script into their own customers' estimate pages. Line breaks
+// are preserved with white-space:pre-wrap rather than by generating markup.
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+module.exports = function estimateTerms(companyName, override) {
   const co = (companyName && String(companyName).trim()) || 'Connected Home Outfitters LLC';
+
+  // A tenant that has written their own T&Cs (Settings → Company) gets theirs verbatim.
+  // Another contractor must never ship Connected Home Outfitters' legal text.
+  if (override && String(override).trim()) {
+    return `<h5>${escapeHtml(co)}</h5>
+<h6 class="mt-3">Estimate Terms &amp; Conditions</h6>
+<div style="white-space: pre-wrap;">${escapeHtml(String(override).trim())}</div>`;
+  }
+
   return `
 <h5>${co}</h5>
 <h6 class="mt-3">Estimate Terms &amp; Conditions</h6>

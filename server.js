@@ -11,6 +11,7 @@ const passport = require('./config/passport');
 const db = require('./config/db');
 const { setLocals } = require('./middleware/auth');
 const orgContext = require('./middleware/orgContext');
+const branding = require('./middleware/branding');
 const { sendDueReminders } = require('./services/consultationReminders');
 const { sendExpiryReminders } = require('./services/warrantyReminders');
 const { expireStaleEstimates } = require('./services/estimateExpiry');
@@ -92,6 +93,9 @@ app.use(passport.session());
 // subcontractor portals' req.session.orgId) to build this request's tenant-scoped
 // db handle. See docs/adr/0001-multi-tenancy.md.
 app.use(orgContext);
+// Reads req.orgId, so it must follow orgContext. Puts the tenant's logo/accent/name on
+// res.locals for the nav, portal header and <head> (see middleware/branding.js).
+app.use(branding);
 app.use(setLocals);
 
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
@@ -102,6 +106,8 @@ app.use(`${BASE_PATH}/`, require('./routes/auth'));
 // Connected Home Ledger SSO — establishes an ordinary staff session from a signed
 // handoff token (see docs/adr/0001-multi-tenancy.md phase 3).
 app.use(`${BASE_PATH}/sso`, require('./routes/sso'));
+// Public, unauthenticated tenant logos — must be reachable from an email client.
+app.use(`${BASE_PATH}/branding`, require('./routes/branding'));
 app.use(`${BASE_PATH}/admin/leads`, require('./routes/admin/leads'));
 app.use(`${BASE_PATH}/admin/customers`, require('./routes/admin/customers'));
 app.use(`${BASE_PATH}/admin/documents`, require('./routes/admin/documents'));
