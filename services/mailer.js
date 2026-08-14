@@ -5,7 +5,10 @@ const ejs = require('ejs');
 const path = require('path');
 const scopedDb = require('./../config/scopedDb');
 
-const APP_NAME = 'Connected Home Outfitters';
+// Fallback only — a tenant with a company name set always gets their own (see the
+// appName local below). This is what an org that hasn't filled in Settings → Company
+// sees, so it must be the PRODUCT's name, never one tenant's.
+const APP_NAME = 'ConnectedWorkOS';
 const APP_URL = process.env.BASE_URL || '';
 
 let transporter = null;
