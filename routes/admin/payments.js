@@ -187,7 +187,10 @@ router.post('/:id/refund', requireAdmin, async (req, res, next) => {
     // Need the charge id to refund. Prefer the cached one; fall back to the PaymentIntent.
     let chargeId = payment.stripe_charge_id;
     if (!chargeId) {
-      const intent = await stripe.paymentIntents.retrieve(payment.stripe_payment_intent_id, options);
+      // retrieve(id, params, options) — the empty params object is required; passing
+      // options second sends { stripeAccount } as a query param and Stripe rejects it.
+      // See the same note in routes/webhooks.js.
+      const intent = await stripe.paymentIntents.retrieve(payment.stripe_payment_intent_id, {}, options);
       chargeId = intent.latest_charge;
       if (chargeId) {
         await req.db.execute(

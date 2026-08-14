@@ -100,8 +100,14 @@ router.post('/stripe', express.raw({ type: 'application/json' }), async (req, re
       try {
         // Scoped to the org's Stripe account — a connected tenant's charge isn't visible
         // on the platform account, so an unscoped retrieve would 404.
+        //
+        // NOTE the empty params object: the SDK signature is retrieve(id, params, options),
+        // NOT retrieve(id, options). Passing options second sends { stripeAccount } as a
+        // QUERY PARAM and Stripe rejects it with "Received unknown parameter:
+        // stripeAccount". create(params, options) takes options second, which is why the
+        // charge-creation path worked and this one didn't.
         const { options } = await paymentContext(orgId);
-        const charge = await stripe.charges.retrieve(chargeId, options);
+        const charge = await stripe.charges.retrieve(chargeId, {}, options);
         cardBrand = charge.payment_method_details?.card?.brand || null;
         cardLast4 = charge.payment_method_details?.card?.last4 || null;
         receiptUrl = charge.receipt_url || null;
