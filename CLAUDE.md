@@ -721,6 +721,51 @@ the email (`consultation-on-the-way`), from the consultation's `consultant_id` �
 
 ---
 
+## PICK UP HERE (last session ended 2026-08-14)
+
+Phases 1–4 and 5a are **built, deployed and verified**. Everything is committed and pushed;
+prod, the NAS test instance and Ledger are all healthy. Open items, roughly in priority
+order:
+
+1. **Domain move — decision pending.** Owner is choosing a new `.com` for Hub. Recommended
+   over keeping `hub.connectedhomeoutfitters.com`: a competitor won't sign into a rival
+   contractor's domain, and it's baked into the Stripe Connect redirect URI (live AND
+   sandbox), the Google OAuth redirect, Ledger's `HUB_URL`, `BASE_URL`, the TLS cert, and
+   every emailed link — that list only grows. Keep the old host as a redirect; CHO becomes
+   tenant #1 on the new domain. ~1 hour: DNS A record, certbot, nginx `server_name`,
+   `BASE_URL`, three redirect URIs, Ledger's `HUB_URL`, then **re-seal the secrets vault**.
+2. **Hub needs its own logo.** `public/img/logo.png` is the DEFAULT every tenant sees until
+   they upload their own — so an unbranded contractor's portal and invoice PDFs currently
+   carry Connected Home Outfitters' mark. The default must be a neutral product logo.
+3. **Landing-page labels.** "Staff sign-in" is ambiguous once there are many companies —
+   staff of *whom?* Proposed: **Company sign-in** / **Subcontractor sign-in** /
+   **Customer sign-in**, each with a one-line "who this is for".
+4. **Org adoption can be claimed by email alone.** `findAdoptableOrg()` adopts an
+   **unlinked** org whose active admin email matches the Ledger-verified SSO email. Anyone
+   controlling that address could claim the org. Narrow (unlinked orgs only; once linked,
+   matching is by workspace id and adoption never runs) and currently zero exposure — no
+   unlinked orgs on prod — but every hand-onboarded contractor sits unlinked until they
+   connect. Fix if wanted: require a one-time claim code generated in Hub.
+5. **Subcontractor working for several tenants** gets one magic link per company and lands
+   in one portal with **no switcher**. Works, but a company switcher is the real answer.
+6. **Phase 5b — the paid Hub add-on** is not built (see below).
+7. **Refund-after-sync doesn't adjust the Ledger transaction** (see phase 5a).
+
+Deliberately declined by the owner: rolling the two live Stripe signing secrets that were
+exposed in a screenshot/chat (`whsec_vsms…Q3PQ`, `whsec_3Rir…F8n8`). If ever rolled,
+re-seal the vault.
+
+**Secrets vault**: `secrets.vault` in this folder is the only offline copy of every
+environment's `.env` (see `scripts/secrets-vault.js`). Dev machine only — excluded from git
+and from the NAS sync, with a test enforcing both. Passphrase is in the owner's password
+manager and is not recoverable. Re-seal after any secret changes.
+
+**NAS test instance currently points at the Stripe SANDBOX** (test mode of
+`acct_1Tfpeq23gE2V9wii`), with org 6 "Sandbox Test Contracting" as a connected-account test
+tenant. Prod is unaffected and remains on live keys.
+
+---
+
 ## Multi-tenancy — PHASE 1 COMPLETE (2026-08-13)
 
 Hub is being turned into a **multi-tenant SaaS sold to Connected Home Ledger's business
