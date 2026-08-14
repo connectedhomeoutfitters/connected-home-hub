@@ -932,18 +932,23 @@ point at the same `/webhooks/stripe` URL, each with its own signing secret:
 every event is still fully signature-verified. A Connect event arriving before its secret
 is configured is refused, not trusted.
 
-**Gotcha: the Stripe API does NOT return the `connect` attribute on webhook endpoints**
-(confirmed against the raw REST response, not just the Node SDK — the field is absent from
-every endpoint object). So you **cannot verify from the API whether an endpoint listens to
-connected accounts** — only the Dashboard shows it. Don't infer it from a missing property;
-an earlier reading here concluded "connect: no" from `undefined` and was simply wrong.
+**Gotcha (proved the hard way 2026-08-14): `webhookEndpoints.create({ connect: true })`
+is SILENTLY IGNORED — you get a plain account endpoint.** The call succeeds, returns a
+normal endpoint object, and the Dashboard then shows it under **Events from: "Your
+account"** rather than "Connected accounts". Compounding it, **the API never returns a
+`connect` attribute at all** (confirmed against the raw REST JSON, not just the Node SDK —
+the field is absent from every endpoint object), so there is **no way to verify this from
+the API**. The only source of truth is the Dashboard's Workbench → Webhooks → Event
+destinations list, which has an explicit "Events from" column.
 
-Live endpoints registered on `acct_1Tfpeq23gE2V9wii`:
-`we_1Tx5m1…` (original) and `we_1U4KXk…` (created 2026-08-14 with `connect: true`
-requested, secret in prod `.env`; backup `.env.bak-pre-connect-hook`). **Both must be
-confirmed in the Dashboard** — one should be "Your account", the other "Connected
-accounts". If `we_1U4KXk…` shows as "Your account", it's a duplicate: delete it and
-recreate via the Dashboard, then update `STRIPE_CONNECT_WEBHOOK_SECRET`.
+Net: **create the Connect destination in the Dashboard, not via the API.** An API-created
+duplicate is worse than useless — it double-delivers every platform event to the same URL.
+(That's survivable only because the `payment_intent.succeeded` handler is now idempotent;
+before that fix it meant two receipt emails per payment.)
+
+Live endpoints on `acct_1Tfpeq23gE2V9wii` (both "Your account"):
+`we_1Tx5m1…` → this app, and `we_1Tg8IG…` → Ledger's billing webhook. A duplicate
+`we_1U4KXk…` was created via the API and deleted the same day.
 
 Because duplicate delivery is now possible (two endpoints, plus Stripe's own retries), the
 `payment_intent.succeeded` handler was made properly idempotent: the invoice UPDATE carries
