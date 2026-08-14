@@ -118,18 +118,28 @@ router.post('/stripe', express.raw({ type: 'application/json' }), async (req, re
            card_last4 = ?, receipt_url = ? WHERE stripe_payment_intent_id = ? AND org_id = ?`,
         [chargeId, cardBrand, cardLast4, receiptUrl, intent.id, orgId]
       );
-      await conn.execute(
-        "UPDATE invoices SET status = 'paid', paid_at = NOW() WHERE id = ? AND org_id = ?",
+      // `AND status <> 'paid'` makes this the idempotency latch for the whole handler:
+      // affectedRows is 1 only on the transition to paid, so a redelivered event (Stripe
+      // retries, or two endpoints pointing at this URL) can't send the customer a second
+      // receipt or log a duplicate activity entry. The payments UPDATE above is naturally
+      // idempotent, so it stays unconditional.
+      const [invUpdate] = await conn.execute(
+        "UPDATE invoices SET status = 'paid', paid_at = NOW() WHERE id = ? AND org_id = ? AND status <> 'paid'",
         [intent.metadata.invoice_id, orgId]
       );
       await conn.commit();
 
-      const [invoiceRows] = await conn.execute(
+      const firstTime = invUpdate.affectedRows === 1;
+      if (!firstTime) {
+        console.log(`payment_intent.succeeded for already-paid invoice ${intent.metadata.invoice_id} — skipping receipt`);
+      }
+
+      const [invoiceRows] = firstTime ? await conn.execute(
         `SELECT i.*, c.name AS customer_name, c.email AS customer_email FROM invoices i
          JOIN customers c ON c.id = i.customer_id AND c.org_id = i.org_id
          WHERE i.id = ? AND i.org_id = ?`,
         [intent.metadata.invoice_id, orgId]
-      );
+      ) : [[]];
       const invoice = invoiceRows[0];
       if (invoice) {
         await activity.log({
