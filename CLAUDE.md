@@ -923,12 +923,38 @@ our 1099-K). Now each contractor connects their **own** Stripe account via Conne
   platform account with a **real Stripe test-mode PaymentIntent** carrying the right
   metadata; and the OAuth callback rejecting a forged state.
 
-**Deploy needs** (owner actions): set `STRIPE_CONNECT_CLIENT_ID` (Stripe Dashboard →
-Settings → Connect), register `<BASE_URL>/admin/settings/payments/callback` as an
-authorized redirect URI, and enable **"Listen to events on Connected accounts"** on this
-app's webhook endpoint so `payment_intent.succeeded` / `charge.refunded` arrive for
-connected tenants. Until then Connect is simply unavailable and org 1 bills as it always
-has — nothing breaks.
+**Webhooks: Connect needs a SECOND endpoint, not a setting on the existing one.** A
+webhook endpoint's `connect` flag is **immutable after creation** — an account-only
+endpoint can't be upgraded to also deliver connected-account events. So two endpoints
+point at the same `/webhooks/stripe` URL, each with its own signing secret:
+`STRIPE_WEBHOOK_SECRET` (platform account = org 1) and `STRIPE_CONNECT_WEBHOOK_SECRET`
+(connected tenants). `verifyStripeEvent()` in `routes/webhooks.js` tries each in turn;
+every event is still fully signature-verified. A Connect event arriving before its secret
+is configured is refused, not trusted.
+
+**Gotcha: the Stripe API does NOT return the `connect` attribute on webhook endpoints**
+(confirmed against the raw REST response, not just the Node SDK — the field is absent from
+every endpoint object). So you **cannot verify from the API whether an endpoint listens to
+connected accounts** — only the Dashboard shows it. Don't infer it from a missing property;
+an earlier reading here concluded "connect: no" from `undefined` and was simply wrong.
+
+Live endpoints registered on `acct_1Tfpeq23gE2V9wii`:
+`we_1Tx5m1…` (original) and `we_1U4KXk…` (created 2026-08-14 with `connect: true`
+requested, secret in prod `.env`; backup `.env.bak-pre-connect-hook`). **Both must be
+confirmed in the Dashboard** — one should be "Your account", the other "Connected
+accounts". If `we_1U4KXk…` shows as "Your account", it's a duplicate: delete it and
+recreate via the Dashboard, then update `STRIPE_CONNECT_WEBHOOK_SECRET`.
+
+Because duplicate delivery is now possible (two endpoints, plus Stripe's own retries), the
+`payment_intent.succeeded` handler was made properly idempotent: the invoice UPDATE carries
+`AND status <> 'paid'` and its `affectedRows` gates the receipt email and the activity log,
+so a redelivery can't send the customer a second receipt.
+
+**Still needed** (owner actions, Dashboard only): set `STRIPE_CONNECT_CLIENT_ID` (Settings →
+Connect → Platform settings, `ca_…`) and register
+`https://hub.connectedhomeoutfitters.com/admin/settings/payments/callback` as an authorized
+redirect URI. Until then Connect is unavailable and org 1 bills as it always has — nothing
+breaks. Connect itself is already **enabled** on the account (0 connected accounts so far).
 
 **Two things that must not be forgotten later:**
 1. **Stripe Connect is required before a second tenant can take payments.**
@@ -1207,11 +1233,12 @@ cert. Ledger was verified untouched throughout (its `chl` PM2 process kept its u
 **Still needed to be fully production-ready (owner actions, not blocking the app running):**
 1. **Staff login** — the prod `choHub` DB starts empty (0 users). Create an admin on the
    VPS: `cd /var/www/cho-hub && node scripts/create-admin.js <email> <password> <name>`.
-2. **Stripe go-live** — `.env` currently holds **test** keys (carried from dev). Swap to
-   `sk_live`/`pk_live`, then register a webhook at
-   `https://hub.connectedhomeoutfitters.com/webhooks/stripe` for
-   **`payment_intent.succeeded` + `charge.refunded`**, and set that endpoint's signing
-   secret as `STRIPE_WEBHOOK_SECRET`, then `pm2 restart cho-hub --update-env`.
+2. **Stripe go-live — DONE.** Corrected 2026-08-14: prod has been on **live** keys
+   (`sk_live`/`pk_live`) for some time; the old "prod holds test keys" note here was
+   stale and had been repeated in conversation. **Real money moves through prod** — treat
+   any Stripe change there accordingly. Local dev remains test-mode. The account is
+   `acct_1Tfpeq23gE2V9wii`, named "Connected Home Ledger" (the shared account, as
+   documented above), with charges + payouts enabled.
 3. **Google sign-in** — add `https://hub.connectedhomeoutfitters.com/google/callback` to
    the OAuth client's authorized redirect URIs, or the "Sign in with Google" button
    fails `redirect_uri_mismatch` (local password login is unaffected).
