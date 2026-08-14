@@ -21,6 +21,10 @@ const paths = {
     "!.env",
     "!.env.example",
     "!gulpfile.js",
+    // Encrypted secrets vault — dev machine ONLY. It is the offline copy of every
+    // environment's .env, so it must never reach W: (the NAS test share) or, via git,
+    // production. Also in .gitignore. See scripts/secrets-vault.js.
+    "!*.vault",
     // Environment-specific data, not source — each environment (local dev, NAS test)
     // keeps its own uploaded consultation photos rather than mirroring one onto the
     // other.

@@ -6,3 +6,8 @@ npm-debug.log*
 .DS_Store
 uploads/
 db-backup*.sql
+
+# Encrypted secrets vault — the offline copy of every environment's .env.
+# Dev machine only: never commit (that would push it to prod) and never sync to W:
+# (also excluded in gulpfile.js). See scripts/secrets-vault.js.
+*.vault
