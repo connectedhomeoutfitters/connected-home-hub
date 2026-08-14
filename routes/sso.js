@@ -71,11 +71,11 @@ router.get('/ledger', ssoLimiter, async (req, res, next) => {
 
     const org = await findOrCreateOrg(payload);
     if (!org) {
-      return deny(res, 403, 'CHO Hub isn’t included in your current plan.',
+      return deny(res, 403, 'ConnectedWorkOS isn’t included in your current plan.',
         'Add it from your Connected Home Ledger account, then click through again.');
     }
     if (org.status !== 'active') {
-      return deny(res, 403, 'This workspace’s CHO Hub access is currently inactive.',
+      return deny(res, 403, 'This workspace’s ConnectedWorkOS access is currently inactive.',
         'Your data is safe. Reactivate from Connected Home Ledger to get back in.');
     }
 
@@ -83,9 +83,9 @@ router.get('/ledger', ssoLimiter, async (req, res, next) => {
     if (!user) {
       if (reason === 'deactivated') {
         return deny(res, 403, 'This staff account has been deactivated.',
-          'An administrator on your team can re-enable it in CHO Hub under Settings → Users.');
+          'An administrator on your team can re-enable it in ConnectedWorkOS under Settings → Users.');
       }
-      return deny(res, 403, 'Could not sign you in to CHO Hub.');
+      return deny(res, 403, 'Could not sign you in to ConnectedWorkOS.');
     }
 
     await pruneUsedTokens();

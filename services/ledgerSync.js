@@ -92,7 +92,7 @@ async function pushPaidInvoice(orgId, invoiceId) {
       date: paidOn,
       description: `${inv.customer_name} — ${what}`.slice(0, 500),
       invoice_type: inv.type,
-      notes: `Imported from CHO Hub invoice #${invoiceId} (${inv.type}).`,
+      notes: `Imported from ConnectedWorkOS invoice #${invoiceId} (${inv.type}).`,
     });
 
     if (!result.ok) {

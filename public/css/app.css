@@ -109,6 +109,19 @@ body {
 .cho-nav-link.active i {
   opacity: 1;
 }
+/* Cross-product link back to Connected Home Ledger. Deliberately quieter than the real
+   nav items — it leaves this app, so it shouldn't compete with the sections inside it. */
+.cho-nav-sep {
+  border-top: 1px solid #eee;
+  margin: 0.5rem 0.25rem;
+}
+.cho-nav-ext {
+  color: var(--cho-muted, #7A7A7A);
+  font-size: 0.9rem;
+}
+.cho-nav-ext i {
+  font-size: 0.9rem;
+}
 .cho-logout {
   padding-top: 0.75rem;
   margin-top: 0.5rem;

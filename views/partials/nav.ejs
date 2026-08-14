@@ -28,6 +28,15 @@
     return `<a class="cho-nav-link${active}" href="${basePath}${i.href}">`
       + `<i class="bi ${i.icon}"></i><span>${i.label}</span></a>`;
   }
+  // Cross-product link back to Ledger. Only rendered for orgs that actually came from a
+  // Ledger workspace — a standalone Hub tenant has no Ledger to return to. Absolute URL
+  // (a different app on a different domain), so no basePath and never "active".
+  function externalNav() {
+    if (!branding.ledgerLinked) return '';
+    return '<div class="cho-nav-sep"></div>'
+      + `<a class="cho-nav-link cho-nav-ext" href="${ledgerUrl}/workspace" target="_blank" rel="noopener">`
+      + '<i class="bi bi-box-arrow-up-right"></i><span>Connected Home Ledger</span></a>';
+  }
 %>
 
 <!-- Desktop: fixed left sidebar (hidden below lg) -->
@@ -38,6 +47,7 @@
   <div class="cho-nav flex-grow-1">
     <% navItems.forEach(i => { %><%- navLink(i) %><% }) %>
     <% if (user && user.role === 'admin') { adminItems.forEach(i => { %><%- navLink(i) %><% }) } %>
+    <%- externalNav() %>
   </div>
   <% if (user) { %>
     <form action="<%= basePath %>/logout" method="POST" class="cho-logout">
@@ -71,6 +81,7 @@
     <div class="cho-nav flex-grow-1">
       <% navItems.forEach(i => { %><%- navLink(i) %><% }) %>
       <% if (user && user.role === 'admin') { adminItems.forEach(i => { %><%- navLink(i) %><% }) } %>
+      <%- externalNav() %>
     </div>
     <% if (user) { %>
       <form action="<%= basePath %>/logout" method="POST" class="cho-logout">
