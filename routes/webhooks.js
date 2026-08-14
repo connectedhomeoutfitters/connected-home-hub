@@ -16,18 +16,42 @@ const activity = require('../services/activityLog');
 // handle. The unscoped lookups below are deliberate and are the only ones in this file.
 // See docs/adr/0001-multi-tenancy.md.
 
+// Two Stripe webhook endpoints point at this one URL, and each has its OWN signing secret:
+//
+//   STRIPE_WEBHOOK_SECRET          — the account endpoint: events on the platform account,
+//                                    i.e. Connected Home Outfitters' own charges (org 1).
+//   STRIPE_CONNECT_WEBHOOK_SECRET  — the Connect endpoint: events on CONNECTED accounts,
+//                                    i.e. every other tenant's charges. These arrive with
+//                                    `event.account` set.
+//
+// Two endpoints are required rather than one, because a webhook's `connect` flag is
+// IMMUTABLE after creation — an existing account-only endpoint can't be upgraded to also
+// deliver connected-account events. So we try each secret in turn. Every event is still
+// fully signature-verified; we just don't know which endpoint delivered it until one
+// secret validates. An unset Connect secret simply means Connect events aren't expected yet.
+function verifyStripeEvent(rawBody, signature) {
+  const secrets = [
+    process.env.STRIPE_WEBHOOK_SECRET,
+    process.env.STRIPE_CONNECT_WEBHOOK_SECRET,
+  ].filter(Boolean);
+
+  let lastError = null;
+  for (const secret of secrets) {
+    try {
+      return { event: stripe.webhooks.constructEvent(rawBody, signature, secret), error: null };
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  return { event: null, error: lastError || new Error('No webhook signing secret configured') };
+}
+
 // Stripe requires the raw, unparsed body to verify the webhook signature.
 router.post('/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
-  let event;
-  try {
-    event = stripe.webhooks.constructEvent(
-      req.body,
-      req.headers['stripe-signature'],
-      process.env.STRIPE_WEBHOOK_SECRET
-    );
-  } catch (err) {
-    console.error('Webhook signature verification failed:', err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
+  const { event, error } = verifyStripeEvent(req.body, req.headers['stripe-signature']);
+  if (!event) {
+    console.error('Webhook signature verification failed:', error.message);
+    return res.status(400).send(`Webhook Error: ${error.message}`);
   }
 
   // This webhook endpoint only gets registered for events CHO Hub cares about, but Stripe
@@ -49,6 +73,22 @@ router.post('/stripe', express.raw({ type: 'application/json' }), async (req, re
       console.error('payment_intent.succeeded for an unknown payment:', intent.id);
       return res.json({ received: true });
     }
+
+    // Cross-check against the delivering account. A Connect event carries `event.account`;
+    // a platform-account event has none. If they disagree with what our own row says, the
+    // routing is misconfigured somewhere and we must NOT reconcile — marking the wrong
+    // tenant's invoice paid is worse than not marking it at all.
+    const { org: stripeOrg } = await paymentContext(orgId);
+    const expectedAccount = stripeOrg && !stripeOrg.uses_platform_stripe
+      ? stripeOrg.stripe_account_id : null;
+    if ((event.account || null) !== expectedAccount) {
+      console.error(
+        `Webhook account mismatch for payment intent ${intent.id}: event.account=` +
+        `${event.account || '(platform)'} but org ${orgId} expects ${expectedAccount || '(platform)'}`
+      );
+      return res.json({ received: true, ignored: 'account_mismatch' });
+    }
+
     const sdb = scopedDb(orgId);
 
     // Pull the charge so the Payments section can show "Visa ••••4242" + a receipt link
@@ -218,3 +258,6 @@ router.post('/lead-intake', express.json(), async (req, res) => {
 });
 
 module.exports = router;
+// Exported for test/stripeWebhookAuth.test.js — this decides whether a payment event is
+// trusted, so it's worth covering directly rather than only through the route.
+module.exports.verifyStripeEvent = verifyStripeEvent;
