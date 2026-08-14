@@ -1,6 +1,6 @@
 // PM2 config for CHO Hub's NAS TEST instance (masinet.synology.me/choHubProject).
 // Separate from ecosystem.config.js, which is for actual production on the VPS
-// (hub.connectedhomeoutfitters.com, no subpath, own domain — see CLAUDE.md "Deployment").
+// (app.connectedworkos.com, no subpath, own domain — see CLAUDE.md "Deployment").
 //
 // cwd is W:\choHubProject as seen from the NAS itself (/volume1/web/choHubProject) —
 // NOT /volume1/NPM/choHubProject, which is N:\choHubProject (the dev source).

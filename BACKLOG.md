@@ -4,7 +4,7 @@ Open, **optional** work items. Nothing here is in-progress or blocking — the c
 product (full lead → consultation → estimate → e-sign → deposit → job → inventory →
 final invoice → payment/refund → warranty → project close-out lifecycle, plus customer &
 subcontractor portals, reporting, activity/audit log, backups) is built and live at
-`hub.connectedhomeoutfitters.com`. See `CLAUDE.md` for what's already done.
+`app.connectedworkos.com`. See `CLAUDE.md` for what's already done.
 
 Roughly priority-ordered within each section.
 

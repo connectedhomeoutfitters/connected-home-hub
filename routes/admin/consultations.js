@@ -354,11 +354,13 @@ async function sendConsultationInvite(db, orgId, consultationId, user, { resched
     throw Object.assign(new Error('Set a consultation date/time before sending an invite'), { status: 400 });
   }
 
+  const inviteCompany = await getCompany(orgId);
   const icsContent = generateConsultationInvite({
     consultation,
     customer: { name: consultation.customer_name, email: consultation.customer_email, address: consultation.customer_address },
     consultantName: user.name,
     consultantEmail: user.email,
+    companyName: inviteCompany.company_name,
   });
 
   const when = new Date(consultation.consultation_date.replace(' ', 'T')).toLocaleString('en-US', {

@@ -179,8 +179,15 @@ themselves in Ledger"* is a pitch neither Housecall Pro nor QuickBooks makes alo
 ### Naming
 
 `hub.connectedhomeoutfitters.com` is our brand, not a product brand; competitors will not
-want to sign into it. CHO's own instance stays there, and the SaaS gets a neutral product
-host. Orgs resolve from the session, **not** from a subdomain — per-tenant subdomains and
+want to sign into it. The SaaS needs a neutral product host.
+
+**Resolved 2026-08-14:** `connectedworkos.com` was purchased and the product moved to
+`app.connectedworkos.com`. CHO does **not** keep a separate instance on the old host — it
+is org #1 on the new domain like every other tenant, and the old host is a permanent 301
+(there is only ever one deployment; a second one would fork the data). The apex is
+reserved for a marketing site, which is why the app took `app.` rather than the apex.
+
+Orgs resolve from the session, **not** from a subdomain — per-tenant subdomains and
 custom domains are deferred until there is demand.
 
 ## Rollout

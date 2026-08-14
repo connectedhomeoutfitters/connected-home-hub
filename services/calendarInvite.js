@@ -13,19 +13,26 @@ function dateStringToIcsArray(dateString) {
   return [year, month, day, hour, minute];
 }
 
-function generateConsultationInvite({ consultation, customer, consultantName, consultantEmail }) {
+// companyName is the *tenant's* name (from company_settings), not ours — this text is
+// customer-facing. The uid domain is the product's own domain and is deliberately NOT
+// per-tenant: it only has to be globally unique and stable so calendar apps can match
+// an update to the event they already have.
+const UID_DOMAIN = 'connectedworkos.com';
+
+function generateConsultationInvite({ consultation, customer, consultantName, consultantEmail, companyName }) {
+  const company = companyName || 'your contractor';
   const { error, value } = ics.createEvent({
     start: dateStringToIcsArray(consultation.consultation_date),
     duration: { minutes: consultation.duration_minutes || 60 },
-    title: `Connected Home Outfitters — Consultation with ${customer.name}`,
-    description: 'On-site smart home consultation with Connected Home Outfitters.',
+    title: `${company} — Consultation with ${customer.name}`,
+    description: `On-site smart home consultation with ${company}.`,
     location: customer.address || undefined,
     organizer: { name: consultantName, email: consultantEmail },
     attendees: [
       { name: consultantName, email: consultantEmail, rsvp: true, partstat: 'ACCEPTED' },
       { name: customer.name, email: customer.email, rsvp: true, partstat: 'NEEDS-ACTION' },
     ],
-    uid: `consultation-${consultation.id}@connectedhomeoutfitters.com`,
+    uid: `consultation-${consultation.id}@${UID_DOMAIN}`,
     status: 'CONFIRMED',
   });
 

@@ -17,10 +17,16 @@ separate household-finance SaaS product). Do not mix concerns across the three:
 All three are owned by the same LLC (Connected Home Outfitters) and **share one Stripe
 account** — see "Stripe" below for how this app stays distinguishable within it.
 
-**Production URL:** `hub.connectedhomeoutfitters.com` — subdomain created (2026-07-22).
+**Production URL:** `app.connectedworkos.com` (domain purchased 2026-08-14, moved from
+`hub.connectedhomeoutfitters.com`). Hub is a multi-tenant product sold to *other*
+contractors, so it can't live on one tenant's brand — see "Domain" below. The old host
+is kept forever as a 301 redirect, since emailed estimate/invoice links and customer /
+subcontractor magic links already went out pointing at it. The apex
+`connectedworkos.com` is deliberately left free for a future marketing site; the app
+sits on `app.`.
+
 Deploys to the same Hostinger VPS that hosts Connected Home Ledger, but as its **own
-PM2 process, own nginx server block, and own database**. DNS exists; nginx/PM2/TLS/app
-deploy still not done (see "Deployment" below).
+PM2 process, own nginx server block, and own database** (see "Deployment" below).
 
 ---
 
@@ -727,13 +733,42 @@ Phases 1–4 and 5a are **built, deployed and verified**. Everything is committe
 prod, the NAS test instance and Ledger are all healthy. Open items, roughly in priority
 order:
 
-1. **Domain move — decision pending.** Owner is choosing a new `.com` for Hub. Recommended
-   over keeping `hub.connectedhomeoutfitters.com`: a competitor won't sign into a rival
-   contractor's domain, and it's baked into the Stripe Connect redirect URI (live AND
-   sandbox), the Google OAuth redirect, Ledger's `HUB_URL`, `BASE_URL`, the TLS cert, and
-   every emailed link — that list only grows. Keep the old host as a redirect; CHO becomes
-   tenant #1 on the new domain. ~1 hour: DNS A record, certbot, nginx `server_name`,
-   `BASE_URL`, three redirect URIs, Ledger's `HUB_URL`, then **re-seal the secrets vault**.
+1. **Domain move — DONE 2026-08-14.** Hub is live at **`https://app.connectedworkos.com`**;
+   `hub.connectedhomeoutfitters.com` is now a permanent 301 to it. Apex
+   `connectedworkos.com` deliberately left on its registrar parking page, reserved for a
+   marketing site — the app took `app.` so it never has to move off the apex later and
+   redo every redirect URI a second time.
+
+   What changed: two nginx vhosts (reference copies in `nginx/`), a certbot cert for the
+   new host, and **three env vars** — Hub `BASE_URL` + `GOOGLE_CALLBACK_URL`, Ledger
+   `HUB_URL`. Pre-change copies are on the VPS as `.env.bak-pre-domain-move` in
+   `/var/www/cho-hub` and `/var/www/chl`, plus `/root/hub-vhost.bak-pre-domain-move`.
+   **No application code referenced the hostname** — every link is built as
+   `BASE_URL + BASE_PATH + path`, which is exactly why this was a config-only move.
+   Verified: new host 200 over TLS, old host 301 preserving **path and query** (proved
+   against `/e/:token` and `/i/:token/next-steps?redirect_status=…`), the http→https→new-host
+   double hop lands correctly, and Ledger stayed 200 throughout.
+
+   **Two corrections to the pre-move notes**, both of which would have wasted time:
+   - The **sandbox** Stripe Connect redirect URI was *not* affected — it points at the NAS
+     (`masinet.synology.me/choHubProject/...`). The old note said "live AND sandbox".
+   - The **old host's certbot cert must keep renewing** even though it only redirects: an
+     `https://hub…` link negotiates TLS *before* the 301 is ever sent, so letting it lapse
+     would break every already-delivered estimate, invoice and magic link.
+
+   **Google sign-in re-verified in a real browser** on the new host (see Deployment item 3
+   for the two-OAuth-clients trap that made this take longer than it should have).
+
+   **Not verifiable from CHO's org:** the **Stripe Connect** redirect URI on the new
+   domain. Org 1 has `uses_platform_stripe = TRUE`, so `/admin/settings/payments` just
+   says "billing through the platform account" and never builds a Connect OAuth URL. That
+   redirect URI is only exercised when a *second* tenant connects, and the sandbox tenant
+   points at the NAS instead — so it's registered and the code builds it from the (now
+   correct) `BASE_URL`, but it stays unproven until a real tenant connects on live.
+
+   **Still outstanding from this move:** **re-seal the secrets vault** — `secrets.vault`
+   holds every environment's `.env` and two of them just changed, so it is now stale.
+   Needs the owner's passphrase (not recoverable, in their password manager).
 2. **Hub needs its own logo.** `public/img/logo.png` is the DEFAULT every tenant sees until
    they upload their own — so an unbranded contractor's portal and invoice PDFs currently
    carry Connected Home Outfitters' mark. The default must be a neutral product logo.
@@ -1302,7 +1337,7 @@ choHubProject/
 
 ---
 
-## Deployment — LIVE at `https://hub.connectedhomeoutfitters.com` (2026-07-25)
+## Deployment — LIVE at `https://app.connectedworkos.com` (2026-07-25; moved 2026-08-14)
 
 Deployed to the **same Hostinger VPS as Connected Home Ledger** (`2.25.186.172`,
 Ubuntu, `srv1741987`), fully isolated from it — no shared port/process/DB/server_name/
@@ -1316,7 +1351,7 @@ cert. Ledger was verified untouched throughout (its `chl` PM2 process kept its u
 | App dir | `/var/www/chl` | `/var/www/cho-hub` |
 | PM2 process | `chl` | `cho-hub` |
 | Port | 3000 | **3100** |
-| nginx `server_name` | `connectedhomeledger.com` | `hub.connectedhomeoutfitters.com` |
+| nginx `server_name` | `connectedhomeledger.com` | `app.connectedworkos.com` (+ old host, redirect-only) |
 | DB (local MariaDB `127.0.0.1:3306`) | its own DB | `choHub` / user `choHubWeb` |
 | TLS | own certbot cert | own certbot cert |
 
@@ -1324,20 +1359,33 @@ cert. Ledger was verified untouched throughout (its `chl` PM2 process kept its u
   and `root@2.25.186.172` (key-based, used for the infra: nginx, certbot, MariaDB,
   `/var/www` dirs). Both work from the dev machine's default key. MariaDB `root` is
   unix-socket auth (`mysql` as system root, no password).
-- **DNS:** `hub` A record → `2.25.186.172`. Originally an `ALIAS` → `…cdn.hstgr.net`
-  (Hostinger shared hosting — the WordPress apex `connectedhomeoutfitters.com` lives
-  there on `45.93.101.98`, a **different box**, not the VPS); that ALIAS was deleted and
-  replaced with the A record. If `hub` ever resolves to a `2a02:4780:…` IPv6 again, the
-  ALIAS/AAAA came back and is shadowing the A record.
+- **DNS:** `app.connectedworkos.com` A record → `2.25.186.172`. The `connectedworkos.com`
+  apex is left on its registrar default (`2.57.91.91`, a parking page) on purpose —
+  reserved for a future marketing site, so the app never has to move off the apex later
+  and redo every redirect URI a second time.
+  - The retired `hub` A record on `connectedhomeoutfitters.com` → `2.25.186.172` **stays**
+    (it serves the 301). It was originally an `ALIAS` → `…cdn.hstgr.net` (Hostinger shared
+    hosting — the WordPress apex `connectedhomeoutfitters.com` lives there on
+    `45.93.101.98`, a **different box**, not the VPS); that ALIAS was deleted and replaced
+    with the A record. If `hub` ever resolves to a `2a02:4780:…` IPv6 again, the ALIAS/AAAA
+    came back and is shadowing the A record.
 - **PM2 persistence:** `pm2 save` done and `pm2-deploy.service` is enabled, so both apps
   resurrect on reboot. After changing which processes run, re-run `pm2 save`.
-- **nginx safety:** the one shared blast-radius surface. The server block is
-  `/etc/nginx/sites-available/hub.connectedhomeoutfitters.com` (symlinked into
-  `sites-enabled/`), with `client_max_body_size 25M` for consultation-photo / subcontractor-
-  doc uploads. **Always `nginx -t` before any reload** — a bad reload hits Ledger too.
-- **TLS:** `certbot --nginx -d hub.connectedhomeoutfitters.com` issued its own cert
-  (auto-renew task installed) + added the 443 block and 80→443 redirect. Ledger's cert
-  untouched.
+- **nginx safety:** the one shared blast-radius surface. **Always `nginx -t` before any
+  reload** — a bad reload hits Ledger too. Hub owns two server blocks in
+  `/etc/nginx/sites-available/` (both symlinked into `sites-enabled/`, reference copies
+  of both in this repo's `nginx/`):
+  - `app.connectedworkos.com` — the real app, proxying to `127.0.0.1:3100`, with
+    `client_max_body_size 25M` for consultation-photo / subcontractor-doc uploads.
+  - `hub.connectedhomeoutfitters.com` — **redirect only**, `return 301
+    https://app.connectedworkos.com$request_uri`. Do not delete it: access-token and
+    magic-link URLs carry their token in the *path* (`/e/:token`, `/i/:token`), and
+    already-delivered emails point at the old host. `$request_uri` preserves path *and*
+    query string, which Stripe's `/i/:token/next-steps` return needs.
+- **TLS:** each host has its own certbot cert (auto-renew installed) — Ledger's untouched.
+  `certbot --nginx -d app.connectedworkos.com` for the app;
+  the old `hub.connectedhomeoutfitters.com` cert **must keep renewing** even though that
+  host only redirects, since an old `https://hub…` link hits TLS before the 301.
 - **Deploy path (git, like Ledger):** GitHub repo
   `github.com/connectedhomeoutfitters/connected-home-hub`. The VPS pushes/pulls it with a
   **dedicated deploy key** — `~/.ssh/id_cho_hub` (write access) — kept separate from
@@ -1386,9 +1434,32 @@ cert. Ledger was verified untouched throughout (its `chl` PM2 process kept its u
    any Stripe change there accordingly. Local dev remains test-mode. The account is
    `acct_1Tfpeq23gE2V9wii`, named "Connected Home Ledger" (the shared account, as
    documented above), with charges + payouts enabled.
-3. **Google sign-in** — add `https://hub.connectedhomeoutfitters.com/google/callback` to
-   the OAuth client's authorized redirect URIs, or the "Sign in with Google" button
-   fails `redirect_uri_mismatch` (local password login is unaffected).
+3. **Google sign-in — DONE, verified in a real browser 2026-08-14** (account chooser →
+   consent → callback → staff dashboard, signed in on `app.connectedworkos.com`).
+
+   **Gotcha that cost an hour: there are TWO Google OAuth clients in TWO different GCP
+   projects, and the obvious one in the console is the wrong one.**
+
+   | | Client ID | GCP project |
+   |---|---|---|
+   | **Hub (this app)** | `450439755709-uesesn70pk9q2jvq2bloaqs9opg1tld9` | **450439755709** |
+   | Ledger | `450439755709-h41j1fi8aqe7ikl9ic8n5kop1joaq34s` | 450439755709 |
+   | **Decoy — not used by any app** | `507881562654-u5ji9qpeve04th7m0kru0cth60j3j8js` | `connected-home-o-1778611…` (**507881562654**) |
+
+   The decoy lives in a project literally named "Connected Home Outfitters LLC" and
+   already had `https://hub.connectedhomeoutfitters.com/google/callback` registered, so it
+   looks exactly like the right one. It is not — check the **project number** in the
+   client id prefix, not the project's display name. (That stale registration also
+   suggests Google sign-in on the old prod host never actually worked.)
+
+   Both `app.connectedworkos.com` and the old `hub.…` callback are registered on the real
+   client; keep both, since Google matches the URI the app *sends* (i.e. whatever
+   `GOOGLE_CALLBACK_URL` is set to), which keeps the cutover reversible.
+
+   **Do not try to verify a redirect URI registration with `curl`.** Hitting the authorize
+   endpoint returns the same ~1.3 KB JS-redirect shell whether or not the URI is
+   registered — Google defers that check to the browser flow. A curl probe will report
+   "registered" for a URI that plainly is not. Only a real browser can tell you.
 
 ### Database backups & prod→test sync (2026-07-25)
 

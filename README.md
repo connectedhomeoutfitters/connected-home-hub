@@ -26,5 +26,5 @@ node scripts/create-admin.js you@connectedhomeoutfitters.com 'somePassword' "You
 - Final invoice creation once a job is done
 - Stripe test/live keys and this app's own webhook endpoint registration (shares the
   same Stripe account as ConnectedHomeLedger — see CLAUDE.md "Stripe")
-- Production deploy target on the VPS (nginx vhost for `hub.connectedhomeoutfitters.com`,
+- Production deploy target on the VPS (nginx vhost for `app.connectedworkos.com`,
   PM2 process, real DB credentials) — not yet decided/configured
