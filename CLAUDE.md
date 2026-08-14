@@ -955,11 +955,46 @@ Because duplicate delivery is now possible (two endpoints, plus Stripe's own ret
 `AND status <> 'paid'` and its `affectedRows` gates the receipt email and the activity log,
 so a redelivery can't send the customer a second receipt.
 
-**Still needed** (owner actions, Dashboard only): set `STRIPE_CONNECT_CLIENT_ID` (Settings →
-Connect → Platform settings, `ca_…`) and register
-`https://hub.connectedhomeoutfitters.com/admin/settings/payments/callback` as an authorized
-redirect URI. Until then Connect is unavailable and org 1 bills as it always has — nothing
-breaks. Connect itself is already **enabled** on the account (0 connected accounts so far).
+**Connect is fully configured and PROVEN END-TO-END (2026-08-14).** Live has
+`STRIPE_CONNECT_CLIENT_ID=ca_V4Tpu52HkPA0CSP5I2mFTBcdXO5UD5Cw`, OAuth enabled, and the
+callback URI registered. The whole flow was then exercised for real in the **sandbox**
+(test mode of the same account, `acct_1Tfpeq23gE2V9wii`) against the NAS test instance with
+a genuinely separate connected account (`acct_1Tw6KI1GZBWLiwic`): OAuth handshake →
+`stripe_account_id` stored + CSRF state cleared → PaymentIntent created **on the connected
+account and provably absent from the platform** → real `pm_card_visa` charge → webhook
+reconciled in ~2s to the right org with card details cached and exactly one receipt email →
+admin refund landing on the connected account, `amount_refunded` correct, invoice flipped
+to `refunded`. Org 1 kept billing the platform account throughout.
+
+**Two bugs that only a real run could find** — both invisible to unit tests and to `curl`:
+
+1. **CSP `form-action` silently killed the "Connect with Stripe" button.** The form POSTs
+   same-origin and 302s out to `connect.stripe.com`, and **Chrome enforces `form-action`
+   across redirects**, so helmet's default `form-action 'self'` refused the navigation with
+   no error and nothing in the console. `server.js` now lists
+   `formAction: ["'self'", 'https://connect.stripe.com']`. Fourth member of the CSP family
+   already documented here — **server-side checks can't see these; only a real browser can.**
+2. **`stripe.x.retrieve(id, options)` is wrong** — the signature is
+   `retrieve(id, params, options)`, so passing options second sends `{ stripeAccount }` as a
+   **query param** and Stripe rejects it with "Received unknown parameter: stripeAccount".
+   `create(params, options)` takes options second, which is exactly why every create path
+   worked and the retrieves didn't. Affected the webhook's charge lookup (degraded: card
+   details never cached) and the refund fallback (would 500). **Any new connected-account
+   call: check whether it's `(params, options)` or `(id, params, options)`.**
+
+**Sandbox setup, for future Connect work** (all separate from live — own keys, own client
+id, own webhook destinations): sandbox client id
+`ca_V4Tp5GLS0z0eADFkAKxUDk4gddnJb0Pb`, redirect URI
+`https://masinet.synology.me/choHubProject/admin/settings/payments/callback`, and **two**
+webhook destinations at `https://masinet.synology.me/choHubProject/webhooks/stripe` — one
+"Your account", one "Connected accounts". The NAS `.env` holds the sandbox keys.
+**Watch which sandbox you're in**: an early attempt used a client id from
+`acct_1Tfpeq23gE2V9wii` with API keys from `acct_1Tw6KI1GZBWLiwic`, which would have failed
+with a confusing OAuth error. Verify with
+`curl https://api.stripe.com/v1/account -u "<key>:"` and check the returned account id.
+
+A throwaway tenant exists on the test DB for this: org 6 "Sandbox Test Contracting",
+login `sandbox@example.test` / `SandboxTest!2026`. The weekly prod→test sync will remove it.
 
 **Two things that must not be forgotten later:**
 1. **Stripe Connect is required before a second tenant can take payments.**
@@ -1006,6 +1041,18 @@ working local `node_modules` (fixed by re-running plain `npm install`).
   `src/` front-end authoring layer, so there's nothing to bundle, just a full mirror.
 - This `N:\`/`W:\` NAS flow is **test-only** — it's unrelated to the production deploy
   target (the Hostinger VPS covered under "Deployment" below).
+- **Gotcha: `BASE_URL` must NOT include `BASE_PATH`** (found + fixed 2026-08-14). Every
+  generated link is built as `BASE_URL + BASE_PATH + path` (estimate links, invoice pay
+  links, customer/subcontractor magic links, the Stripe Connect OAuth redirect). The NAS
+  `.env` had `BASE_URL=https://masinet.synology.me/choHubProject`, which doubled the
+  subpath — every emailed link from the test instance was a 404. `BASE_URL` is the bare
+  origin: `https://masinet.synology.me`.
+- **The NAS instance can silently not exist in PM2.** On 2026-08-14 it was serving 502
+  because `cho-hub-test` wasn't registered at all (only `gymr` was). `pm2 list` showed
+  nothing; `pm2 start ecosystem.nas-test.config.js` from `/volume1/web/choHubProject`
+  fixed it. It was also still running pre-multi-tenancy code against the migrated test DB
+  — **after migrating the shared test DB, always `gulp build` so `W:` gets the matching
+  code**, or every write there fails on the NOT NULL `org_id`.
 - **`W:\choHubProject` needs its own `.env`, created directly on the NAS** (never
   synced by gulp) — different `PORT` (`3001`), `BASE_PATH` (`/choHubProject`), and
   `GOOGLE_CALLBACK_URL` (`https://masinet.synology.me/choHubProject/google/callback` — note
@@ -1023,6 +1070,16 @@ its own `cwd` (`/volume1/web/choHubProject`) and restarts itself whenever `gulp 
 lands new files there. No flag file, no DSM Task Scheduler cron job needed (unlike
 gymrProject's `nas-pm2-watcher.sh` pattern) — just run `deploy-nas-test.bat` (or
 `npx gulp build`) after making changes and PM2 picks it up on its own.
+
+**NAS SSH works fine for non-interactive commands** (corrected 2026-08-14 — an older note
+in gymrProject's brief claims Synology blocks this; it doesn't, at least with key auth).
+`ssh -p 2222 nostrus@192.168.4.199 "<command>"` works, including `sudo` when the password
+is piped in: `echo '<pw>' | sudo -S sh -c '...'`.
+
+**But `scp`/`sftp` does NOT work** — the NAS has no sftp subsystem enabled, so `scp` fails
+with "subsystem request failed on channel 0". To get a file onto the NAS, **write it
+through the mapped `W:` drive** (`W:\choHubProject` == `/volume1/web/choHubProject`) and
+then run it over SSH. That's how one-off scripts get there.
 
 **NAS SSH access** (needed for the npm-install/pm2-restart steps in the gotcha below,
 and for the one-time setup that follows): port **2222**, not the default 22. Either
