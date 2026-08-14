@@ -125,6 +125,8 @@ app.use(`${BASE_PATH}/admin/labor-rates`, require('./routes/admin/laborRates'));
 app.use(`${BASE_PATH}/admin/subcontractors`, require('./routes/admin/subcontractors'));
 app.use(`${BASE_PATH}/admin/builders`, require('./routes/admin/builders'));
 app.use(`${BASE_PATH}/admin/warranties`, require('./routes/admin/warranties'));
+// Mounted before the general settings router so /settings/payments/* resolves here.
+app.use(`${BASE_PATH}/admin/settings/payments`, require('./routes/admin/stripeConnect'));
 app.use(`${BASE_PATH}/admin/settings`, require('./routes/admin/settings'));
 app.use(`${BASE_PATH}/portal`, require('./routes/customerPortal'));
 app.use(`${BASE_PATH}/sub`, require('./routes/subPortal'));

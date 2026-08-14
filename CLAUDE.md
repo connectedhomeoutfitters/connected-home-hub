@@ -884,7 +884,51 @@ pairing, and the `uploads/` re-homing under `uploads/<org_id>/` for consultation
 documents and subcontractor files (safe as-is because those ids are globally unique, so no
 two orgs can collide — it's tidiness, not isolation).
 
-**Next is phase 4 (Stripe Connect)** — the blocker before a second tenant can take money.
+### Phase 4 — Stripe Connect (2026-08-13)
+
+`035_stripe_connect.sql` + `services/stripeAccounts.js`. Before this, every PaymentIntent
+was created on **our** account, so a second tenant's customer deposit would have settled
+into Connected Home Outfitters' bank account — making us a payment facilitator for someone
+else's revenue (we'd owe them the funds, absorb their chargebacks, carry their income on
+our 1099-K). Now each contractor connects their **own** Stripe account via Connect
+(Standard), and we never take custody of their money.
+
+- **One code path, one difference: whether `{ stripeAccount }` is spread into the call.**
+  `stripeOptions(org)` returns `{}` for the platform org and `{ stripeAccount }` for a
+  connected one. Applied at **every** Stripe call site — PaymentIntent create
+  (`routes/portal.js`), charge retrieve (`routes/webhooks.js`), refunds list
+  (`services/paymentsSync.js`), PaymentIntent retrieve + refund create
+  (`routes/admin/payments.js`). **Miss one and it silently hits the wrong account.**
+- **`orgs.uses_platform_stripe` is TRUE only for org 1** (CHO's Stripe account *is* the
+  platform account; Stripe won't let a platform connect to itself). This is an explicit
+  flag, deliberately **not** "NULL `stripe_account_id` means platform" — a newly
+  provisioned org also has NULL there and must never be able to charge into our account.
+- **An unconnected tenant cannot take payment at all.** `POST /i/:token/pay` returns 503
+  and the pay page says payment isn't available yet, rather than falling back to the
+  platform account. This is the single most important behaviour in the phase.
+- **Client side**: Connect has no per-tenant publishable key — Stripe.js gets the
+  *platform* key plus `{ stripeAccount }`, or the intent can't be retrieved and the
+  Payment Element never mounts (`public/js/page-pay.js`, `views/portal/invoice.ejs`).
+- **We never store another business's API keys.** Connect means they authorise the
+  platform and we act on their behalf with our key + their account id. A settings form
+  collecting their secret keys would mean taking custody of credentials that move their
+  money — don't add one.
+- **OAuth flow** at `/admin/settings/payments` (`routes/admin/stripeConnect.js`,
+  admin-only). CSRF-guarded by a single-use `orgs.stripe_oauth_state` cleared before the
+  code exchange; `UNIQUE(stripe_account_id)` stops one Stripe account being bound to two
+  tenants. Disconnect only clears our reference — it doesn't deauthorize their account or
+  touch payment history.
+- **Verified**: 27 checks — routing decisions, an unconnected tenant refused at the route,
+  the page, and the context helper with no payment row created; org 1 still charging the
+  platform account with a **real Stripe test-mode PaymentIntent** carrying the right
+  metadata; and the OAuth callback rejecting a forged state.
+
+**Deploy needs** (owner actions): set `STRIPE_CONNECT_CLIENT_ID` (Stripe Dashboard →
+Settings → Connect), register `<BASE_URL>/admin/settings/payments/callback` as an
+authorized redirect URI, and enable **"Listen to events on Connected accounts"** on this
+app's webhook endpoint so `payment_intent.succeeded` / `charge.refunded` arrive for
+connected tenants. Until then Connect is simply unavailable and org 1 bills as it always
+has — nothing breaks.
 
 **Two things that must not be forgotten later:**
 1. **Stripe Connect is required before a second tenant can take payments.**

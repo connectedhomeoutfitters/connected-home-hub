@@ -8,6 +8,7 @@ const { sendMail } = require('../services/mailer');
 const { generateEstimatePdf } = require('../services/estimatePdf');
 const estimateTerms = require('../config/estimateTerms');
 const { getCompany } = require('../services/companySettings');
+const { paymentContext } = require('../services/stripeAccounts');
 const activity = require('../services/activityLog');
 
 const TOKEN_TTL_DAYS = 30;
@@ -225,10 +226,15 @@ router.get('/i/:token', resolveToken('invoice'), async (req, res, next) => {
       [req.resourceId, req.orgId]
     );
     if (!rows[0]) return res.status(404).render('portal/expired');
+    // Stripe.js needs the connected account id alongside the PLATFORM publishable key —
+    // Connect has no per-tenant publishable key. Null for the platform org.
+    const { canAccept, stripeAccount } = await paymentContext(req.orgId);
     res.render('portal/invoice', {
       invoice: rows[0],
       token: req.params.token,
       stripePublishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
+      stripeAccount,
+      paymentsEnabled: canAccept,
       pageScript: 'page-pay.js',
     });
   } catch (err) {
@@ -271,22 +277,30 @@ router.post('/i/:token/pay', resolveToken('invoice'), async (req, res, next) => 
       return res.status(400).json({ error: 'Invoice is not payable' });
     }
 
-    // NOTE: this still charges the PLATFORM Stripe account. Once a second tenant exists
-    // this must become a Connect call — stripe.paymentIntents.create({...},
-    // { stripeAccount: org.stripe_account_id }) — or their customer's money lands in
-    // Connected Home Outfitters' bank account. Phase 4 of docs/adr/0001-multi-tenancy.md.
+    // Which Stripe account does this tenant's money go to? Org 1 (Connected Home
+    // Outfitters) charges the platform account directly as it always has; every other
+    // tenant charges their OWN connected account, so we never take custody of their
+    // revenue. See services/stripeAccounts.js.
+    const { options, canAccept } = await paymentContext(req.orgId);
+    if (!canAccept) {
+      // Fail loudly rather than quietly banking someone else's money into our account.
+      return res.status(503).json({
+        error: 'This business has not finished setting up payments yet. Please contact them directly.',
+      });
+    }
+
     const intent = await stripe.paymentIntents.create({
       amount: Math.round(invoice.amount * 100),
       currency: 'usd',
-      // source: 'cho-hub' keeps this distinguishable from GYMR subscription charges
-      // in Stripe's dashboard/reports/reconciliation, since both share one account.
-      // org_id lets the webhook resolve the tenant without a DB lookup.
+      // source: 'cho-hub' keeps platform-account charges distinguishable from GYMR
+      // subscription charges, since those share one account. org_id lets the webhook
+      // resolve the tenant without a DB lookup.
       metadata: {
         source: 'cho-hub', org_id: String(req.orgId),
         invoice_id: String(invoice.id), type: invoice.type,
       },
       statement_descriptor_suffix: 'CHO JOB',
-    });
+    }, options);
 
     await req.db.execute(
       'INSERT INTO payments (org_id, invoice_id, stripe_payment_intent_id, amount, status) VALUES (?, ?, ?, ?, ?)',

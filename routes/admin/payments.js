@@ -3,6 +3,7 @@ const router = express.Router();
 const stripe = require('../../config/stripe');
 const { requireAuth, requireAdmin } = require('../../middleware/auth');
 const { reconcileRefunds } = require('../../services/paymentsSync');
+const { paymentContext } = require('../../services/stripeAccounts');
 const { sendMail } = require('../../services/mailer');
 const { getCompany } = require('../../services/companySettings');
 const activity = require('../../services/activityLog');
@@ -179,10 +180,14 @@ router.post('/:id/refund', requireAdmin, async (req, res, next) => {
       if (amount > remaining + 0.001) return back(`Refund can't exceed the remaining $${remaining.toFixed(2)}.`);
     }
 
+    // Every Stripe call below must target the account this org bills through — for a
+    // connected tenant the charge doesn't exist on the platform account at all.
+    const { options } = await paymentContext(req.orgId);
+
     // Need the charge id to refund. Prefer the cached one; fall back to the PaymentIntent.
     let chargeId = payment.stripe_charge_id;
     if (!chargeId) {
-      const intent = await stripe.paymentIntents.retrieve(payment.stripe_payment_intent_id);
+      const intent = await stripe.paymentIntents.retrieve(payment.stripe_payment_intent_id, options);
       chargeId = intent.latest_charge;
       if (chargeId) {
         await req.db.execute(
@@ -205,7 +210,7 @@ router.post('/:id/refund', requireAdmin, async (req, res, next) => {
         source: 'cho-hub', org_id: String(req.orgId),
         payment_id: String(payment.id), issued_by: String(req.user.id),
       },
-    });
+    }, options);
 
     // Record our side first (captures note + who issued it), then reconcile totals from
     // Stripe's authoritative refund list.

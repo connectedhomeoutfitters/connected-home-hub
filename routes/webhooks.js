@@ -5,6 +5,7 @@ const db = require('../config/db');
 const scopedDb = require('../config/scopedDb');
 const stripe = require('../config/stripe');
 const { setEntitlement } = require('../services/orgProvisioning');
+const { paymentContext } = require('../services/stripeAccounts');
 const { sendMail } = require('../services/mailer');
 const { getCompany } = require('../services/companySettings');
 const { reconcileRefunds } = require('../services/paymentsSync');
@@ -57,7 +58,10 @@ router.post('/stripe', express.raw({ type: 'application/json' }), async (req, re
     let cardBrand = null, cardLast4 = null, receiptUrl = null;
     if (chargeId) {
       try {
-        const charge = await stripe.charges.retrieve(chargeId);
+        // Scoped to the org's Stripe account — a connected tenant's charge isn't visible
+        // on the platform account, so an unscoped retrieve would 404.
+        const { options } = await paymentContext(orgId);
+        const charge = await stripe.charges.retrieve(chargeId, options);
         cardBrand = charge.payment_method_details?.card?.brand || null;
         cardLast4 = charge.payment_method_details?.card?.last4 || null;
         receiptUrl = charge.receipt_url || null;

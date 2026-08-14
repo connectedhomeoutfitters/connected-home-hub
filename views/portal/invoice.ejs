@@ -6,6 +6,16 @@
 
   <% if (invoice.status === 'paid') { %>
     <div class="alert alert-success">Paid on <%= invoice.paid_at %>. Thank you!</div>
+  <% } else if (!paymentsEnabled) { %>
+    <%
+      // The business hasn't connected their Stripe account yet. Say so plainly rather than
+      // showing a pay button that can't work — and never fall back to charging the
+      // platform account, which would bank their revenue into ours.
+    %>
+    <div class="alert alert-warning">
+      Online payment isn't available for this invoice yet. Please contact us directly to
+      arrange payment.
+    </div>
   <% } else { %>
     <div id="payment-element"></div>
     <button id="pay-button" class="btn btn-primary mt-3">Pay $<%= invoice.amount %></button>
@@ -14,6 +24,9 @@
     <script nonce="<%= cspNonce %>">
       window.CHO_HUB = {
         publishableKey: "<%= stripePublishableKey %>",
+        // Connect: Stripe.js must be told which connected account the PaymentIntent lives
+        // on, or it can't fetch it with the platform key. Empty for the platform org.
+        stripeAccount: "<%= stripeAccount || '' %>",
         token: "<%= token %>",
         basePath: "<%= basePath %>",
         nextStepsUrl: "<%= basePath %>/i/<%= token %>/next-steps",

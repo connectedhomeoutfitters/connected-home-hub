@@ -1,0 +1,92 @@
+<%- include('../partials/head', { title: 'Payment Settings' }) %>
+<%- include('../partials/nav') %>
+<div class="container" style="max-width: 720px;">
+  <h1 class="h3 mb-4">Payments</h1>
+
+  <% if (saved) { %><div class="alert alert-success">Stripe account connected. You can now collect deposits and invoice payments.</div><% } %>
+  <% if (disconnected) { %><div class="alert alert-warning">Stripe account disconnected. New payments are paused until you reconnect.</div><% } %>
+  <% if (error) { %>
+    <div class="alert alert-danger">
+      <% if (error === 'not_configured') { %>
+        Stripe Connect isn't configured on this server yet. Contact support.
+      <% } else if (error === 'denied') { %>
+        You cancelled the Stripe connection. Nothing was changed.
+      <% } else if (error === 'bad_state') { %>
+        That connection link was invalid or already used. Please start again.
+      <% } else if (error === 'already_linked') { %>
+        That Stripe account is already connected to another business on this platform.
+      <% } else if (error === 'platform_org') { %>
+        This account bills through the platform Stripe account and can't be reconnected.
+      <% } else { %>
+        Could not connect Stripe: <%= error %>
+      <% } %>
+    </div>
+  <% } %>
+
+  <div class="card mb-4">
+    <div class="card-body">
+      <% if (isPlatform) { %>
+        <h2 class="h6">Billing through the platform account</h2>
+        <p class="text-muted mb-0">
+          Payments for this business settle directly through the platform's own Stripe
+          account. Nothing to configure here.
+        </p>
+
+      <% } else if (connected) { %>
+        <h2 class="h6 d-flex align-items-center gap-2">
+          <span class="badge bg-success">Connected</span>
+          <%= org.stripe_account_name || 'Your Stripe account' %>
+        </h2>
+        <p class="text-muted">
+          Customer payments go straight to your own Stripe account
+          (<code><%= org.stripe_account_id %></code>), connected
+          <%= org.stripe_connected_at ? new Date(org.stripe_connected_at).toLocaleDateString() : '' %>.
+          Payouts, processing fees, and disputes are handled in your own Stripe dashboard.
+        </p>
+        <form method="POST" action="<%= basePath %>/admin/settings/payments/disconnect" id="disconnect-form">
+          <button type="submit" class="btn btn-outline-danger btn-sm">Disconnect Stripe</button>
+        </form>
+        <div class="form-text mt-2">
+          Disconnecting pauses new payments. Your existing payment history stays intact,
+          and nothing changes inside your Stripe account.
+        </div>
+
+      <% } else { %>
+        <h2 class="h6"><span class="badge bg-secondary">Not connected</span> Connect your Stripe account</h2>
+        <p class="text-muted">
+          Connect Stripe to collect deposits and invoice payments. Money goes directly to
+          your bank account — we never hold your funds and never see your Stripe keys.
+          You'll be sent to Stripe to approve the connection, then brought back here.
+        </p>
+        <% if (!configured) { %>
+          <div class="alert alert-warning mb-0">Stripe Connect isn't configured on this server yet.</div>
+        <% } else { %>
+          <form method="POST" action="<%= basePath %>/admin/settings/payments/connect">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-box-arrow-up-right"></i> Connect with Stripe
+            </button>
+          </form>
+        <% } %>
+      <% } %>
+    </div>
+  </div>
+
+  <a class="btn btn-outline-secondary" href="<%= basePath %>/admin/settings">Back to Settings</a>
+</div>
+
+<%
+  // Confirmation lives here rather than an inline onsubmit attribute — the CSP's
+  // script-src-attr 'none' silently no-ops inline handlers (see CLAUDE.md).
+%>
+<script nonce="<%= cspNonce %>">
+  document.addEventListener('DOMContentLoaded', function () {
+    var form = document.getElementById('disconnect-form');
+    if (!form) return;
+    form.addEventListener('submit', function (e) {
+      if (!confirm('Disconnect Stripe? New customer payments will be paused until you reconnect.')) {
+        e.preventDefault();
+      }
+    });
+  });
+</script>
+<%- include('../partials/footer') %>

@@ -15,6 +15,7 @@
 const db = require('../config/db');
 const scopedDb = require('../config/scopedDb');
 const stripe = require('../config/stripe');
+const { paymentContext } = require('./stripeAccounts');
 
 // Stripe refund.status can also be 'requires_action'; anything we don't model as a
 // terminal state is treated as still-pending (won't count toward amount_refunded).
@@ -51,7 +52,11 @@ async function reconcileRefunds({ chargeId, paymentIntentId }) {
     );
   }
 
-  const list = await stripe.refunds.list({ charge: cid, limit: 100 });
+  // The charge lives on whichever Stripe account this org bills through — for a connected
+  // tenant it isn't visible on the platform account at all, so the lookup must be scoped
+  // or it 404s. See services/stripeAccounts.js.
+  const { options } = await paymentContext(orgId);
+  const list = await stripe.refunds.list({ charge: cid, limit: 100 }, options);
 
   const conn = await sdb.getConnection();
   try {
