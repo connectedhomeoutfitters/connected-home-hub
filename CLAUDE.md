@@ -996,6 +996,46 @@ with a confusing OAuth error. Verify with
 A throwaway tenant exists on the test DB for this: org 6 "Sandbox Test Contracting",
 login `sandbox@example.test` / `SandboxTest!2026`. The weekly prod→test sync will remove it.
 
+### Phase 5a — Hub → Ledger bookkeeping sync (2026-08-14)
+
+The differentiated feature: *"run your jobs in Hub and your books fill themselves in
+Ledger."* When a tenant's customer pays an invoice, Hub posts it into that tenant's Ledger
+**Business Workspace** as a business income transaction. Neither Housecall Pro nor
+QuickBooks does this alone; it only works because the two products share an owner.
+
+- **`036_ledger_bookkeeping_sync.sql`** adds `orgs.ledger_sync_enabled` (per-tenant
+  opt-out, default ON) and `invoices.ledger_synced_at` / `ledger_transaction_id` so a Hub
+  payment can be traced to the exact bookkeeping entry.
+- **`services/ledgerSync.js`** — `pushPaidInvoice(orgId, invoiceId)` POSTs to Ledger's
+  `/integrations/hub/transactions` with the shared `LEDGER_SSO_SECRET`. Called from the
+  `payment_intent.succeeded` handler **inside the `firstTime` branch**, so it inherits the
+  same idempotency latch as the receipt email, and **deliberately not awaited** — Ledger
+  being down must never delay or fail reconciling a payment. It swallows its own errors;
+  an unsynced invoice is recoverable via `backfillOrg(orgId)`.
+- **Posts NET of refunds**, summing `payments.amount − amount_refunded` rather than the
+  invoice total, so a partly-refunded job doesn't overstate the contractor's income.
+- **Only linked orgs sync.** No `ledger_workspace_id` (a standalone Hub customer) → no
+  target, refused. `LEDGER_URL` selects the environment.
+- **Idempotency is doubled**: Hub skips anything already stamped, and Ledger dedups
+  independently on `import_hash = sha256('cho-hub:invoice:<org>:<invoice>')`. That matters
+  because Ledger's `idx_import_hash` is a **plain index, not unique** — so the insert there
+  is a single atomic `INSERT … SELECT … WHERE NOT EXISTS`, not a racy SELECT-then-INSERT.
+  It also reuses the existing CSV-importer convention (`import_hash`/`import_source`)
+  rather than inventing a second dedup mechanism.
+- **Verified end to end across both databases** (20 checks): amount, income type, correct
+  workspace, correct category, attribution to the workspace owner, Hub's stamp, local
+  short-circuit, Ledger-side dedup when the local stamp is cleared, exactly one transaction
+  for a repeated push, net-of-refunds, opt-out, backfill, and an unlinked org refused.
+
+**Known gap:** a refund issued *after* the invoice synced does **not** adjust the Ledger
+transaction — the income stays at the amount posted. Fixing it needs a decision about
+whether to post a negative income row or an offsetting expense, which is Ledger's
+bookkeeping semantics rather than Hub's; deliberately left open rather than guessed at.
+
+**Phase 5b (NOT built): the paid Hub add-on.** `config/hubAccess.js` in Ledger still gates
+on `plan === 'premium'` as a proxy. Making Hub a real add-on means its own Stripe price, a
+subscription-item lookup replacing that plan check, and a pricing/upgrade surface.
+
 **Two things that must not be forgotten later:**
 1. **Stripe Connect is required before a second tenant can take payments.**
    `routes/portal.js:246` creates PaymentIntents on *our* account — another contractor's

@@ -6,6 +6,7 @@ const scopedDb = require('../config/scopedDb');
 const stripe = require('../config/stripe');
 const { setEntitlement } = require('../services/orgProvisioning');
 const { paymentContext } = require('../services/stripeAccounts');
+const { pushPaidInvoice } = require('../services/ledgerSync');
 const { sendMail } = require('../services/mailer');
 const { getCompany } = require('../services/companySettings');
 const { reconcileRefunds } = require('../services/paymentsSync');
@@ -160,6 +161,13 @@ router.post('/stripe', express.raw({ type: 'application/json' }), async (req, re
           template: 'payment-receipt',
           data: { customerName: invoice.customer_name, amount: invoice.amount, invoiceType: invoice.type },
         });
+
+        // Post the income into the tenant's Connected Home Ledger books. Deliberately NOT
+        // awaited: Ledger being slow or down must not delay (or fail) reconciling a
+        // payment here. It swallows its own errors, and an unsynced invoice is
+        // recoverable via ledgerSync.backfillOrg(). Sits inside the `firstTime` branch, so
+        // it inherits the same idempotency latch as the receipt email.
+        pushPaidInvoice(orgId, invoice.id);
       }
     } catch (err) {
       await conn.rollback();
