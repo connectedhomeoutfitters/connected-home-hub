@@ -28,6 +28,28 @@ sits on `app.`.
 Deploys to the same Hostinger VPS that hosts Connected Home Ledger, but as its **own
 PM2 process, own nginx server block, and own database** (see "Deployment" below).
 
+**Product name: `ConnectedWorkOS`** (one word, matching the domain) — this is the name
+shown to users, and it replaced "CHO Hub" / "Connected Home Hub" in tenant-facing copy on
+2026-08-14. **Internal names were deliberately NOT renamed**: `cho-hub` is still the repo,
+the PM2 process, the database, the `metadata.source` Stripe tag, and the SSO/bookkeeping
+wire payloads. Renaming those means coordinated changes across two apps, a Stripe tag the
+webhook filters on, and a shared-secret integration — churn with real blast radius and no
+user benefit. So: **user-facing text says ConnectedWorkOS; anything a machine reads says
+cho-hub.** Places carrying the user-facing name today: `views/landing.ejs`,
+`views/auth/login.ejs`, `views/sso-error.ejs`, `views/partials/head.ejs` (default title),
+the four SSO denial messages in `routes/sso.js`, the transaction note in
+`services/ledgerSync.js`, and — over in Ledger — the Field Operations card in
+`views/workspace/index.ejs` plus the inbound-payment fallback description in
+`routes/integrations/hub.js`.
+
+**Cross-product link back to Ledger**: the admin nav renders a "Connected Home Ledger"
+link **only for orgs with a `ledger_workspace_id`** — a standalone Hub tenant has no
+Ledger to return to. The linked flag rides along on `middleware/branding.js`'s existing
+per-org 60s-cached lookup, so it costs no extra query per request, and `res.locals.
+ledgerUrl` is set there unconditionally (a missing value would throw in the partial rather
+than emit a broken link). Defined once in `views/partials/nav.ejs` and rendered into both
+the desktop sidebar and the mobile offcanvas, per that file's existing no-drift rule.
+
 ---
 
 ## Product vision (scope is bigger than what's currently built)
