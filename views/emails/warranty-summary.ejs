@@ -4,7 +4,7 @@
   <%- include('_header') %>
   <p>Hi <%= customerName %>,</p>
   <p>Your project<%= projectTitle ? ' — <strong>' + projectTitle + '</strong>' : '' %> is complete. Thank you for choosing
-     Connected Home Outfitters!</p>
+     <%= appName %>!</p>
 
   <% if (warranties && warranties.length) { %>
     <p>For your records, here is your warranty documentation:</p>
