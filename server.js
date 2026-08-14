@@ -46,6 +46,12 @@ app.use(
         scriptSrc: ["'self'", 'https://js.stripe.com', (req, res) => `'nonce-${res.locals.cspNonce}'`],
         frameSrc: ["'self'", 'https://js.stripe.com', 'https://hooks.stripe.com'],
         connectSrc: ["'self'", 'https://api.stripe.com'],
+        // Stripe Connect's OAuth handoff is a same-origin form POST that 302s out to
+        // connect.stripe.com, and Chrome enforces form-action ACROSS REDIRECTS — so
+        // helmet's default `form-action 'self'` silently refuses the navigation and the
+        // "Connect with Stripe" button appears to do nothing at all (no error, nothing in
+        // the console). Same family as the script-src / script-src-attr gotchas above.
+        formAction: ["'self'", 'https://connect.stripe.com'],
       },
     },
   })
