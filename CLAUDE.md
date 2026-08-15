@@ -791,9 +791,34 @@ order:
    **Still outstanding from this move:** **re-seal the secrets vault** — `secrets.vault`
    holds every environment's `.env` and two of them just changed, so it is now stale.
    Needs the owner's passphrase (not recoverable, in their password manager).
-2. **Hub needs its own logo.** `public/img/logo.png` is the DEFAULT every tenant sees until
-   they upload their own — so an unbranded contractor's portal and invoice PDFs currently
-   carry Connected Home Outfitters' mark. The default must be a neutral product logo.
+2. **Hub's own logo — DONE 2026-08-14.** `public/img/logo.png` is now the ConnectedWorkOS
+   product mark (1024×384, 279 KB, tagline-free variant — the app has a single logo slot
+   that must work from the 28px offcanvas to the 240px PDF, and the tagline version turns
+   to mush in the mobile bar).
+
+   **The sequencing is the part worth remembering.** Org 1 (CHO) had *no* uploaded logo and
+   was itself rendering this default, so swapping it first would have rebranded CHO's own
+   live customer portal, emails and estimate PDFs. Correct order, and the order to reuse
+   for any future default-asset change: **upload the incumbent's logo as their own tenant
+   logo first** (Settings → Company → `uploads/logos/<org>/`), confirm it serves from
+   `/branding/<org>/logo`, *then* replace the bundled default. Verified end state:
+   anonymous visitors get `/img/logo.png` (product mark, `alt="ConnectedWorkOS"`), org 1
+   gets `/branding/1/logo` (CHO's mark) — two different files, both 200.
+
+   **Gotcha #9 re-checked against the new file before installing** — it is clean: zero
+   opaque-black pixels (that was the *previous* logo's actual defect), genuinely
+   transparent background, a blue glow that composites to `rgb(242,244,247)` on white
+   rather than grey, and pdfkit emits a proper alpha `/SMask` for it. Worth repeating that
+   check on any replacement: decode the pixels, don't trust a viewer, which composites
+   transparency against black and makes a clean logo look like it has a black background.
+
+   **Testing trap:** you cannot check the *default* logo while signed in as staff — a
+   staff session gives `orgContext` an org, so even `/portal/login` correctly renders that
+   org's branding. Use `curl` with no cookies (or a logged-out profile) to see what an
+   anonymous visitor actually gets.
+
+   **Still hardcoded:** `public/img/favicon.png` is the old CHO icon — no ConnectedWorkOS
+   favicon exists yet.
 3. **Landing-page labels.** "Staff sign-in" is ambiguous once there are many companies —
    staff of *whom?* Proposed: **Company sign-in** / **Subcontractor sign-in** /
    **Customer sign-in**, each with a one-line "who this is for".
