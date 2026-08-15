@@ -1450,16 +1450,48 @@ cert. Ledger was verified untouched throughout (its `chl` PM2 process kept its u
 - **PM2 persistence:** `pm2 save` done and `pm2-deploy.service` is enabled, so both apps
   resurrect on reboot. After changing which processes run, re-run `pm2 save`.
 - **nginx safety:** the one shared blast-radius surface. **Always `nginx -t` before any
-  reload** — a bad reload hits Ledger too. Hub owns two server blocks in
-  `/etc/nginx/sites-available/` (both symlinked into `sites-enabled/`, reference copies
-  of both in this repo's `nginx/`):
+  reload** — a bad reload hits Ledger too. Hub owns three server blocks in
+  `/etc/nginx/sites-available/` (all symlinked into `sites-enabled/`, reference copies in
+  this repo's `nginx/`):
   - `app.connectedworkos.com` — the real app, proxying to `127.0.0.1:3100`, with
     `client_max_body_size 25M` for consultation-photo / subcontractor-doc uploads.
+  - `connectedworkos.com` — the **static marketing site**, served straight from
+    `/var/www/cho-hub/marketing` with no process behind it. `www` has its own TLS block
+    that only 301s to the apex; that required removing `www` from the apex block's
+    `server_name`, and **certbot may re-add it on a future `--nginx` run**, which would
+    silently stop the redirect matching.
   - `hub.connectedhomeoutfitters.com` — **redirect only**, `return 301
     https://app.connectedworkos.com$request_uri`. Do not delete it: access-token and
     magic-link URLs carry their token in the *path* (`/e/:token`, `/i/:token`), and
     already-delivered emails point at the old host. `$request_uri` preserves path *and*
     query string, which Stripe's `/i/:token/next-steps` return needs.
+
+- **NEVER hand-write a replacement for an nginx reference file — re-pull the live one,
+  edit that, push it back.** Cost an HTTPS outage on 2026-08-15: the repo's copy of
+  `connectedworkos.com.conf` had been written *before* certbot ran, so it contained only
+  the port-80 block. Pushing it to change one gzip line **deleted the 443 server block**;
+  HTTPS then fell through to another vhost, served the wrong certificate, and Google
+  Search Console reported *"Page fetch: Failed: Robots.txt unreachable"* within minutes.
+  **`nginx -t` passed the whole time** — a vhost with no TLS block is valid config, so
+  there is nothing but a real request to catch it. Recovery is
+  `certbot --nginx -d <domain> --reinstall --redirect` (the certificate itself survives).
+  Worse than a normal blip because of how Google reacts: an **unreachable** robots.txt is
+  not treated like a 404 (which means "crawl freely") — it fails safe to "crawl nothing"
+  and **caches that for ~24h**, so a short outage suppresses indexing for a day.
+
+- **SEO / indexing split — the two hosts are opposites, deliberately:**
+  - `connectedworkos.com` is the surface meant to rank: `marketing/robots.txt` allows
+    everything and points at `marketing/sitemap.xml` (static; regenerate if it ever grows
+    past a few pages).
+  - `app.connectedworkos.com` must stay **out of the index, as a privacy control rather
+    than an SEO preference** — it serves customers' estimates and invoices at
+    `/e/:token` / `/i/:token`, and single-use magic links at `/portal/verify/:token`. An
+    indexed token URL is a leaked document, and a crawler fetching a verify link burns it.
+    `server.js` sets `X-Robots-Tag: noindex, nofollow` on **every** response (globally,
+    before `express.static`, because the failure mode of missing one route is a customer
+    document in Google) and `public/robots.txt` disallows crawling outright. The two
+    overlap on purpose: blocking the crawl means the crawler cannot read the noindex
+    header, so each covers what the other cannot.
 - **TLS:** each host has its own certbot cert (auto-renew installed) — Ledger's untouched.
   `certbot --nginx -d app.connectedworkos.com` for the app;
   the old `hub.connectedhomeoutfitters.com` cert **must keep renewing** even though that
