@@ -20,6 +20,11 @@
 <div class="container">
   <h1 class="h3 mb-4">Dashboard</h1>
 
+  <%# Only while there is something outstanding and it hasn't been hidden. %>
+  <% if (locals.setup && setup.show) { %>
+    <%- include('partials/setup-checklist', { setup }) %>
+  <% } %>
+
   <div class="row g-3 mb-4">
     <%- statTile('bi-person-plus', stats.newLeads, 'New Leads', `${basePath}/admin/leads`) %>
     <%- statTile('bi-clipboard-check', stats.draftConsultations, 'Consultations Scheduled', `${basePath}/admin/consultations`) %>

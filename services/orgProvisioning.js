@@ -124,6 +124,21 @@ async function findOrCreateOrg(payload) {
      VALUES (?, ?, 'active', ?, ?, ?, NOW())`,
     [name, slug, payload.workspaceId, payload.ledgerUserId || null, ledger_plan]
   );
+  // Seed the tenant's company_settings with their own name straight away.
+  //
+  // Without this the row simply does not exist, and services/companySettings.js falls back
+  // to a default — so a brand-new contractor's estimate PDFs, the From name on their
+  // customer emails, and the interpolated legal terms would all carry somebody else's
+  // company. That is the first thing their customers would see.
+  //
+  // Only company_name is seeded: it is the one field we can know from the Ledger workspace.
+  // Address, phone, tax id and logo stay empty for them to fill in, which is what the
+  // first-run setup checklist asks for.
+  await db.execute(
+    'INSERT INTO company_settings (org_id, company_name) VALUES (?, ?)',
+    [res.insertId, name]
+  );
+
   const [rows] = await db.execute('SELECT * FROM orgs WHERE id = ?', [res.insertId]);
   return { ...rows[0], created: true };
 }

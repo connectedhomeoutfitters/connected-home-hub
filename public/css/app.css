@@ -199,3 +199,42 @@ body {
 .cho-ev-followup     { background: #fff3cd; color: #664d03; }
 .cho-ev-other        { background: #e2e3e5; color: #41464b; }
 .cho-ev-due          { background: #fff; color: #6c757d; border: 1px dashed #adb5bd; }
+
+/* ── First-run setup checklist (dashboard card + /welcome) ────────────────────
+   Shared by both surfaces so they can't drift. Quiet by design: it is scaffolding
+   a tenant should stop seeing, not a permanent feature of the dashboard. */
+.cho-setup__count { font-size: .8rem; color: var(--cho-muted, #7A7A7A); }
+.cho-setup__bar {
+  height: 4px; border-radius: 2px; background: #e9eef2; overflow: hidden; margin-bottom: 1rem;
+}
+.cho-setup__bar span { display: block; height: 100%; background: var(--cho-accent); transition: width .3s ease; }
+
+.cho-setup__list { list-style: none; margin: 0; padding: 0; }
+.cho-setup__item {
+  display: flex; align-items: flex-start; gap: .75rem;
+  padding: .8rem 0; border-top: 1px solid #eef2f5;
+}
+.cho-setup__item:first-child { border-top: 0; }
+.cho-setup__item > i { font-size: 1.1rem; line-height: 1.4; color: #c3ced6; flex: 0 0 auto; }
+.cho-setup__item.is-done > i { color: #1a9e63; }
+.cho-setup__item.is-done .cho-setup__title { color: var(--cho-muted, #7A7A7A); text-decoration: line-through; }
+.cho-setup__item.is-done .cho-setup__body { display: none; }
+
+.cho-setup__text { flex: 1 1 auto; min-width: 0; }
+.cho-setup__title { display: block; font-weight: 600; font-size: .95rem; }
+.cho-setup__body { display: block; font-size: .85rem; color: var(--cho-muted, #7A7A7A); margin-top: .15rem; }
+.cho-setup__item .btn { flex: 0 0 auto; align-self: center; }
+
+.cho-setup__opt, .cho-setup__block {
+  display: inline-block; margin-left: .4rem; padding: .05rem .4rem; border-radius: 3px;
+  font-size: .68rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em;
+  vertical-align: middle;
+}
+.cho-setup__opt   { background: #eef2f5; color: #7A7A7A; }
+/* "blocks payments" is the only genuinely urgent state here, so it is the only one that
+   gets a warning colour. */
+.cho-setup__block { background: #fdecea; color: #b3261e; }
+
+.cho-welcome__flow { margin: 0; padding-left: 1.15rem; }
+.cho-welcome__flow li { margin-bottom: .4rem; font-size: .95rem; }
+.cho-welcome__flow li:last-child { margin-bottom: 0; }

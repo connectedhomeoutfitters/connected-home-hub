@@ -1,0 +1,42 @@
+<%# Dashboard first-run checklist. Rendered only while something is still outstanding and
+    the tenant hasn't dismissed it — see services/setupStatus.js, which derives every item
+    from real data rather than a "completed onboarding" flag. %>
+<div class="card mb-4 cho-setup">
+  <div class="card-body">
+    <div class="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-3">
+      <div>
+        <h2 class="h5 mb-1">Finish setting up <%= setup.orgName %></h2>
+        <p class="text-muted small mb-0">A few things to do before you send your first quote.</p>
+      </div>
+      <div class="text-end">
+        <span class="cho-setup__count"><%= setup.done %> of <%= setup.total %> done</span>
+        <form method="POST" action="<%= basePath %>/setup/dismiss" class="d-inline">
+          <button type="submit" class="btn btn-link btn-sm text-muted p-0 ms-2">Hide</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="cho-setup__bar" aria-hidden="true">
+      <span style="width: <%= Math.round((setup.done / setup.total) * 100) %>%"></span>
+    </div>
+
+    <ul class="cho-setup__list">
+      <% setup.items.forEach(function (item) { %>
+        <li class="cho-setup__item<%= item.done ? ' is-done' : '' %>">
+          <i class="bi <%= item.done ? 'bi-check-circle-fill' : 'bi-circle' %>"></i>
+          <div class="cho-setup__text">
+            <span class="cho-setup__title">
+              <%= item.title %>
+              <% if (item.optional && !item.done) { %><span class="cho-setup__opt">optional</span><% } %>
+              <% if (item.blocking && !item.done) { %><span class="cho-setup__block">blocks payments</span><% } %>
+            </span>
+            <span class="cho-setup__body"><%= item.body %></span>
+          </div>
+          <% if (!item.done) { %>
+            <a class="btn btn-sm btn-outline-primary" href="<%= basePath %><%= item.href %>"><%= item.cta %></a>
+          <% } %>
+        </li>
+      <% }); %>
+    </ul>
+  </div>
+</div>

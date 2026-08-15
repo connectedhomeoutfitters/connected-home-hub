@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const { requireAuth } = require('../middleware/auth');
+const { getSetupStatus, markWelcomed, dismissSetup } = require('../services/setupStatus');
 
 // Public landing for anyone not signed in as staff — explains what CHO Hub is and offers
 // the two entry points (staff login / customer portal). Logged-in staff fall through to
@@ -51,10 +53,32 @@ router.get('/', async (req, res, next) => {
         pendingInvoices, pendingInvoicesTotal, totalCustomers, openJobs,
       },
       recentLeads, recentEstimates, recentConsultations,
+      setup: await getSetupStatus(req.orgId),
     });
   } catch (err) {
     next(err);
   }
+});
+
+// One-time guided intro for a tenant arriving from Ledger for the first time.
+// routes/sso.js sends them here while orgs.welcomed_at is NULL; stamping it on arrival
+// means they see it once and can leave whenever they like.
+router.get('/welcome', requireAuth, async (req, res, next) => {
+  try {
+    const setup = await getSetupStatus(req.orgId);
+    if (!setup) return res.redirect(`${res.locals.basePath}/`);
+    await markWelcomed(req.orgId);
+    res.render('welcome', { pageScript: null, setup });
+  } catch (err) { next(err); }
+});
+
+// Hide the dashboard checklist. Not "mark setup complete" — the items keep deriving from
+// real data, so unhiding it later still shows the truth.
+router.post('/setup/dismiss', requireAuth, async (req, res, next) => {
+  try {
+    await dismissSetup(req.orgId);
+    res.redirect(`${res.locals.basePath}/`);
+  } catch (err) { next(err); }
 });
 
 module.exports = router;

@@ -7,7 +7,10 @@
 const path = require('path');
 const scopedDb = require('../config/scopedDb');
 
-const DEFAULT_NAME = 'Connected Home Outfitters LLC';
+// Last-resort only. Any org that has not filled in Settings -> Company should fall back
+// to its OWN name (see getCompany), never to another tenant's — this string exists purely
+// so something renders if even the orgs row has no name.
+const DEFAULT_NAME = 'Your Company';
 const DEFAULT_ACCENT = '#0799D6'; // matches :root --cho-accent in app.css / portal.css
 
 const BASE_PATH = process.env.BASE_PATH || '';
@@ -25,7 +28,17 @@ function safeAccent(value) {
 
 async function getCompany(orgId) {
   const db = scopedDb(orgId);
-  const [rows] = await db.execute('SELECT * FROM company_settings WHERE org_id = ?', [orgId]);
+  // Joined to orgs so an org with no settings row still falls back to its own name.
+  // Provisioning seeds company_name now, but orgs created before that (and the throwaway
+  // test tenants) have no row, and rendering a rival contractor's name on their customer
+  // documents is the worst possible default.
+  const [rows] = await db.execute(
+    `SELECT cs.*, o.name AS org_name
+       FROM orgs o
+       LEFT JOIN company_settings cs ON cs.org_id = o.id
+      WHERE o.id = ?`,
+    [orgId]
+  );
   const s = rows[0] || {};
   const trimmed = (v) => (v && String(v).trim()) || null;
 
@@ -37,7 +50,7 @@ async function getCompany(orgId) {
 
   return {
     org_id: orgId,
-    company_name: trimmed(s.company_name) || DEFAULT_NAME,
+    company_name: trimmed(s.company_name) || trimmed(s.org_name) || DEFAULT_NAME,
     tax_id: trimmed(s.tax_id),
     address: trimmed(s.address),
     phone: trimmed(s.phone),

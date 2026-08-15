@@ -96,7 +96,8 @@ router.get('/ledger', ssoLimiter, async (req, res, next) => {
       if (err) return next(err);
       req.login(user, (loginErr) => {
         if (loginErr) return next(loginErr);
-        res.redirect(`${res.locals.basePath}/`);
+        // First arrival from Ledger gets the guided intro; everyone else the dashboard.
+        res.redirect(`${res.locals.basePath}${org.welcomed_at ? '/' : '/welcome'}`);
       });
     });
   } catch (err) {
