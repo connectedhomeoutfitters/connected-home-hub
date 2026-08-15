@@ -39,23 +39,25 @@
 </head>
 <body>
 
-<div class="field field--glow">
-  <header class="masthead">
-    <div class="wrap masthead__row">
-      <!-- Title block: the white nameplate a real drawing carries in its corner. It also
-           earns its keep — the wordmark's dark navy is nearly the value of the field
-           behind it, so on the blueprint alone it disappears. -->
-      <a class="masthead__plate" href="/" aria-label="ConnectedWorkOS home">
-        <img class="masthead__logo" src="/img/logo.png" alt="ConnectedWorkOS" width="1024" height="384">
-      </a>
-      <nav class="masthead__links" aria-label="Primary">
-        <a href="#run">How it works</a>
-        <a href="#books">Bookkeeping</a>
-        <a href="https://app.connectedworkos.com/login">Sign in</a>
-      </nav>
-    </div>
-  </header>
+<!-- The masthead is its own white band rather than sitting on the blueprint. The
+     wordmark's "CONNECTED" is dark navy, within a few points of the field's own value,
+     so it needs a light ground — and a full-width band reads as the page's own header
+     instead of a plate stuck onto the artwork. .field--fade then dissolves that white
+     into the blueprint so there is no hard seam between them. -->
+<header class="masthead">
+  <div class="wrap masthead__row">
+    <a class="masthead__brand" href="/" aria-label="ConnectedWorkOS home">
+      <img class="masthead__logo" src="/img/logo.png" alt="ConnectedWorkOS" width="1024" height="384">
+    </a>
+    <nav class="masthead__links" aria-label="Primary">
+      <a href="#run">How it works</a>
+      <a href="#books">Bookkeeping</a>
+      <a href="https://app.connectedworkos.com/login">Sign in</a>
+    </nav>
+  </div>
+</header>
 
+<div class="field field--glow field--fade">
   <section class="hero">
     <div class="wrap">
       <p class="eyebrow">Operating system for your connected business</p>

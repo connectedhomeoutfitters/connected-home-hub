@@ -104,34 +104,50 @@ h3 { font-size: clamp(1.25rem, 1.1rem + 0.7vw, 1.5rem); letter-spacing: 0.01em; 
   height: 90%;
   background: radial-gradient(60% 60% at 30% 40%, rgba(43, 212, 232, 0.16), transparent 70%);
   pointer-events: none;
+  z-index: 0;
 }
-.field > * { position: relative; z-index: 1; }
+
+/* Dissolves the white masthead band into the blueprint so the two meet without a seam.
+   Layering is explicit because ::after paints after ::before by default, which would let
+   the cyan glow tint the white it is supposed to be fading from. */
+.field--fade::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: clamp(90px, 12vw, 158px);
+  /* Multi-stop rather than white-to-transparent: a two-stop fade over a dark ground
+     reads as a flat grey band, because alpha falls off linearly while perceived
+     lightness does not. These stops approximate an ease-out. */
+  background: linear-gradient(180deg,
+    #fff 0%,
+    rgba(255, 255, 255, 0.94) 16%,
+    rgba(255, 255, 255, 0.76) 32%,
+    rgba(255, 255, 255, 0.48) 52%,
+    rgba(255, 255, 255, 0.22) 72%,
+    rgba(255, 255, 255, 0.06) 88%,
+    rgba(255, 255, 255, 0) 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+.field > * { position: relative; z-index: 2; }
 
 /* ── Header ───────────────────────────────────────────────────────────────── */
 
-.masthead { padding: 1.5rem 0; }
-.masthead__row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
-
-/* Title block — the white nameplate a real drawing carries in its corner, which is also
-   the only honest way to show this wordmark here: its "CONNECTED" is dark navy, within a
-   few points of the blueprint field's own value, so on the field alone it sinks into the
-   background. On white it is already proven to read. */
-.masthead__plate {
-  display: inline-block;
-  background: #fff;
-  padding: 0.55rem 0.85rem;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 2px;
-  line-height: 0;
-}
-.masthead__logo { width: clamp(180px, 28vw, 236px); }
+/* White band across the full width, so the wordmark sits on its own ground rather than
+   on a plate pasted over the artwork. */
+.masthead { background: #fff; padding: 1.35rem 0 1.15rem; }
+.masthead__row { display: flex; align-items: center; justify-content: space-between; gap: 1rem 2rem; flex-wrap: wrap; }
+.masthead__brand { display: inline-block; line-height: 0; }
+.masthead__logo { width: clamp(190px, 30vw, 258px); }
 .masthead__links { display: flex; align-items: center; gap: clamp(1rem, 3vw, 2rem); font-family: var(--font-mono); font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; }
-.masthead__links a { color: #a9c6dc; text-decoration: none; }
-.masthead__links a:hover { color: #fff; }
+.masthead__links a { color: var(--ink-soft); text-decoration: none; }
+.masthead__links a:hover { color: var(--bp-600); }
 
 /* ── Hero ─────────────────────────────────────────────────────────────────── */
 
-.hero { padding: clamp(3rem, 7vw, 6rem) 0 clamp(3.5rem, 8vw, 7rem); }
+/* Top padding must clear .field--fade, or the cyan eyebrow lands on the still-light part
+   of the gradient and drops to unreadable contrast. */
+.hero { padding: clamp(6.25rem, 14vw, 10.5rem) 0 clamp(3.5rem, 8vw, 7rem); }
 .hero h1 { max-width: 15ch; color: #fff; text-wrap: balance; }
 .hero h1 em { font-style: normal; color: var(--cyan); }
 .hero__lede { max-width: 58ch; margin: 1.75rem 0 0; color: #bdd5e7; }
