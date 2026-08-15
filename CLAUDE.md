@@ -1159,9 +1159,40 @@ transaction — the income stays at the amount posted. Fixing it needs a decisio
 whether to post a negative income row or an offsetting expense, which is Ledger's
 bookkeeping semantics rather than Hub's; deliberately left open rather than guessed at.
 
-**Phase 5b (NOT built): the paid Hub add-on.** `config/hubAccess.js` in Ledger still gates
-on `plan === 'premium'` as a proxy. Making Hub a real add-on means its own Stripe price, a
-subscription-item lookup replacing that plan check, and a pricing/upgrade surface.
+**Phase 5b — DONE 2026-08-15: ConnectedWorkOS is the Business+ tier.** Ledger's
+`config/hubAccess.js` now gates on `plan === 'business_plus'` ($29/mo, $290/yr) instead of
+`'premium'`, so the field-ops product is no longer bundled into the $19 household tier.
+The ADR assumed an à-la-carte add-on; **Business+ reaches the same end — a real Stripe
+price and a real upgrade surface — without subscription items, proration, or a second
+billing axis.** Business+ already existed as a "Coming Soon" placeholder on both pricing
+surfaces, positioned for exactly this. Revisit only if Hub is ever sold to someone who
+does not want Ledger's books. Premium still gates the Business Workspace itself: **Premium
+is where the books live, Business+ is where the jobs run.**
+
+Ledger-side changes: migration `042` (its `users.plan` is an **ENUM** — the value must
+exist before any code can write it), `config/plans.js`, `config/prices.js` (new — the
+price→plan map was in three copies plus a fourth for billing interval), Business+ cards on
+`views/pricing.ejs` + `views/for-business.ejs`, a ConnectedWorkOS section on for-business,
+and `/pricing` made public.
+
+**Two traps this hit, both worth remembering:**
+- **`PLAN_ORDER` is a separate list from `config/plans.js`.** Adding a plan to plans.js
+  without adding it to `middleware/auth.js`'s `PLAN_ORDER` gives it
+  `indexOf === -1`, ranking the **top** tier **below `free`** — every `requirePlan` gate
+  fails closed, and the subscriber loses features they are paying for. Upgrading the owner
+  to Business+ locked them out of their own Business Workspace, which then offered to
+  "Upgrade to Premium". There is now a shared `planAtLeast()` (also a view local) because
+  several places hand-rolled `plan !== 'premium'`, which treats a *higher* tier as
+  insufficient.
+- **Ledger has no migration runner.** `npm run migrate` points at a `migrations/run.js`
+  that does not exist in the repo, and there is no `schema_migrations` table — unlike Hub.
+  Ledger migrations are applied **by hand**: `mysql chl_db < migrations/NNN.sql` as root
+  on the VPS. Back up first; `/var/backups/chl/` holds a pre-change `users` dump.
+
+**Still to do:** the Stripe prices for Business+ do not exist yet, so the card renders a
+disabled "Coming Soon" (deliberate — a missing env var must never produce a checkout
+button that 400s). Create them, then set `STRIPE_PRICE_BUSINESS_PLUS_MONTHLY` /
+`_ANNUAL` on the VPS and restart `chl`.
 
 **Two things that must not be forgotten later:**
 1. **Stripe Connect is required before a second tenant can take payments.**
