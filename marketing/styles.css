@@ -140,8 +140,16 @@ h3 { font-size: clamp(1.25rem, 1.1rem + 0.7vw, 1.5rem); letter-spacing: 0.01em; 
 .masthead__brand { display: inline-block; line-height: 0; }
 .masthead__logo { width: clamp(190px, 30vw, 258px); }
 .masthead__links { display: flex; align-items: center; gap: clamp(1rem, 3vw, 2rem); font-family: var(--font-mono); font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; }
-.masthead__links a { color: var(--ink-soft); text-decoration: none; }
-.masthead__links a:hover { color: var(--bp-600); }
+/* Both states sit dark on the white band. Because they are close in value, hover carries
+   its affordance with an underline rather than relying on the colour shift alone. */
+.masthead__links a { color: var(--ink); text-decoration: none; }
+.masthead__links a:hover,
+.masthead__links a:focus-visible {
+  color: var(--bp-700);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+}
 
 /* ── Hero ─────────────────────────────────────────────────────────────────── */
 
