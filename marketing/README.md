@@ -28,7 +28,9 @@ Consequences worth knowing:
 | `index.html` | The whole page. Single file, semantic sections, JSON-LD for search. |
 | `styles.css` | All styling. Design tokens are at the top in `:root`. |
 | `img/logo.png` | Same ConnectedWorkOS mark the app uses as its default logo. |
-| `img/favicon.png` | **Still the old Connected Home Outfitters icon** — replace when a ConnectedWorkOS favicon exists. |
+| `img/favicon.png` | 256px app icon, generic fallback. |
+| `img/favicon-32.png` | 32px — what a browser tab actually renders on a 2× display. |
+| `img/apple-touch-icon.png` | 180px, iOS home screen. |
 
 ## Design notes
 
@@ -50,6 +52,13 @@ step, drawn from the pin-and-trace motif in the logo. Each step is given its own
 the first row and the sequence reads as two parallel columns instead of one line.
 
 ## Editing copy
+
+**Audience: small service businesses generally** — lawn care, repair and handyman, HVAC,
+plumbing, electrical, cleaning, pest control, appliance repair, pool, pressure washing.
+Deliberately **not** pitched at smart-home / low-voltage / AV: that is Connected Home
+Outfitters' own market, and this page would be advertising to its owner's competitors.
+Keep new copy trade-neutral — say "quote", "job", "price list", "materials", not
+"install", "rough-in" or "structured wiring".
 
 Every claim on this page describes something that is actually built. If you add a claim,
 check it against `CLAUDE.md` first. The funnel the page is written for is:

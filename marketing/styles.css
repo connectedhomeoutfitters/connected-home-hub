@@ -111,7 +111,20 @@ h3 { font-size: clamp(1.25rem, 1.1rem + 0.7vw, 1.5rem); letter-spacing: 0.01em; 
 
 .masthead { padding: 1.5rem 0; }
 .masthead__row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
-.masthead__logo { width: clamp(190px, 30vw, 250px); }
+
+/* Title block — the white nameplate a real drawing carries in its corner, which is also
+   the only honest way to show this wordmark here: its "CONNECTED" is dark navy, within a
+   few points of the blueprint field's own value, so on the field alone it sinks into the
+   background. On white it is already proven to read. */
+.masthead__plate {
+  display: inline-block;
+  background: #fff;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+  line-height: 0;
+}
+.masthead__logo { width: clamp(180px, 28vw, 236px); }
 .masthead__links { display: flex; align-items: center; gap: clamp(1rem, 3vw, 2rem); font-family: var(--font-mono); font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; }
 .masthead__links a { color: #a9c6dc; text-decoration: none; }
 .masthead__links a:hover { color: #fff; }
@@ -160,6 +173,29 @@ h3 { font-size: clamp(1.25rem, 1.1rem + 0.7vw, 1.5rem); letter-spacing: 0.01em; 
 .band__head { max-width: 62ch; }
 .band__head p { color: var(--ink-soft); margin: 1.25rem 0 0; }
 .field .band__head p { color: #b6cfe2; }
+
+/* ── Trades ───────────────────────────────────────────────────────────────── */
+
+.trades { padding-block: clamp(2.25rem, 5vw, 3.25rem); }
+.trades__list {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+}
+.trades__list li {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--rule-dark);
+  border-radius: 2px;
+  padding: 0.4rem 0.7rem;
+}
+.trades__note { max-width: 62ch; margin: 1.5rem 0 0; color: var(--ink-soft); }
 
 /* ── The run: the signature element ───────────────────────────────────────────
    A conduit line down the page with a connector node per stage, drawn from the
