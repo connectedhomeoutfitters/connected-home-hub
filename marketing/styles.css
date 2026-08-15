@@ -1,0 +1,275 @@
+/* ConnectedWorkOS — marketing site.
+   Direction: blueprint. The trades' own drawing language — drafting blue, fine grid,
+   hairline rules, mono annotations — rather than a generic SaaS gradient. Hi-vis amber
+   is reserved for money moments only (deposit, payment, primary CTA), so colour carries
+   meaning instead of decoration. */
+
+:root {
+  --bp-900: #05192c;
+  --bp-800: #082744;
+  --bp-700: #0c355c;
+  --bp-600: #14507f;
+  --paper: #f3f7fa;
+  --paper-2: #e7eef4;
+  --ink: #0a1b2e;
+  --ink-soft: #46617a;
+  --cyan: #2bd4e8;
+  --blue: #2b8ede;
+  --hivis: #ffb020;
+  --rule: rgba(255, 255, 255, 0.16);
+  --rule-dark: #cbdae6;
+
+  --font-display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --wrap: 1120px;
+  --gut: clamp(1.25rem, 4vw, 3rem);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: clamp(1rem, 0.97rem + 0.15vw, 1.075rem);
+  line-height: 1.6;
+  color: var(--ink);
+  background: var(--paper);
+}
+
+img { max-width: 100%; height: auto; display: block; }
+
+a { color: var(--bp-600); }
+a:focus-visible, button:focus-visible {
+  outline: 3px solid var(--hivis);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+.wrap { width: 100%; max-width: var(--wrap); margin-inline: auto; padding-inline: var(--gut); }
+
+/* ── Type ─────────────────────────────────────────────────────────────────── */
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 0.98;
+  letter-spacing: -0.005em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+h1 { font-size: clamp(2.75rem, 1.6rem + 5.6vw, 5.75rem); }
+h2 { font-size: clamp(2rem, 1.3rem + 3.2vw, 3.5rem); }
+h3 { font-size: clamp(1.25rem, 1.1rem + 0.7vw, 1.5rem); letter-spacing: 0.01em; }
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  margin: 0 0 1.25rem;
+  color: var(--cyan);
+}
+.eyebrow--dark { color: var(--bp-600); }
+
+.lede { font-size: clamp(1.075rem, 1rem + 0.4vw, 1.3rem); line-height: 1.55; }
+
+/* ── Blueprint field ──────────────────────────────────────────────────────── */
+
+.field {
+  position: relative;
+  color: #dceaf5;
+  background-color: var(--bp-900);
+  background-image:
+    linear-gradient(var(--rule) 1px, transparent 1px),
+    linear-gradient(90deg, var(--rule) 1px, transparent 1px);
+  background-size: 44px 44px;
+  overflow: hidden;
+}
+.field--glow::after {
+  /* Soft glow behind the hero only, echoing the logo's own halo. Repeating it on every
+     blueprint band would turn a signature into wallpaper. */
+  content: "";
+  position: absolute;
+  inset: -30% -10% auto -10%;
+  height: 90%;
+  background: radial-gradient(60% 60% at 30% 40%, rgba(43, 212, 232, 0.16), transparent 70%);
+  pointer-events: none;
+}
+.field > * { position: relative; z-index: 1; }
+
+/* ── Header ───────────────────────────────────────────────────────────────── */
+
+.masthead { padding: 1.5rem 0; }
+.masthead__row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.masthead__logo { width: clamp(190px, 30vw, 250px); }
+.masthead__links { display: flex; align-items: center; gap: clamp(1rem, 3vw, 2rem); font-family: var(--font-mono); font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.masthead__links a { color: #a9c6dc; text-decoration: none; }
+.masthead__links a:hover { color: #fff; }
+
+/* ── Hero ─────────────────────────────────────────────────────────────────── */
+
+.hero { padding: clamp(3rem, 7vw, 6rem) 0 clamp(3.5rem, 8vw, 7rem); }
+.hero h1 { max-width: 15ch; color: #fff; text-wrap: balance; }
+.hero h1 em { font-style: normal; color: var(--cyan); }
+.hero__lede { max-width: 58ch; margin: 1.75rem 0 0; color: #bdd5e7; }
+
+.actions { display: flex; flex-wrap: wrap; gap: 0.85rem; margin-top: 2.25rem; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-display);
+  font-size: 1.075rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-decoration: none;
+  padding: 0.85rem 1.6rem;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  transition: transform 0.12s ease, background-color 0.12s ease, color 0.12s ease;
+}
+.btn:active { transform: translateY(1px); }
+.btn--go { background: var(--hivis); color: var(--bp-900); }
+.btn--go:hover { background: #ffc451; }
+.btn--ghost { border-color: rgba(255, 255, 255, 0.35); color: #fff; }
+.btn--ghost:hover { border-color: #fff; background: rgba(255, 255, 255, 0.08); }
+.btn--dark { background: var(--bp-900); color: #fff; }
+.btn--dark:hover { background: var(--bp-700); }
+.btn--outline { border-color: var(--rule-dark); color: var(--ink); }
+.btn--outline:hover { border-color: var(--bp-600); }
+
+.hero__note { margin: 1.5rem 0 0; font-family: var(--font-mono); font-size: 0.76rem; letter-spacing: 0.05em; color: #7fa3bf; }
+
+/* ── Section frame ────────────────────────────────────────────────────────── */
+
+.band { padding: clamp(3.5rem, 8vw, 6.5rem) 0; }
+.band--paper { background: var(--paper); }
+.band--tint { background: var(--paper-2); }
+.band__head { max-width: 62ch; }
+.band__head p { color: var(--ink-soft); margin: 1.25rem 0 0; }
+.field .band__head p { color: #b6cfe2; }
+
+/* ── The run: the signature element ───────────────────────────────────────────
+   A conduit line down the page with a connector node per stage, drawn from the
+   pin-and-trace motif in the logo. A job genuinely is a sequence, so the numbers
+   carry real information rather than decorating the list. */
+
+.run { margin-top: clamp(2.5rem, 5vw, 4rem); }
+
+.run__list { list-style: none; margin: 0; padding: 0; position: relative; }
+.run__list::before {
+  content: "";
+  position: absolute;
+  left: 11px;
+  top: 0.65rem;
+  bottom: 0.65rem;
+  width: 2px;
+  background: linear-gradient(180deg, var(--cyan), var(--blue) 55%, rgba(43, 212, 232, 0.15));
+}
+
+.stage { position: relative; padding: 0 0 2.25rem 3.25rem; }
+.stage:last-child { padding-bottom: 0; }
+.stage::before {
+  /* Connector node. */
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 0.55rem;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--bp-900);
+  border: 2px solid var(--cyan);
+  box-shadow: 0 0 0 4px rgba(43, 212, 232, 0.12);
+}
+.stage--pay::before { border-color: var(--hivis); box-shadow: 0 0 0 4px rgba(255, 176, 32, 0.16); }
+
+.stage__no { font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.16em; color: #6f97b5; display: block; margin-bottom: 0.3rem; }
+.stage--pay .stage__no { color: var(--hivis); }
+.stage h3 { color: #fff; }
+.stage p { margin: 0.45rem 0 0; color: #b6cfe2; max-width: 54ch; }
+
+@media (min-width: 780px) {
+  .run__list { display: grid; grid-template-columns: 1fr 1fr; column-gap: 3.5rem; }
+  .run__list::before { left: 50%; transform: translateX(-1px); }
+
+  /* Each step gets its OWN row, alternating sides, so the eye travels down the run in
+     order. Left to auto-placement, steps 1 and 2 would share the first row and the
+     sequence would read as two parallel columns instead of one line. */
+  .stage { padding: 0 3.5rem 2.5rem 0; text-align: right; grid-column: 1; }
+  .stage::before { left: auto; right: -8px; }
+  .stage:nth-child(even) { grid-column: 2; text-align: left; padding-left: 3.5rem; padding-right: 0; }
+  .stage:nth-child(even)::before { right: auto; left: -8px; }
+  .stage:nth-child(1) { grid-row: 1; }
+  .stage:nth-child(2) { grid-row: 2; }
+  .stage:nth-child(3) { grid-row: 3; }
+  .stage:nth-child(4) { grid-row: 4; }
+  .stage:nth-child(5) { grid-row: 5; }
+  .stage:nth-child(6) { grid-row: 6; }
+  .stage:nth-child(7) { grid-row: 7; }
+  .stage:nth-child(8) { grid-row: 8; }
+  .stage p { max-width: none; }
+}
+
+/* ── Split: Ledger tie-in ─────────────────────────────────────────────────── */
+
+.split { display: grid; gap: clamp(2rem, 5vw, 3.5rem); margin-top: clamp(2rem, 4vw, 3rem); }
+@media (min-width: 860px) { .split { grid-template-columns: 1.05fr 0.95fr; align-items: center; } }
+
+/* A receipt-to-ledger diagram, drawn in CSS rather than shipped as an image. */
+.flow { border: 1px solid var(--rule-dark); background: #fff; border-radius: 3px; overflow: hidden; }
+.flow__row { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; padding: 0.9rem 1.15rem; border-bottom: 1px dashed var(--rule-dark); }
+.flow__row:last-child { border-bottom: 0; }
+.flow__label { font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-soft); }
+.flow__val { font-family: var(--font-display); font-size: 1.35rem; font-weight: 700; }
+.flow__val--pay { color: #0a7d4f; }
+.flow__head { background: var(--bp-900); color: #fff; padding: 0.75rem 1.15rem; font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; }
+.flow__arrow { display: flex; align-items: center; gap: 0.6rem; padding: 0.75rem 1.15rem; background: var(--paper-2); font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft); }
+.flow__arrow span { color: var(--hivis); font-size: 1rem; }
+
+/* ── Card grid ────────────────────────────────────────────────────────────── */
+
+.cards { display: grid; gap: 1px; margin-top: clamp(2rem, 4vw, 3rem); background: var(--rule-dark); border: 1px solid var(--rule-dark); }
+@media (min-width: 720px) { .cards { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1000px) { .cards--three { grid-template-columns: repeat(3, 1fr); } }
+/* Three cards in a two-column grid leave a dangling empty cell, which shows as a grey
+   block because the grid's own background is what draws the hairlines. Let the odd one
+   run the full width instead. */
+@media (min-width: 720px) and (max-width: 999px) {
+  .cards--three .card:last-child { grid-column: 1 / -1; }
+}
+
+/* Stacked variant sits inside a narrow column of .split, so it must stay single-file at
+   every width. Declared after the media queries above so it actually wins. */
+.cards--stack { grid-template-columns: 1fr; margin-top: 0; }
+
+.card { background: #fff; padding: clamp(1.5rem, 3vw, 2.1rem); }
+.card__tag { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--blue); }
+.card h3 { margin: 0.75rem 0 0; color: var(--ink); }
+.card p { margin: 0.6rem 0 0; color: var(--ink-soft); }
+
+/* ── Closing CTA ──────────────────────────────────────────────────────────── */
+
+.close { text-align: center; }
+.close h2 { color: #fff; max-width: 20ch; margin-inline: auto; text-wrap: balance; }
+.close p { color: #b6cfe2; max-width: 54ch; margin: 1.5rem auto 0; }
+.close .actions { justify-content: center; }
+
+/* ── Footer ───────────────────────────────────────────────────────────────── */
+
+.foot { background: var(--bp-900); color: #7fa3bf; border-top: 1px solid var(--rule); padding: 2.5rem 0; }
+.foot__row { display: flex; flex-wrap: wrap; gap: 1.25rem 2rem; align-items: center; justify-content: space-between; font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.06em; }
+.foot a { color: #a9c6dc; text-decoration: none; }
+.foot a:hover { color: #fff; text-decoration: underline; }

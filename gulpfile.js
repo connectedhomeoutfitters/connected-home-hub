@@ -30,6 +30,11 @@ const paths = {
     // other.
     "!uploads/**",
     "!uploads",
+    // The public marketing site (connectedworkos.com). It is served by its own nginx
+    // vhost straight from the git checkout on the VPS — it is not part of the Express
+    // app, so the NAS test instance has no use for it. See marketing/README.md.
+    "!marketing/**",
+    "!marketing",
   ],
 };
 
