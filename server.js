@@ -75,6 +75,18 @@ app.use(methodOverride('_method'));
 // now: local dev (BASE_PATH='') never exposed this, and testing only ever checked
 // HTML page status codes via curl, never an actual browser loading a page's
 // sub-resources (CSS/JS) on the NAS.
+// Keep the whole application out of search indexes. This is a privacy control, not an SEO
+// preference: /e/:token and /i/:token serve a customer's estimate or invoice, and
+// /portal/verify/:token is single-use. An indexed token URL is a leaked document.
+//
+// Applied before express.static so it covers assets too, and set on EVERY response rather
+// than per-route, because the failure mode of forgetting one route is a customer document
+// in Google. The marketing site is a separate host and is unaffected by this.
+app.use((req, res, next) => {
+  res.set('X-Robots-Tag', 'noindex, nofollow');
+  next();
+});
+
 app.use(`${BASE_PATH}/`, express.static(__dirname + '/public'));
 
 const sessionStore = new MySQLStore({}, db);

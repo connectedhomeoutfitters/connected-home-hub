@@ -1,0 +1,10 @@
+# connectedworkos.com — the public marketing site. Everything here is meant to be indexed.
+#
+# The APP is a different host (app.connectedworkos.com) with its own robots.txt that
+# disallows everything: it serves token-gated customer estimates and invoices, and those
+# URLs must never be crawled. Do not merge the two.
+
+User-agent: *
+Allow: /
+
+Sitemap: https://connectedworkos.com/sitemap.xml

@@ -1,0 +1,18 @@
+# app.connectedworkos.com — the application. NOTHING here should be indexed.
+#
+# This is not an SEO preference, it is a privacy control. The app serves customer
+# estimates and invoices at token URLs (/e/:token, /i/:token) and single-use magic links
+# (/portal/verify/:token, /sub/verify/:token). A crawler that fetches one of those exposes
+# a customer's document — and fetching a verify link would burn it.
+#
+# The public marketing site is a different host (connectedworkos.com) and has its own
+# robots.txt that allows everything. That is the surface meant to rank.
+#
+# Belt and braces: server.js also sends `X-Robots-Tag: noindex, nofollow` on every
+# response here. The header is what actually keeps a URL out of the index if it is
+# discovered through a link; this file is what stops the fetch happening at all. Blocking
+# the crawl does mean a crawler cannot read that header, so the two cover different cases
+# on purpose — not crawling token URLs is the more important of the two.
+
+User-agent: *
+Disallow: /

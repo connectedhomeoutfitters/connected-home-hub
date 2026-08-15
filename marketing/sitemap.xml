@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  One page, one URL. The section links (#run, #books, #walkthrough) are anchors on this
+  same page and are deliberately NOT listed: separate <url> entries for fragments of one
+  document read as duplicate content.
+
+  Update <lastmod> when the page's copy changes materially. It is a static file because
+  the site is static; if this ever grows past a handful of pages, generate it instead.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://connectedworkos.com/</loc>
+    <lastmod>2026-08-15</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>
