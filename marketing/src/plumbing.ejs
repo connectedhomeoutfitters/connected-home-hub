@@ -1,0 +1,22 @@
+<%- include('_trade', { trade: {
+  eyebrow: 'Plumbing',
+  heading: 'Approved on the spot, paid on the spot',
+  lede: 'Plumbing splits between planned work you quote and emergencies you price at the door. Both need approval you can prove and payment you do not have to chase.',
+  painTitle: 'The two jobs plumbers actually run',
+  painBody: 'A repipe is quoted, slept on, and won or lost on how quickly you follow up. A burst line at 9pm is priced standing in a wet basement. The same tool has to handle a considered quote and a same-hour approval without slowing either down.',
+  points: [
+    { tag: 'At the door', title: 'Price it and get it signed',
+      body: 'Build the estimate on your phone from your own price list, hand it over, and they sign it there. You keep the signature and the timestamp, which settles any later argument about what was agreed.' },
+    { tag: 'Emergencies', title: 'Bill without a quote',
+      body: 'Not every call needs an estimate first. Raise a standalone invoice for the work, send the pay link, and move on.' },
+    { tag: 'Cash', title: 'Card payment before you leave',
+      body: 'They pay from the link on their own phone while you are packing up. No cheque in the post, no invoice ageing thirty days.' },
+    { tag: 'Bigger jobs', title: 'Deposit, then balance',
+      body: 'For a repipe or a water heater, take a deposit on acceptance and bill the rest automatically when the job is marked done.' },
+    { tag: 'Parts', title: 'What went in, and what it cost',
+      body: 'Fixtures and fittings come off your price list with your cost attached, so the margin on a job is visible rather than estimated.' },
+    { tag: 'Follow-up', title: 'Quotes that do not go cold',
+      body: 'Sent estimates get a follow-up task and expire on their own after thirty days, so the pipeline reflects live work instead of everything you ever quoted.' }
+  ],
+  flow: 'Planned work: quote, sign, deposit, schedule, final invoice. Emergency work: do the job, raise a standalone invoice, take the card payment before you drive away. Both post into your books the same way.'
+} }) %>

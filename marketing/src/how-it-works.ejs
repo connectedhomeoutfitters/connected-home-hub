@@ -1,0 +1,196 @@
+<%- include('_pagehead', {
+  eyebrow: 'One job, start to finish',
+  heading: 'What a job actually looks like',
+  lede: 'Follow one job from the first call to the money in your account — with the documents your customer sees at each step. Nothing here is a mock-up of a feature we plan to build; this is what the product does today.'
+}) %>
+
+<%# The examples below are rendered in HTML rather than screenshotted, so they stay
+    readable on a phone, stay indexable as text, and can't go stale against a UI change
+    the way a PNG silently does. %>
+
+<!-- ══ 1. The quote ═════════════════════════════════════════════════════════ -->
+<section class="band band--paper">
+  <div class="wrap">
+    <div class="band__head">
+      <p class="eyebrow eyebrow--dark">Step one</p>
+      <h2>You price the work</h2>
+      <p>
+        Build the quote from your own price list — materials, labour, subcontracted work —
+        or type one-off lines for a job that doesn't fit a template. Cost sits beside price
+        on every line, so you know the margin <em>before</em> you send it.
+      </p>
+    </div>
+
+    <div class="doc">
+      <div class="doc__head">
+        <div>
+          <span class="doc__kind">Quote</span>
+          <strong class="doc__title">Rear patio lighting &amp; irrigation</strong>
+        </div>
+        <span class="doc__meta">Q-1042 · valid 30 days</span>
+      </div>
+      <table class="doc__table">
+        <thead>
+          <tr><th>Item</th><th class="num">Qty</th><th class="num">Unit</th><th class="num">Amount</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Low-voltage path fixture</td><td class="num">8</td><td class="num">$74.00</td><td class="num">$592.00</td></tr>
+          <tr><td>Transformer, 300W</td><td class="num">1</td><td class="num">$318.00</td><td class="num">$318.00</td></tr>
+          <tr><td>Direct-burial cable (ft)</td><td class="num">220</td><td class="num">$1.35</td><td class="num">$297.00</td></tr>
+          <tr><td>Installation labour</td><td class="num">14</td><td class="num">$85.00</td><td class="num">$1,190.00</td></tr>
+          <tr class="doc__included"><td>Trenching &amp; backfill</td><td class="num">—</td><td class="num">—</td><td class="num">Included</td></tr>
+        </tbody>
+      </table>
+      <div class="doc__totals">
+        <div><span>Subtotal</span><span>$2,397.00</span></div>
+        <div><span>Sales tax (8.25%)</span><span>$197.75</span></div>
+        <div class="is-total"><span>Total</span><span>$2,594.75</span></div>
+        <div class="is-due"><span>Deposit due on acceptance (50%)</span><span>$1,297.38</span></div>
+      </div>
+    </div>
+
+    <p class="doc__note">
+      <strong>"Included" is a real setting.</strong> Hide the price on any line and the
+      customer sees that it's covered without seeing what you charged for it — useful when
+      you'd rather not itemise the parts of a job that invite haggling. Or price the whole
+      thing as one flat package, and the quote shows a single number with a bulleted list
+      of what's in it.
+    </p>
+  </div>
+</section>
+
+<!-- ══ 2. Signature ═════════════════════════════════════════════════════════ -->
+<div class="field">
+  <section class="band">
+    <div class="wrap">
+      <div class="band__head">
+        <p class="eyebrow">Step two</p>
+        <h2>They sign it from the link</h2>
+        <p>
+          The customer opens a link — no account, no password, no app. They read your
+          terms, type their name, and accept. You keep the signature, the timestamp and the
+          address it came from, so "I never agreed to that" has an answer.
+        </p>
+      </div>
+
+      <div class="doc doc--sign">
+        <div class="doc__head">
+          <div><span class="doc__kind">Acceptance record</span><strong class="doc__title">Q-1042</strong></div>
+          <span class="doc__meta doc__meta--ok">Accepted</span>
+        </div>
+        <dl class="doc__fields">
+          <div><dt>Signed by</dt><dd>Dana Whitfield</dd></div>
+          <div><dt>Accepted at</dt><dd>14 Aug 2026, 4:12 PM</dd></div>
+          <div><dt>IP address</dt><dd>* recorded</dd></div>
+          <div><dt>Terms version</dt><dd>Shown in full on the page they signed</dd></div>
+        </dl>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ══ 3. Deposit ═══════════════════════════════════════════════════════════ -->
+<section class="band band--tint">
+  <div class="wrap">
+    <div class="band__head">
+      <p class="eyebrow eyebrow--dark">Step three · money</p>
+      <h2>The deposit is raised the moment they accept</h2>
+      <p>
+        Accepting the quote creates the deposit invoice and emails them the pay link. They
+        pay by card; it settles into <strong>your</strong> Stripe account, not ours. You
+        don't chase it, and you don't raise it by hand.
+      </p>
+    </div>
+
+    <div class="doc">
+      <div class="doc__head">
+        <div><span class="doc__kind">Invoice · deposit</span><strong class="doc__title">INV-2088</strong></div>
+        <span class="doc__meta doc__meta--ok">Paid · Visa ····4242</span>
+      </div>
+      <div class="doc__totals">
+        <div><span>Deposit on Q-1042</span><span>$1,297.38</span></div>
+        <div class="is-total"><span>Paid 14 Aug 2026</span><span>$1,297.38</span></div>
+      </div>
+    </div>
+
+    <p class="doc__note">
+      This is also the moment the bookkeeping happens. The payment posts into your Business
+      Workspace in <a href="https://connectedhomeledger.com">Connected Home Ledger</a> as
+      income — dated, categorised, net of anything you later refund.
+      <a href="/getting-paid">More on how payments work →</a>
+    </p>
+  </div>
+</section>
+
+<!-- ══ 4. The work ══════════════════════════════════════════════════════════ -->
+<section class="band band--paper">
+  <div class="wrap">
+    <div class="band__head">
+      <p class="eyebrow eyebrow--dark">Step four</p>
+      <h2>Then you actually do the job</h2>
+    </div>
+    <div class="cards cards--three">
+      <div class="card">
+        <span class="card__tag">Schedule</span>
+        <h3>On the calendar</h3>
+        <p>The install lands on a date and on somebody's list. Assign it to yourself, a crew member, or a subcontractor who only ever sees their own jobs.</p>
+      </div>
+      <div class="card">
+        <span class="card__tag">Materials</span>
+        <h3>A list for the truck</h3>
+        <p>Every product line on the quote, totalled by item with your vendor and cost — printable, so nobody makes a second trip to the supply house.</p>
+      </div>
+      <div class="card">
+        <span class="card__tag">Stock</span>
+        <h3>Off the shelf</h3>
+        <p>For the products you track, marking the job done takes them out of inventory automatically. Nothing to reconcile at month end.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 5. Final invoice ═════════════════════════════════════════════════════ -->
+<div class="field">
+  <section class="band">
+    <div class="wrap">
+      <div class="band__head">
+        <p class="eyebrow">Step five · money</p>
+        <h2>The balance bills itself</h2>
+        <p>
+          Mark the job done and the remaining balance is raised automatically, net of the
+          deposit already paid. This is the step most shops lose money on — not because
+          they can't invoice, but because nobody remembers to.
+        </p>
+      </div>
+
+      <div class="doc doc--dark">
+        <div class="doc__head">
+          <div><span class="doc__kind">Invoice · final</span><strong class="doc__title">INV-2101</strong></div>
+          <span class="doc__meta">Sent</span>
+        </div>
+        <div class="doc__totals">
+          <div><span>Quote total</span><span>$2,594.75</span></div>
+          <div><span>Less deposit paid</span><span>−$1,297.38</span></div>
+          <div class="is-total"><span>Balance due</span><span>$1,297.37</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ══ 6. Close out ═════════════════════════════════════════════════════════ -->
+<section class="band band--paper">
+  <div class="wrap">
+    <div class="band__head">
+      <p class="eyebrow eyebrow--dark">Step six</p>
+      <h2>Close it out and record the warranty</h2>
+      <p>
+        Closing the job emails the customer a completion note with their warranty summary —
+        equipment, dates, provider. You get a reminder before it lapses, which is a reason
+        for them to call you instead of somebody else.
+      </p>
+    </div>
+  </div>
+</section>
+
+<%- include('_cta') %>

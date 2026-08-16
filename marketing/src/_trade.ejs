@@ -1,0 +1,39 @@
+<%# Shared skeleton for a trade page. The CONTENT is passed in per trade — a rack of
+    find-and-replace near-duplicates would be thin content, which is exactly what search
+    engines discount. Each page has to say something true about that trade. %>
+<%- include('_pagehead', { eyebrow: trade.eyebrow, heading: trade.heading, lede: trade.lede }) %>
+
+<section class="band band--paper">
+  <div class="wrap">
+    <div class="band__head">
+      <h2><%= trade.painTitle %></h2>
+      <p><%= trade.painBody %></p>
+    </div>
+    <div class="cards cards--three">
+      <% trade.points.forEach(function (p) { %>
+        <div class="card">
+          <span class="card__tag"><%= p.tag %></span>
+          <h3><%= p.title %></h3>
+          <p><%= p.body %></p>
+        </div>
+      <% }); %>
+    </div>
+  </div>
+</section>
+
+<div class="field">
+  <section class="band">
+    <div class="wrap">
+      <div class="band__head">
+        <p class="eyebrow">The same job, every time</p>
+        <h2>Quote, sign, deposit, schedule, invoice</h2>
+        <p>
+          <%= trade.flow %>
+          <a href="/how-it-works">See the whole run, with example documents →</a>
+        </p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<%- include('_cta') %>

@@ -1,0 +1,85 @@
+<%
+  // Defined as data so the visible page and the FAQPage structured data below are
+  // generated from one source — Google penalises schema that doesn't match the page, and
+  // hand-maintaining two copies guarantees they drift.
+  const faqs = [
+    {
+      q: 'Do I need a Stripe account?',
+      a: 'To take card payments, yes. You connect one you already have, or create one during setup — it is free to open. Everything else (quoting, scheduling, invoicing, warranties) works without it, but the pay page will tell your customer that payment is unavailable until an account is connected.'
+    },
+    {
+      q: 'What does it cost?',
+      a: 'A flat subscription, billed as part of your Connected Home Ledger plan. We do not take a percentage of your invoices. Stripe charges its own per-transaction fee on card payments, deducted before payout — that is billed by Stripe, separately from us.'
+    },
+    {
+      q: 'Do my customers need an account?',
+      a: 'No. They get a link. They open the quote, sign it, pay the deposit and follow the job from that same link — no password, no app, nothing to sign up for.'
+    },
+    {
+      q: 'Do I have to use Connected Home Ledger?',
+      a: 'Today, yes — Ledger is where you sign up, and it is where your books live. ConnectedWorkOS opens from inside your Business Workspace, already signed in. That coupling is the point: payments you collect on a job post straight into your books instead of being re-keyed at tax time.'
+    },
+    {
+      q: 'Where does my money go?',
+      a: 'Into your own Stripe account, then to your bank on Stripe’s payout schedule. We never hold your funds. The connection lets us create charges on your behalf; it does not give us your money or your keys.'
+    },
+    {
+      q: 'What trades is it for?',
+      a: 'Any small service business that quotes work, schedules it and invoices for it — lawn care and landscaping, repair and handyman, HVAC, plumbing, electrical, cleaning, pest control, appliance repair, pool and pressure washing. Nothing in the product assumes a particular trade: your price list, your job types, your terms.'
+    },
+    {
+      q: 'Can my crew or subcontractors use it?',
+      a: 'Yes. Staff get their own logins. Subcontractors get a separate portal that shows only the jobs assigned to them and their own paperwork — never your customer list or your pricing.'
+    },
+    {
+      q: 'Can I hide my prices on a quote?',
+      a: 'Per line, or for the whole job. A hidden line shows the customer as “Included” while still counting toward the total, and a flat-rate package shows one price with a bulleted list of what is in it. Your internal costs and margin stay visible to you either way.'
+    },
+    {
+      q: 'What happens if I stop subscribing?',
+      a: 'Access is suspended, not deleted. Your data stays where it is, so if you come back it is waiting for you.'
+    },
+    {
+      q: 'Is my customer data used for anything else?',
+      a: 'No. Each business is isolated from every other business on the platform, and customer documents are never indexed by search engines — the application sends a no-index instruction on every page and blocks crawlers outright.'
+    }
+  ];
+%>
+
+<%- include('_pagehead', {
+  eyebrow: 'Questions',
+  heading: 'Straight answers',
+  lede: 'The things people actually ask before signing up. If yours is not here, ask it — the reply comes from a person.'
+}) %>
+
+<section class="band band--paper">
+  <div class="wrap">
+    <div class="faq">
+      <% faqs.forEach(function (item) { %>
+        <details class="faq__item">
+          <summary class="faq__q"><%= item.q %></summary>
+          <div class="faq__a"><p><%= item.a %></p></div>
+        </details>
+      <% }); %>
+    </div>
+
+    <p class="doc__note">
+      Still stuck? <a href="mailto:chris@connectedhomeoutfitters.com?subject=ConnectedWorkOS%20question">Email us</a>
+      — or read <a href="/how-it-works">how a job runs</a> and <a href="/getting-paid">how payments work</a>.
+    </p>
+  </div>
+</section>
+
+<script type="application/ld+json">
+<%- JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": faqs.map(f => ({
+    "@type": "Question",
+    "name": f.q,
+    "acceptedAnswer": { "@type": "Answer", "text": f.a }
+  }))
+}, null, 2) %>
+</script>
+
+<%- include('_cta') %>

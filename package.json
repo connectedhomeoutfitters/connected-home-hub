@@ -1,14 +1,15 @@
 {
   "name": "cho-hub",
   "version": "0.1.0",
-  "description": "Connected Home Outfitters customer portal — estimates, deposits, invoices (Stripe)",
+  "description": "Connected Home Outfitters customer portal \u2014 estimates, deposits, invoices (Stripe)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
     "migrate": "node migrations/run.js",
     "test": "node --test \"test/**/*.test.js\"",
-    "gulp": "gulp"
+    "gulp": "gulp",
+    "marketing:build": "node marketing/build.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

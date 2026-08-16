@@ -1,0 +1,176 @@
+<%- include('_pagehead', {
+  eyebrow: 'Getting paid',
+  heading: 'Card payments, into your account',
+  lede: 'ConnectedWorkOS collects card payments through a payment processor you connect yourself. Today that processor is Stripe. Your money goes to your bank, we never hold it, and card numbers never touch our servers.'
+}) %>
+
+<!-- ══ Setup ════════════════════════════════════════════════════════════════ -->
+<section class="band band--paper">
+  <div class="wrap">
+    <div class="band__head">
+      <p class="eyebrow eyebrow--dark">Setting it up</p>
+      <h2>Connecting Stripe, step by step</h2>
+      <p>
+        This is a one-time job and takes about ten minutes, most of it Stripe's own
+        onboarding rather than ours. You'll want your business details and a bank account
+        to hand.
+      </p>
+    </div>
+
+    <ol class="steps">
+      <li class="steps__item">
+        <span class="steps__no">01</span>
+        <div>
+          <h3>Open Settings → Payments</h3>
+          <p>Inside ConnectedWorkOS. There's one button: <em>Connect with Stripe</em>.</p>
+        </div>
+      </li>
+      <li class="steps__item">
+        <span class="steps__no">02</span>
+        <div>
+          <h3>Sign in to Stripe, or create an account</h3>
+          <p>If you already take card payments through Stripe, sign in and pick that account — you don't need a second one. If you don't have one, you create it here, and it's free to open.</p>
+        </div>
+      </li>
+      <li class="steps__item">
+        <span class="steps__no">03</span>
+        <div>
+          <h3>Give Stripe your business details</h3>
+          <p>Stripe asks the questions a payment processor is legally required to ask: your business name and structure, an address, your EIN or SSN for a sole proprietor, and the bank account for payouts. This is between you and Stripe — we never see it.</p>
+        </div>
+      </li>
+      <li class="steps__item">
+        <span class="steps__no">04</span>
+        <div>
+          <h3>You land back in ConnectedWorkOS, connected</h3>
+          <p>That's it. Quotes can now take a deposit on acceptance, and invoices can be paid by card.</p>
+        </div>
+      </li>
+    </ol>
+
+    <p class="callout callout--warn">
+      <strong>Until you connect an account, you cannot take card payments.</strong> Quoting,
+      scheduling and invoicing all still work, but the pay page will tell your customer that
+      payment isn't available. The setup checklist on your dashboard flags this for exactly
+      that reason.
+    </p>
+  </div>
+</section>
+
+<!-- ══ Money flow ═══════════════════════════════════════════════════════════ -->
+<div class="field">
+  <section class="band">
+    <div class="wrap">
+      <div class="band__head">
+        <p class="eyebrow">Where the money goes</p>
+        <h2>It is your account, not ours</h2>
+        <p>
+          The connection is a Stripe Connect authorisation: you own the account, you agree
+          to Stripe's terms directly with Stripe, and we're permitted to create charges on
+          your behalf. We never take custody of your money, and we never hold your keys.
+        </p>
+      </div>
+
+      <div class="flow">
+        <div class="flow__head">Customer pays a deposit</div>
+        <div class="flow__row"><span class="flow__label">Card charged</span><span class="flow__val flow__val--pay">$1,297.38</span></div>
+        <div class="flow__arrow"><span>&#8595;</span> settles into</div>
+        <div class="flow__head">Your Stripe account</div>
+        <div class="flow__row"><span class="flow__label">Less Stripe's processing fee</span><span class="flow__val">charged by Stripe</span></div>
+        <div class="flow__arrow"><span>&#8595;</span> pays out to</div>
+        <div class="flow__head">Your bank account</div>
+        <div class="flow__row"><span class="flow__label">On Stripe's payout schedule</span><span class="flow__val">typically 2 business days</span></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ══ Fees ═════════════════════════════════════════════════════════════════ -->
+<section class="band band--tint">
+  <div class="wrap">
+    <div class="band__head">
+      <p class="eyebrow eyebrow--dark">What it costs</p>
+      <h2>Two separate bills, and we only send one</h2>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <span class="card__tag">From us</span>
+        <h3>Your subscription</h3>
+        <p>A flat monthly or annual price for ConnectedWorkOS, billed as part of your Connected Home Ledger plan. It does not change with how much you invoice — we take no percentage of your jobs.</p>
+      </div>
+      <div class="card">
+        <span class="card__tag">From Stripe</span>
+        <h3>Card processing fees</h3>
+        <p>Stripe charges a per-transaction fee on each card payment and deducts it before payout. Those rates are Stripe's, they're published on Stripe's pricing page, and they can change — so we don't quote a number here that might be wrong by the time you read it.</p>
+      </div>
+    </div>
+
+    <p class="callout">
+      <strong>Nobody takes a cut of your revenue except the card networks.</strong> Some
+      field-service tools charge you a percentage of every invoice on top of processing.
+      We don't — you pay a subscription, Stripe charges for moving money, and that's the
+      whole list.
+    </p>
+  </div>
+</section>
+
+<!-- ══ Day to day ═══════════════════════════════════════════════════════════ -->
+<section class="band band--paper">
+  <div class="wrap">
+    <div class="band__head">
+      <p class="eyebrow eyebrow--dark">Day to day</p>
+      <h2>Once it's connected</h2>
+    </div>
+
+    <div class="cards cards--three">
+      <div class="card">
+        <span class="card__tag">Deposits</span>
+        <h3>Collected on acceptance</h3>
+        <p>Set a deposit percentage per quote. Accepting it raises the invoice and emails the pay link in the same action.</p>
+      </div>
+      <div class="card">
+        <span class="card__tag">Balances</span>
+        <h3>Billed when the job's done</h3>
+        <p>Marking the work complete raises the remaining balance, net of the deposit. Send it, or let it sit until you're ready.</p>
+      </div>
+      <div class="card">
+        <span class="card__tag">Refunds</span>
+        <h3>Full or partial</h3>
+        <p>Refund from the payment it belongs to. The customer gets a receipt, and your books are adjusted so the income isn't overstated.</p>
+      </div>
+      <div class="card">
+        <span class="card__tag">Reconciliation</span>
+        <h3>You can see the money</h3>
+        <p>Every payment, with card brand and last four, a link to the Stripe receipt, and a filterable sales journal you can export as CSV for your accountant.</p>
+      </div>
+      <div class="card">
+        <span class="card__tag">Security</span>
+        <h3>Card data never reaches us</h3>
+        <p>The payment form is Stripe's, embedded in the page. Card numbers go from your customer to Stripe directly — our servers never see or store them.</p>
+      </div>
+      <div class="card">
+        <span class="card__tag">Your customer</span>
+        <h3>No account required</h3>
+        <p>They click the link in your email, see the invoice, and pay. There's nothing to sign up for and nothing to install.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ Other processors ═════════════════════════════════════════════════════ -->
+<section class="band band--tint">
+  <div class="wrap">
+    <div class="band__head">
+      <p class="eyebrow eyebrow--dark">Other processors</p>
+      <h2>Stripe is what's supported today</h2>
+      <p>
+        We're deliberately not listing processors we don't support yet. If the one you use
+        matters to your decision, <a href="mailto:chris@connectedhomeoutfitters.com?subject=Payment%20processor">tell us which one</a> — that's
+        the most useful signal for what we build next.
+      </p>
+    </div>
+  </div>
+</section>
+
+<%- include('_cta') %>

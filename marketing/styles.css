@@ -345,3 +345,97 @@ h3 { font-size: clamp(1.25rem, 1.1rem + 0.7vw, 1.5rem); letter-spacing: 0.01em; 
 .foot__row { display: flex; flex-wrap: wrap; gap: 1.25rem 2rem; align-items: center; justify-content: space-between; font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.06em; }
 .foot a { color: #a9c6dc; text-decoration: none; }
 .foot a:hover { color: #fff; text-decoration: underline; }
+
+/* ── Inner page header ────────────────────────────────────────────────────── */
+/* Same clearance rule as .hero: content must start below .field--fade or the cyan
+   eyebrow lands on the still-light part of the gradient. */
+.pagehead { padding: clamp(6.25rem, 14vw, 9rem) 0 clamp(2.5rem, 5vw, 4rem); }
+.pagehead h1 { max-width: 18ch; color: #fff; text-wrap: balance; font-size: clamp(2.25rem, 1.4rem + 4vw, 4.25rem); }
+.pagehead__lede { max-width: 62ch; margin: 1.5rem 0 0; color: #bdd5e7; }
+
+/* ── Example documents (how-it-works) ─────────────────────────────────────── */
+/* Rendered as HTML rather than screenshots: readable on a phone, indexable as text, and
+   they cannot silently go stale against a UI change the way an image does. */
+.doc {
+  background: #fff;
+  border: 1px solid var(--rule-dark);
+  border-radius: 3px;
+  margin-top: clamp(2rem, 4vw, 3rem);
+  overflow: hidden;
+}
+.doc__head {
+  display: flex; flex-wrap: wrap; gap: .5rem 1rem;
+  align-items: baseline; justify-content: space-between;
+  padding: .9rem 1.15rem; background: var(--bp-900); color: #fff;
+}
+.doc__kind { display: block; font-family: var(--font-mono); font-size: .68rem; letter-spacing: .16em; text-transform: uppercase; color: var(--cyan); }
+.doc__title { font-family: var(--font-display); font-size: 1.25rem; text-transform: uppercase; letter-spacing: .01em; }
+.doc__meta { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .08em; color: #9dbdd6; }
+.doc__meta--ok { color: #7ce3b1; }
+
+.doc__table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+.doc__table th, .doc__table td { padding: .6rem 1.15rem; border-bottom: 1px solid #eef2f5; text-align: left; }
+.doc__table th {
+  font-family: var(--font-mono); font-size: .68rem; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--ink-soft); background: var(--paper);
+}
+.doc__table .num { text-align: right; white-space: nowrap; }
+.doc__included td { color: var(--ink-soft); font-style: italic; }
+
+.doc__totals { padding: .5rem 1.15rem 1rem; }
+.doc__totals > div { display: flex; justify-content: space-between; gap: 1rem; padding: .35rem 0; font-size: .92rem; }
+.doc__totals .is-total { border-top: 1px solid var(--rule-dark); margin-top: .35rem; padding-top: .6rem; font-family: var(--font-display); font-size: 1.2rem; }
+/* The one number the reader is looking for gets the money colour. */
+.doc__totals .is-due { color: var(--bp-700); font-weight: 500; }
+.doc__totals .is-due span:last-child { color: #b26a00; font-weight: 600; }
+
+.doc__fields { margin: 0; padding: 1rem 1.15rem; display: grid; gap: .75rem; }
+@media (min-width: 620px) { .doc__fields { grid-template-columns: 1fr 1fr; } }
+.doc__fields dt { font-family: var(--font-mono); font-size: .68rem; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-soft); }
+.doc__fields dd { margin: .15rem 0 0; font-size: .95rem; }
+
+.doc--dark { border-color: rgba(255,255,255,.18); background: rgba(255,255,255,.04); color: #dceaf5; }
+.doc--dark .doc__totals .is-total { border-top-color: rgba(255,255,255,.2); }
+.doc--dark .doc__head { background: rgba(0,0,0,.25); }
+
+.doc__note { max-width: 74ch; margin: 1.5rem 0 0; font-size: .92rem; color: var(--ink-soft); }
+.field .doc__note { color: #b6cfe2; }
+
+/* ── Numbered steps (getting-paid) ────────────────────────────────────────── */
+.steps { list-style: none; margin: clamp(2rem, 4vw, 3rem) 0 0; padding: 0; }
+.steps__item { display: flex; gap: 1.15rem; padding: 1.1rem 0; border-top: 1px solid var(--rule-dark); }
+.steps__item:first-child { border-top: 0; }
+.steps__no { font-family: var(--font-mono); font-size: .8rem; color: var(--blue); flex: 0 0 auto; padding-top: .2rem; }
+.steps__item h3 { margin: 0; }
+.steps__item p { margin: .4rem 0 0; color: var(--ink-soft); max-width: 68ch; }
+
+/* ── Callouts ─────────────────────────────────────────────────────────────── */
+.callout {
+  max-width: 74ch; margin: 1.75rem 0 0; padding: .9rem 1.15rem;
+  font-size: .92rem; line-height: 1.6; color: var(--ink);
+  background: #fff; border-left: 3px solid var(--blue); border-radius: 2px;
+}
+/* Amber means money elsewhere on this site; here it means "this will stop you taking
+   money", which is the same idea pointed at a warning. */
+.callout--warn { border-left-color: var(--hivis); }
+
+/* ── FAQ ──────────────────────────────────────────────────────────────────── */
+.faq { max-width: 82ch; }
+.faq__item { border-bottom: 1px solid var(--rule-dark); }
+.faq__q {
+  cursor: pointer; list-style: none;
+  padding: 1rem 2rem 1rem 0; position: relative;
+  font-family: var(--font-display); font-size: 1.2rem; text-transform: uppercase; letter-spacing: .01em;
+}
+.faq__q::-webkit-details-marker { display: none; }
+.faq__q::after {
+  content: "+"; position: absolute; right: .25rem; top: 50%; transform: translateY(-50%);
+  font-family: var(--font-mono); font-size: 1.25rem; color: var(--blue);
+}
+.faq__item[open] .faq__q::after { content: "−"; }
+.faq__q:focus-visible { outline: 3px solid var(--hivis); outline-offset: 2px; }
+.faq__a { padding: 0 2rem 1.1rem 0; }
+.faq__a p { margin: 0; color: var(--ink-soft); max-width: 74ch; }
+
+/* ── Footer nav row ───────────────────────────────────────────────────────── */
+.foot__nav a { margin-right: .15rem; }

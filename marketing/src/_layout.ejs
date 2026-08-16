@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><%= page.title %></title>
+<meta name="description" content="<%= page.description %>">
+<link rel="canonical" href="<%= ORIGIN %><%= page.url %>">
+
+<link rel="icon" href="/img/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="/img/favicon.png" sizes="256x256" type="image/png">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+
+<meta property="og:type" content="website">
+<meta property="og:url" content="<%= ORIGIN %><%= page.url %>">
+<meta property="og:site_name" content="ConnectedWorkOS">
+<meta property="og:title" content="<%= page.ogTitle || page.title %>">
+<meta property="og:description" content="<%= page.description %>">
+<meta property="og:image" content="<%= ORIGIN %>/img/logo.png">
+<meta name="twitter:card" content="summary_large_image">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+
+<script type="application/ld+json">
+<%- JSON.stringify(page.jsonld || {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "ConnectedWorkOS",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web",
+  "url": ORIGIN + page.url,
+  "description": page.description,
+  "publisher": { "@type": "Organization", "name": "Connected Home Outfitters LLC" }
+}, null, 2) %>
+</script>
+</head>
+<body>
+
+<%# The masthead is its own white band rather than sitting on the blueprint: the
+    wordmark's "CONNECTED" is dark navy, within a few points of the field's own value, so
+    it needs a light ground. .field--fade then dissolves that white into the blueprint. %>
+<header class="masthead">
+  <div class="wrap masthead__row">
+    <a class="masthead__brand" href="/" aria-label="ConnectedWorkOS home">
+      <img class="masthead__logo" src="/img/logo.png" alt="ConnectedWorkOS" width="1024" height="384">
+    </a>
+    <nav class="masthead__links" aria-label="Primary">
+      <% nav.forEach(function (item) { %>
+        <a href="<%= item.url %>"<%= page.url === item.url ? ' aria-current="page"' : '' %>><%= item.label %></a>
+      <% }); %>
+      <a href="https://app.connectedworkos.com/login">Sign in</a>
+    </nav>
+  </div>
+</header>
+
+<%- body %>
+
+<footer class="foot">
+  <div class="wrap foot__row">
+    <span>&copy; <span id="yr">2026</span> Connected Home Outfitters LLC</span>
+    <span class="foot__nav">
+      <a href="/how-it-works">How it works</a> ·
+      <a href="/getting-paid">Getting paid</a> ·
+      <a href="/faq">FAQ</a> ·
+      <a href="/lawn-care">Lawn care</a> ·
+      <a href="/hvac">HVAC</a> ·
+      <a href="/plumbing">Plumbing</a>
+    </span>
+    <%# Three different doors, three different kinds of person. "Staff sign in" said
+        nothing about whose staff, which stops meaning anything once more than one company
+        runs on this. %>
+    <span>
+      <a href="https://app.connectedworkos.com/login">Your business login</a> ·
+      <a href="https://app.connectedworkos.com/portal/login">Customer login</a> ·
+      <a href="https://app.connectedworkos.com/sub/login">Subcontractor login</a> ·
+      <a href="https://connectedhomeledger.com">Connected Home Ledger</a>
+    </span>
+  </div>
+</footer>
+
+<script>document.getElementById('yr').textContent = new Date().getFullYear();</script>
+</body>
+</html>
