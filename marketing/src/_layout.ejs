@@ -16,8 +16,15 @@
 <meta property="og:site_name" content="ConnectedWorkOS">
 <meta property="og:title" content="<%= page.ogTitle || page.title %>">
 <meta property="og:description" content="<%= page.description %>">
-<meta property="og:image" content="<%= ORIGIN %>/img/logo.png">
+<%# 1200x630 is the size Facebook, LinkedIn, Slack and X all crop to. The logo was
+    1024x384, so previews letterboxed it. Dimensions are declared so a scraper can lay the
+    card out before the image finishes downloading. %>
+<meta property="og:image" content="<%= ORIGIN %>/img/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="ConnectedWorkOS — every job, start to paid.">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="<%= ORIGIN %>/img/og-card.png">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
