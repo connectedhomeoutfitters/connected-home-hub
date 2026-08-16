@@ -47,6 +47,10 @@ body {
 img { max-width: 100%; height: auto; display: block; }
 
 a { color: var(--bp-600); }
+/* The base link colour is tuned for light sections. On a blueprint band it drops to
+   2.1:1, so links there take the cyan instead. Buttons are excluded because they set
+   their own colours and a bare `.field a` would out-specify .btn--ghost. */
+.field a:not(.btn) { color: var(--cyan); }
 a:focus-visible, button:focus-visible {
   outline: 3px solid var(--hivis);
   outline-offset: 3px;
@@ -289,7 +293,9 @@ h3 { font-size: clamp(1.25rem, 1.1rem + 0.7vw, 1.5rem); letter-spacing: 0.01em; 
 @media (min-width: 860px) { .split { grid-template-columns: 1.05fr 0.95fr; align-items: center; } }
 
 /* A receipt-to-ledger diagram, drawn in CSS rather than shipped as an image. */
-.flow { border: 1px solid var(--rule-dark); background: #fff; border-radius: 3px; overflow: hidden; }
+/* Sets its own white background, so it must set its own colour — inside a .field band it
+   otherwise inherits #dceaf5 and the values render at 1.2:1. Same trap as .doc. */
+.flow { border: 1px solid var(--rule-dark); background: #fff; color: var(--ink); border-radius: 3px; overflow: hidden; }
 .flow__row { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; padding: 0.9rem 1.15rem; border-bottom: 1px dashed var(--rule-dark); }
 .flow__row:last-child { border-bottom: 0; }
 .flow__label { font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-soft); }
@@ -328,7 +334,8 @@ h3 { font-size: clamp(1.25rem, 1.1rem + 0.7vw, 1.5rem); letter-spacing: 0.01em; 
 }
 
 .card { background: #fff; padding: clamp(1.5rem, 3vw, 2.1rem); }
-.card__tag { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--blue); }
+/* --blue reads at only 3.5:1 at this size; --bp-600 keeps it unmistakably blue at ~8.9:1. */
+.card__tag { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--bp-600); }
 .card h3 { margin: 0.75rem 0 0; color: var(--ink); }
 .card p { margin: 0.6rem 0 0; color: var(--ink-soft); }
 
@@ -395,7 +402,7 @@ h3 { font-size: clamp(1.25rem, 1.1rem + 0.7vw, 1.5rem); letter-spacing: 0.01em; 
 .doc__totals .is-total { border-top: 1px solid var(--rule-dark); margin-top: .35rem; padding-top: .6rem; font-family: var(--font-display); font-size: 1.2rem; }
 /* The one number the reader is looking for gets the money colour. */
 .doc__totals .is-due { color: var(--bp-700); font-weight: 500; }
-.doc__totals .is-due span:last-child { color: #b26a00; font-weight: 600; }
+.doc__totals .is-due span:last-child { color: #8a5200; font-weight: 600; }
 
 .doc__fields { margin: 0; padding: 1rem 1.15rem; display: grid; gap: .75rem; }
 @media (min-width: 620px) { .doc__fields { grid-template-columns: 1fr 1fr; } }
@@ -413,7 +420,7 @@ h3 { font-size: clamp(1.25rem, 1.1rem + 0.7vw, 1.5rem); letter-spacing: 0.01em; 
 .steps { list-style: none; margin: clamp(2rem, 4vw, 3rem) 0 0; padding: 0; }
 .steps__item { display: flex; gap: 1.15rem; padding: 1.1rem 0; border-top: 1px solid var(--rule-dark); }
 .steps__item:first-child { border-top: 0; }
-.steps__no { font-family: var(--font-mono); font-size: .8rem; color: var(--blue); flex: 0 0 auto; padding-top: .2rem; }
+.steps__no { font-family: var(--font-mono); font-size: .8rem; color: var(--bp-600); flex: 0 0 auto; padding-top: .2rem; }
 .steps__item h3 { margin: 0; }
 .steps__item p { margin: .4rem 0 0; color: var(--ink-soft); max-width: 68ch; }
 
