@@ -358,6 +358,10 @@ h3 { font-size: clamp(1.25rem, 1.1rem + 0.7vw, 1.5rem); letter-spacing: 0.01em; 
    they cannot silently go stale against a UI change the way an image does. */
 .doc {
   background: #fff;
+  /* Set the text colour explicitly, because .doc carries its own white background but can
+     sit inside a .field band whose colour is #dceaf5 — pale text on white, essentially
+     unreadable. Anything that paints its own background must also state its own colour. */
+  color: var(--ink);
   border: 1px solid var(--rule-dark);
   border-radius: 3px;
   margin-top: clamp(2rem, 4vw, 3rem);
