@@ -373,7 +373,11 @@ h3 { font-size: clamp(1.25rem, 1.1rem + 0.7vw, 1.5rem); letter-spacing: 0.01em; 
 .doc__meta { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .08em; color: #9dbdd6; }
 .doc__meta--ok { color: #7ce3b1; }
 
-.doc__table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+/* The line-item table cannot shrink below its content, and .doc clips (overflow:hidden,
+   for the rounded corners) — so without this wrapper the Amount column is silently cut
+   off on a phone rather than being reachable. Scroll the table, never the page. */
+.doc__scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.doc__table { width: 100%; min-width: 380px; border-collapse: collapse; font-size: .92rem; }
 .doc__table th, .doc__table td { padding: .6rem 1.15rem; border-bottom: 1px solid #eef2f5; text-align: left; }
 .doc__table th {
   font-family: var(--font-mono); font-size: .68rem; letter-spacing: .12em;
