@@ -791,6 +791,21 @@ order:
    **Still outstanding from this move:** **re-seal the secrets vault** — `secrets.vault`
    holds every environment's `.env` and two of them just changed, so it is now stale.
    Needs the owner's passphrase (not recoverable, in their password manager).
+2. **Recurring services — DESIGNED, NOT BUILT.** See `docs/adr/0002-recurring-services.md`.
+   The platform bills **one job at a time**; there is no recurrence anywhere — `invoices`
+   has no series or interval, `jobs.scheduled_at` is a single point in time, Stripe usage
+   is PaymentIntents only (no subscriptions, no saved card), and no cron creates an
+   invoice. That is a poor fit for **half the trades the marketing site targets** — lawn
+   care, pool, pest control and cleaning are all recurring-revenue businesses.
+
+   The agreed shape: a recurring service **generates visits as ordinary `jobs`**
+   (`type='service'`), so they inherit the calendar, crew assignment and the existing
+   billing hook; billing is a **monthly rollup** of visits, in arrears by default or in
+   advance per service. Deliberately **not** Stripe Subscriptions — a subscription bills
+   the calendar and cannot express "we skipped a visit". **Largest prerequisite:
+   `invoices` cannot hold line items today**, and a rollup invoice is meaningless without
+   them.
+
 2. **Hub's own logo — DONE 2026-08-14.** `public/img/logo.png` is now the ConnectedWorkOS
    product mark (1024×384, 279 KB, tagline-free variant — the app has a single logo slot
    that must work from the 28px offcanvas to the 240px PDF, and the tagline version turns
