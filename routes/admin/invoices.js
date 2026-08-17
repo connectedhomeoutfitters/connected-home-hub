@@ -3,6 +3,7 @@ const router = express.Router();
 const crypto = require('crypto');
 const { requireAuth } = require('../../middleware/auth');
 const { customerName } = require('../../services/customerLookup');
+const { pageParams, pager } = require('../../services/pagination');
 const { sendMail } = require('../../services/mailer');
 const { createInvoice, lineItemsForInvoice, lineItemsTotal } = require('../../services/invoicing');
 const { getCompany } = require('../../services/companySettings');
@@ -15,14 +16,19 @@ const TOKEN_TTL_DAYS = 30;
 
 router.get('/', async (req, res, next) => {
   try {
+    const { page, perPage, limit, offset } = pageParams(req);
+    const [[{ total }]] = await req.db.execute(
+      'SELECT COUNT(*) AS total FROM invoices WHERE org_id = ?', [req.orgId]
+    );
     const [invoices] = await req.db.execute(
       `SELECT i.*, c.name AS customer_name FROM invoices i
        JOIN customers c ON c.id = i.customer_id AND c.org_id = i.org_id
        WHERE i.org_id = ?
-       ORDER BY i.created_at DESC`,
+       ORDER BY i.created_at DESC
+       LIMIT ${limit} OFFSET ${offset}`,
       [req.orgId]
     );
-    res.render('admin/invoices', { pageScript: null, invoices });
+    res.render('admin/invoices', { pageScript: null, invoices, pager: pager({ page, perPage, total }) });
   } catch (err) {
     next(err);
   }

@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const { requireAuth } = require('../../middleware/auth');
+const { pageParams, pager } = require('../../services/pagination');
 const consultationOptions = require('../../config/consultationOptions');
 const { mapLeadToConsultation } = require('../../config/leadToConsultationMapping');
 const { sendMail } = require('../../services/mailer');
@@ -77,11 +78,16 @@ function fieldsFromBody(body) {
 
 router.get('/', async (req, res, next) => {
   try {
+    const { page, perPage, limit, offset } = pageParams(req);
+    const [[{ total }]] = await req.db.execute(
+      'SELECT COUNT(*) AS total FROM consultations WHERE org_id = ?', [req.orgId]
+    );
     const [consultations] = await req.db.execute(
       `SELECT co.*, c.name AS customer_name FROM consultations co
        JOIN customers c ON c.id = co.customer_id AND c.org_id = co.org_id
        WHERE co.org_id = ?
-       ORDER BY co.created_at DESC`,
+       ORDER BY co.created_at DESC
+       LIMIT ${limit} OFFSET ${offset}`,
       [req.orgId]
     );
     // Only the count: the picker searches server-side, so the form no longer needs the
@@ -95,11 +101,22 @@ router.get('/', async (req, res, next) => {
     let omw = null;
     const omwId = req.query.omw_sent || req.query.omw_noemail;
     if (omwId) {
-      const match = consultations.find((c) => String(c.id) === String(omwId));
+      // Looked up directly rather than searched within `consultations`: once the list is
+      // paginated the row this refers to may not be on the current page, and the staff
+      // member would get no confirmation that their email actually went.
+      const [[match]] = await req.db.execute(
+        `SELECT c.name AS customer_name FROM consultations co
+          JOIN customers c ON c.id = co.customer_id AND c.org_id = co.org_id
+         WHERE co.id = ? AND co.org_id = ?`,
+        [omwId, req.orgId]
+      );
       if (match) omw = { name: match.customer_name, noemail: !!req.query.omw_noemail };
     }
 
-    res.render('admin/consultations', { pageScript: 'customer-picker.js', consultations, customerCount, omw });
+    res.render('admin/consultations', {
+      pageScript: 'customer-picker.js', consultations, customerCount, omw,
+      pager: pager({ page, perPage, total }),
+    });
   } catch (err) {
     next(err);
   }

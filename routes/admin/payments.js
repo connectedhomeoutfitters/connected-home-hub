@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const stripe = require('../../config/stripe');
 const { requireAuth, requireAdmin } = require('../../middleware/auth');
+const { pageParams, pager } = require('../../services/pagination');
 const { reconcileRefunds } = require('../../services/paymentsSync');
 const { paymentContext } = require('../../services/stripeAccounts');
 const { sendMail } = require('../../services/mailer');
@@ -41,23 +42,40 @@ function buildFilters(query, orgId) {
   return { clause: `WHERE ${where.join(' AND ')}`, params };
 }
 
-const LIST_SQL = (clause) => `
+// `limitClause` is opt-in and deliberately empty for the CSV export: the on-screen list is
+// paged, but an accounting export must be the COMPLETE filtered set. A silently paginated
+// export would look right and be wrong, which is the worst kind of bug in a sales journal.
+const LIST_SQL = (clause, limitClause = '') => `
   SELECT p.*, i.type AS invoice_type, i.status AS invoice_status,
          c.name AS customer_name, c.email AS customer_email
   FROM payments p
   JOIN invoices i ON i.id = p.invoice_id AND i.org_id = p.org_id
   JOIN customers c ON c.id = i.customer_id AND c.org_id = i.org_id
   ${clause}
-  ORDER BY p.created_at DESC`;
+  ORDER BY p.created_at DESC
+  ${limitClause}`;
 
 // Payments list + sales-journal summary. Summary tiles reflect the current filter, so
 // e.g. filtering to a month gives that month's collected/refunded/net at a glance.
 router.get('/', async (req, res, next) => {
   try {
     const { clause, params } = buildFilters(req.query, req.orgId);
-    const [payments] = await req.db.execute(LIST_SQL(clause), params);
+    const { page, perPage, limit, offset } = pageParams(req);
+    const [[{ total }]] = await req.db.execute(
+      `SELECT COUNT(*) AS total
+         FROM payments p
+         JOIN invoices i ON i.id = p.invoice_id AND i.org_id = p.org_id
+         JOIN customers c ON c.id = i.customer_id AND c.org_id = i.org_id
+         ${clause}`,
+      params
+    );
+    const [payments] = await req.db.execute(
+      LIST_SQL(clause, `LIMIT ${limit} OFFSET ${offset}`), params
+    );
 
-    // Totals over the filtered set. gross = successfully collected; refunded = money
+    // Totals over the whole filtered set, NOT the current page — a sales-journal total
+    // that changed as you paged would be useless. This is a separate aggregate query for
+    // exactly that reason. gross = successfully collected; refunded = money
     // returned; net = what the business actually kept.
     const [[summary]] = await req.db.execute(
       `SELECT
@@ -78,6 +96,7 @@ router.get('/', async (req, res, next) => {
       payments,
       summary,
       filters: req.query,
+      pager: pager({ page, perPage, total }),
     });
   } catch (err) {
     next(err);

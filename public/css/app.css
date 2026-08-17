@@ -265,3 +265,11 @@ body {
 .cho-picker-name { font-weight: 500; }
 .cho-picker-meta { font-size: .8125rem; color: #6c757d; }
 .cho-picker-empty { padding: .35rem .75rem; color: #6c757d; font-size: .875rem; }
+
+/* Sortable table headers (customers list). Colour is set explicitly alongside every
+   state — an unpaired rule here inherits the surrounding text colour and the active
+   header stops being distinguishable from the inactive ones. */
+.cho-th-sort { color: var(--cho-dark); text-decoration: none; white-space: nowrap; }
+.cho-th-sort:hover { color: var(--cho-accent); text-decoration: underline; }
+.cho-th-sort.active { color: var(--cho-accent); }
+.cho-th-sort i { font-size: .7rem; }

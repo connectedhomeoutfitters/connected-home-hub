@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { requireAuth } = require('../../middleware/auth');
 const { adjustStock } = require('../../services/inventory');
+const { pageParams, pager } = require('../../services/pagination');
 
 router.use(requireAuth);
 
@@ -29,11 +30,18 @@ function resolveRetailPrice({ vendor_cost, markup_percent, markup_enabled, retai
 router.get('/', async (req, res, next) => {
   try {
     const lowOnly = req.query.low === '1';
+    const { page, perPage, limit, offset } = pageParams(req);
+    const [[{ total }]] = await req.db.execute(
+      `SELECT COUNT(*) AS total FROM products WHERE org_id = ?
+       ${lowOnly ? 'AND track_inventory = 1 AND reorder_level IS NOT NULL AND stock_qty <= reorder_level' : ''}`,
+      [req.orgId]
+    );
     const [products] = await req.db.execute(
       `SELECT * FROM products
        WHERE org_id = ?
        ${lowOnly ? 'AND track_inventory = 1 AND reorder_level IS NOT NULL AND stock_qty <= reorder_level' : ''}
-       ORDER BY active DESC, category, name`,
+       ORDER BY active DESC, category, name
+       LIMIT ${limit} OFFSET ${offset}`,
       [req.orgId]
     );
     const [[low]] = await req.db.execute(
@@ -43,6 +51,7 @@ router.get('/', async (req, res, next) => {
     res.render('admin/products', {
       pageScript: 'page-products.js', products, lowOnly, lowCount: low.c,
       categories: await loadCategories(req.db, req.orgId),
+      pager: pager({ page, perPage, total }),
     });
   } catch (err) {
     next(err);

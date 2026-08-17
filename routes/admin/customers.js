@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { requireAuth } = require('../../middleware/auth');
+const { pageParams, pager } = require('../../services/pagination');
 
 router.use(requireAuth);
 
@@ -50,7 +51,7 @@ router.get('/', async (req, res, next) => {
   try {
     const q = String(req.query.q || '').trim();
     const sortKey = SORTS[req.query.sort] ? req.query.sort : 'recent';
-    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const { page, perPage, limit, offset } = pageParams(req, PER_PAGE);
 
     // org_id is spelled LITERALLY in both statements below, never folded into the
     // interpolated part. test/queryScoping.test.js reads the SQL statically, so a scoping
@@ -71,7 +72,6 @@ router.get('/', async (req, res, next) => {
     // would otherwise fan out into 36 rows and break both the count and the paging.
     // LIMIT/OFFSET are interpolated as integers (already coerced above) because MySQL
     // won't take them as placeholders in a prepared statement.
-    const offset = (page - 1) * PER_PAGE;
     const [customers] = await req.db.execute(
       `SELECT c.*,
               (SELECT COALESCE(SUM(p.amount - p.amount_refunded), 0)
@@ -85,14 +85,13 @@ router.get('/', async (req, res, next) => {
          FROM customers c
         WHERE c.org_id = ? ${extra}
         ORDER BY ${SORTS[sortKey].sql}
-        LIMIT ${PER_PAGE} OFFSET ${offset}`,
+        LIMIT ${limit} OFFSET ${offset}`,
       params
     );
 
     res.render('admin/customers', {
       pageScript: 'page-customers.js', customers,
-      q, sortKey, SORTS, page, perPage: PER_PAGE, total,
-      pages: Math.max(1, Math.ceil(total / PER_PAGE)),
+      q, sortKey, SORTS, pager: pager({ page, perPage, total }),
     });
   } catch (err) {
     next(err);

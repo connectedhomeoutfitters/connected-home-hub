@@ -6,6 +6,7 @@ const { consumeForJob } = require('../../services/inventory');
 const { sendMail } = require('../../services/mailer');
 const jobStepMessages = require('../../config/jobStepMessages');
 const activity = require('../../services/activityLog');
+const { pageParams, pager } = require('../../services/pagination');
 
 // Payment picture for a job's estimate: how much is invoiced, paid, and still outstanding
 // (pending invoices). Used on the job page so staff know whether it's fully collected
@@ -79,13 +80,20 @@ async function onInstallJobDone(req, jobId) {
 router.get('/', async (req, res, next) => {
   try {
     const showAll = req.query.all === '1';
+    const { page, perPage, limit, offset } = pageParams(req);
+    const [[{ total }]] = await req.db.execute(
+      `SELECT COUNT(*) AS total FROM jobs
+        WHERE org_id = ? ${showAll ? '' : "AND status IN ('pending', 'in_progress')"}`,
+      [req.orgId]
+    );
     const [jobs] = await req.db.execute(
       `SELECT j.*, c.name AS customer_name, u.name AS assigned_name FROM jobs j
        JOIN customers c ON c.id = j.customer_id AND c.org_id = j.org_id
        LEFT JOIN users u ON u.id = j.assigned_to AND u.org_id = j.org_id
        WHERE j.org_id = ? ${showAll ? '' : "AND j.status IN ('pending', 'in_progress')"}
        ORDER BY FIELD(j.status, 'in_progress', 'pending', 'done', 'cancelled'),
-         (j.scheduled_at IS NULL), j.scheduled_at, (j.due_date IS NULL), j.due_date`,
+         (j.scheduled_at IS NULL), j.scheduled_at, (j.due_date IS NULL), j.due_date
+       LIMIT ${limit} OFFSET ${offset}`,
       [req.orgId]
     );
     // Only the count: the picker searches server-side, so the form no longer needs the
@@ -98,7 +106,10 @@ router.get('/', async (req, res, next) => {
       'SELECT id, name FROM users WHERE org_id = ? ORDER BY name',
       [req.orgId]
     );
-    res.render('admin/jobs', { pageScript: 'customer-picker.js', jobs, customerCount, staff, showAll });
+    res.render('admin/jobs', {
+      pageScript: 'customer-picker.js', jobs, customerCount, staff, showAll,
+      pager: pager({ page, perPage, total }),
+    });
   } catch (err) {
     next(err);
   }

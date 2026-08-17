@@ -21,6 +21,10 @@ function setLocals(req, res, next) {
   // Full request path (includes BASE_PATH on the NAS) — the sidebar nav uses it to
   // highlight the active section.
   res.locals.currentPath = req.path;
+  // Current query params, so views/partials/pager.ejs can build page links that keep
+  // whatever filters and sorts are already applied — paging a filtered list must not
+  // silently drop the filter.
+  res.locals.currentQuery = req.query || {};
   next();
 }
 

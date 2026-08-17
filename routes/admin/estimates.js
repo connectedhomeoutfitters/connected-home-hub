@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
 const { requireAuth } = require('../../middleware/auth');
+const { pageParams, pager } = require('../../services/pagination');
 const { sendMail } = require('../../services/mailer');
 const { generateEstimatePdf } = require('../../services/estimatePdf');
 const { getCompany } = require('../../services/companySettings');
@@ -26,11 +27,16 @@ const ESTIMATE_VALID_DAYS = 30;
 
 router.get('/', async (req, res, next) => {
   try {
+    const { page, perPage, limit, offset } = pageParams(req);
+    const [[{ total }]] = await req.db.execute(
+      'SELECT COUNT(*) AS total FROM estimates WHERE org_id = ?', [req.orgId]
+    );
     const [estimates] = await req.db.execute(
       `SELECT e.*, c.name AS customer_name FROM estimates e
        JOIN customers c ON c.id = e.customer_id AND c.org_id = e.org_id
        WHERE e.org_id = ?
-       ORDER BY e.created_at DESC`,
+       ORDER BY e.created_at DESC
+       LIMIT ${limit} OFFSET ${offset}`,
       [req.orgId]
     );
     // Only the count: the picker searches server-side, so the form no longer needs the
@@ -39,7 +45,10 @@ router.get('/', async (req, res, next) => {
       'SELECT COUNT(*) AS n FROM customers WHERE org_id = ?',
       [req.orgId]
     );
-    res.render('admin/estimates', { pageScript: 'customer-picker.js', estimates, customerCount });
+    res.render('admin/estimates', {
+      pageScript: 'customer-picker.js', estimates, customerCount,
+      pager: pager({ page, perPage, total }),
+    });
   } catch (err) {
     next(err);
   }

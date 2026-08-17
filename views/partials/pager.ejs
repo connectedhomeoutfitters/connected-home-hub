@@ -1,0 +1,55 @@
+<%# Shared list pager. Include it from a list view passing a `pager` local, built by
+    services/pagination.js's pager().
+
+    NB: no literal EJS tags in this comment — an inner tag inside a comment block closes it
+    early and breaks the template at render time, which a syntax check will not catch.
+
+    Page links are built from res.locals.currentQuery, so whatever filter, search or sort
+    is applied carries across pages — paging a filtered list must never silently drop the
+    filter and show the user a different set than they asked for. %>
+<% if (pager && pager.pages > 1) { %>
+  <%
+    const pageUrl = (n) => {
+      const p = new URLSearchParams();
+      Object.keys(currentQuery || {}).forEach(k => {
+        if (k !== 'page' && currentQuery[k] !== '' && currentQuery[k] != null) p.set(k, currentQuery[k]);
+      });
+      if (n > 1) p.set('page', n);
+      const s = p.toString();
+      return currentPath + (s ? '?' + s : '');
+    };
+    // A window around the current page: a tenant on page 40 of 200 should not be handed
+    // 200 links, and "first / last" is what people actually reach for.
+    const win = 2;
+    const start = Math.max(1, pager.page - win);
+    const end = Math.min(pager.pages, pager.page + win);
+  %>
+  <nav class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
+    <span class="text-muted small">
+      Showing <%= pager.from %>&ndash;<%= pager.to %> of <%= pager.total %>
+    </span>
+    <ul class="pagination pagination-sm mb-0">
+      <li class="page-item <%= pager.page <= 1 ? 'disabled' : '' %>">
+        <a class="page-link" href="<%= pageUrl(pager.page - 1) %>" rel="prev">Previous</a>
+      </li>
+      <% if (start > 1) { %>
+        <li class="page-item"><a class="page-link" href="<%= pageUrl(1) %>">1</a></li>
+        <% if (start > 2) { %><li class="page-item disabled"><span class="page-link">&hellip;</span></li><% } %>
+      <% } %>
+      <% for (let n = start; n <= end; n++) { %>
+        <li class="page-item <%= n === pager.page ? 'active' : '' %>">
+          <a class="page-link" href="<%= pageUrl(n) %>"><%= n %></a>
+        </li>
+      <% } %>
+      <% if (end < pager.pages) { %>
+        <% if (end < pager.pages - 1) { %><li class="page-item disabled"><span class="page-link">&hellip;</span></li><% } %>
+        <li class="page-item"><a class="page-link" href="<%= pageUrl(pager.pages) %>"><%= pager.pages %></a></li>
+      <% } %>
+      <li class="page-item <%= pager.page >= pager.pages ? 'disabled' : '' %>">
+        <a class="page-link" href="<%= pageUrl(pager.page + 1) %>" rel="next">Next</a>
+      </li>
+    </ul>
+  </nav>
+<% } else if (pager && pager.total > 0) { %>
+  <p class="text-muted small mt-2 mb-0"><%= pager.total %> record<%= pager.total === 1 ? '' : 's' %>.</p>
+<% } %>

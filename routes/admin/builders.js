@@ -1,19 +1,27 @@
 const express = require('express');
 const router = express.Router();
 const { requireAuth } = require('../../middleware/auth');
+const { pageParams, pager } = require('../../services/pagination');
 
 router.use(requireAuth);
 
 router.get('/', async (req, res, next) => {
   try {
     // Each builder with a count of referred customers, so the list conveys referral volume.
+    const { page, perPage, limit, offset } = pageParams(req);
+    const [[{ total }]] = await req.db.execute(
+      'SELECT COUNT(*) AS total FROM builders WHERE org_id = ?', [req.orgId]
+    );
     const [builders] = await req.db.execute(
       `SELECT b.*, (SELECT COUNT(*) FROM customers c
                     WHERE c.builder_id = b.id AND c.org_id = b.org_id) AS customer_count
-       FROM builders b WHERE b.org_id = ? ORDER BY b.active DESC, b.name`,
+       FROM builders b WHERE b.org_id = ? ORDER BY b.active DESC, b.name
+       LIMIT ${limit} OFFSET ${offset}`,
       [req.orgId]
     );
-    res.render('admin/builders', { pageScript: null, builders });
+    res.render('admin/builders', {
+      pageScript: null, builders, pager: pager({ page, perPage, total }),
+    });
   } catch (err) {
     next(err);
   }

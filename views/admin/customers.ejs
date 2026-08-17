@@ -5,7 +5,7 @@
   // doesn't silently drop the search (and paging doesn't drop the sort).
   const qs = (over) => {
     const p = new URLSearchParams();
-    const merged = Object.assign({ q, sort: sortKey, page }, over);
+    const merged = Object.assign({ q, sort: sortKey, page: pager.page }, over);
     if (merged.q) p.set('q', merged.q);
     if (merged.sort && merged.sort !== 'recent') p.set('sort', merged.sort);
     if (merged.page && Number(merged.page) > 1) p.set('page', merged.page);
@@ -63,9 +63,6 @@
       <% } %>
     </div></div>
   <% } else { %>
-    <p class="text-muted small mb-2">
-      <%= total %> customer<%= total === 1 ? '' : 's' %><%= q ? ' matching your search' : '' %>.
-    </p>
     <div class="table-responsive">
       <table class="table align-middle">
         <thead>
@@ -118,15 +115,7 @@
       </table>
     </div>
 
-    <% if (pages > 1) { %>
-      <nav class="d-flex justify-content-between align-items-center">
-        <span class="text-muted small">Page <%= page %> of <%= pages %></span>
-        <div class="btn-group btn-group-sm">
-          <a class="btn btn-outline-secondary <%= page <= 1 ? 'disabled' : '' %>" href="<%= qs({ page: page - 1 }) %>">Previous</a>
-          <a class="btn btn-outline-secondary <%= page >= pages ? 'disabled' : '' %>" href="<%= qs({ page: page + 1 }) %>">Next</a>
-        </div>
-      </nav>
-    <% } %>
+    <%- include('../partials/pager', { pager }) %>
   <% } %>
 </div>
 <%- include('../partials/footer') %>

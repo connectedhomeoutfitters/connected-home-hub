@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const { requireAuth } = require('../../middleware/auth');
+const { pageParams, pager } = require('../../services/pagination');
 
 router.use(requireAuth);
 
@@ -28,11 +29,18 @@ const upload = multer({
 
 router.get('/', async (req, res, next) => {
   try {
+    const { page, perPage, limit, offset } = pageParams(req);
+    const [[{ total }]] = await req.db.execute(
+      'SELECT COUNT(*) AS total FROM subcontractors WHERE org_id = ?', [req.orgId]
+    );
     const [subcontractors] = await req.db.execute(
-      'SELECT * FROM subcontractors WHERE org_id = ? ORDER BY active DESC, trade, name',
+      `SELECT * FROM subcontractors WHERE org_id = ? ORDER BY active DESC, trade, name
+       LIMIT ${limit} OFFSET ${offset}`,
       [req.orgId]
     );
-    res.render('admin/subcontractors', { pageScript: null, subcontractors });
+    res.render('admin/subcontractors', {
+      pageScript: null, subcontractors, pager: pager({ page, perPage, total }),
+    });
   } catch (err) {
     next(err);
   }

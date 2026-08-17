@@ -1,20 +1,28 @@
 const express = require('express');
 const router = express.Router();
 const { requireAuth } = require('../../middleware/auth');
+const { pageParams, pager } = require('../../services/pagination');
 const leadOptions = require('../../config/leadOptions');
 
 router.use(requireAuth);
 
 router.get('/', async (req, res, next) => {
   try {
+    const { page, perPage, limit, offset } = pageParams(req);
+    const [[{ total }]] = await req.db.execute(
+      'SELECT COUNT(*) AS total FROM leads WHERE org_id = ?', [req.orgId]
+    );
     const [leads] = await req.db.execute(
       `SELECT l.*, c.name AS customer_name FROM leads l
        LEFT JOIN customers c ON c.id = l.customer_id AND c.org_id = l.org_id
        WHERE l.org_id = ?
-       ORDER BY FIELD(l.status, 'new','contacted','scheduled','converted','lost'), l.created_at DESC`,
+       ORDER BY FIELD(l.status, 'new','contacted','scheduled','converted','lost'), l.created_at DESC
+       LIMIT ${limit} OFFSET ${offset}`,
       [req.orgId]
     );
-    res.render('admin/leads', { pageScript: null, leads, opts: leadOptions });
+    res.render('admin/leads', {
+      pageScript: null, leads, opts: leadOptions, pager: pager({ page, perPage, total }),
+    });
   } catch (err) {
     next(err);
   }

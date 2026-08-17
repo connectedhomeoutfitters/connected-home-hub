@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { requireAuth } = require('../../middleware/auth');
 const { customerName } = require('../../services/customerLookup');
+const { pageParams, pager } = require('../../services/pagination');
 
 router.use(requireAuth);
 
@@ -10,14 +11,22 @@ router.use(requireAuth);
 router.get('/', async (req, res, next) => {
   try {
     const showAll = req.query.all === '1';
+    const { page, perPage, limit, offset } = pageParams(req);
+    const [[{ total }]] = await req.db.execute(
+      `SELECT COUNT(*) AS total FROM warranties
+        WHERE org_id = ? ${showAll ? '' : 'AND active = 1'}`, [req.orgId]
+    );
     const [warranties] = await req.db.execute(
       `SELECT w.*, c.name AS customer_name FROM warranties w
        JOIN customers c ON c.id = w.customer_id AND c.org_id = w.org_id
        WHERE w.org_id = ? ${showAll ? '' : 'AND w.active = 1'}
-       ORDER BY (w.expires_on IS NULL), w.expires_on`,
+       ORDER BY (w.expires_on IS NULL), w.expires_on
+       LIMIT ${limit} OFFSET ${offset}`,
       [req.orgId]
     );
-    res.render('admin/warranties', { pageScript: null, warranties, showAll });
+    res.render('admin/warranties', {
+      pageScript: null, warranties, showAll, pager: pager({ page, perPage, total }),
+    });
   } catch (err) {
     next(err);
   }
