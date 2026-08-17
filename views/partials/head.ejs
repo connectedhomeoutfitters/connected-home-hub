@@ -24,5 +24,51 @@
   <% if (_accent && _accent.toLowerCase() !== '#0799d6') { %>
     <style nonce="<%= cspNonce %>">:root { --cho-accent: <%= _accent %>; }</style>
   <% } %>
+
+  <%# Google Analytics, with the page path REDACTED before it is ever reported.
+      /e/:token and /i/:token are customer documents and /portal/verify/:token is a sign-in
+      credential — on those routes the path IS the secret, so the real URL must never leave
+      the browser. services/analytics.js computes the safe path server-side.
+
+      send_page_view is FALSE on purpose: gtag's automatic page_view reads
+      document.location, which is the very thing being withheld. The manual event below is
+      the only page_view sent. page_referrer is overridden for the same reason — left alone
+      gtag reads document.referrer, so moving from an estimate to the pay page would report
+      the estimate token. Nothing renders unless GA_MEASUREMENT_ID is set, keeping dev and
+      the NAS test instance out of the property. %>
+  <% if (typeof analytics !== 'undefined' && analytics) { %>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=<%= analytics.id %>"></script>
+    <script nonce="<%= cspNonce %>">
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      (function () {
+        var PATH = <%- JSON.stringify(analytics.path) %>;
+        // Mirrors redactPath() in services/analytics.js, for the one value only the
+        // browser knows: where the visitor came from.
+        function safeRef(ref) {
+          if (!ref) return '';
+          try {
+            var u = new URL(ref);
+            var p = u.pathname
+              .replace(/^\/e\/[^/]+/, '/e/:token')
+              .replace(/^\/i\/[^/]+/, '/i/:token')
+              .replace(/^\/portal\/verify\/[^/]+/, '/portal/verify/:token')
+              .replace(/^\/sub\/verify\/[^/]+/, '/sub/verify/:token')
+              .replace(/\/\d+(?=\/|$)/g, '/:id');
+            return u.origin + p;
+          } catch (e) { return ''; }
+        }
+        var cfg = {
+          send_page_view: false,
+          page_path: PATH,
+          page_location: window.location.origin + PATH,
+          page_referrer: safeRef(document.referrer),
+        };
+        gtag('config', '<%= analytics.id %>', cfg);
+        gtag('event', 'page_view', cfg);
+      })();
+    </script>
+  <% } %>
 </head>
 <body class="<%= typeof bodyClass !== 'undefined' ? bodyClass : '' %>">

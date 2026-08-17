@@ -10,6 +10,7 @@ const cron = require('node-cron');
 const passport = require('./config/passport');
 const db = require('./config/db');
 const { setLocals } = require('./middleware/auth');
+const { analyticsLocals } = require('./services/analytics');
 const orgContext = require('./middleware/orgContext');
 const branding = require('./middleware/branding');
 const { sendDueReminders } = require('./services/consultationReminders');
@@ -45,9 +46,15 @@ app.use(
   helmet({
     contentSecurityPolicy: {
       directives: {
-        scriptSrc: ["'self'", 'https://js.stripe.com', (req, res) => `'nonce-${res.locals.cspNonce}'`],
+        // googletagmanager serves gtag.js; google-analytics is where it beacons to. Paths
+        // are redacted before they reach it — see services/analytics.js.
+        scriptSrc: ["'self'", 'https://js.stripe.com', 'https://www.googletagmanager.com',
+          (req, res) => `'nonce-${res.locals.cspNonce}'`],
         frameSrc: ["'self'", 'https://js.stripe.com', 'https://hooks.stripe.com'],
-        connectSrc: ["'self'", 'https://api.stripe.com'],
+        connectSrc: ["'self'", 'https://api.stripe.com',
+          'https://www.google-analytics.com', 'https://analytics.google.com',
+          'https://*.google-analytics.com', 'https://*.analytics.google.com'],
+        imgSrc: ["'self'", 'data:', 'https://www.google-analytics.com', 'https://www.googletagmanager.com'],
         // Stripe Connect's OAuth handoff is a same-origin form POST that 302s out to
         // connect.stripe.com, and Chrome enforces form-action ACROSS REDIRECTS — so
         // helmet's default `form-action 'self'` silently refuses the navigation and the
@@ -117,6 +124,7 @@ app.use(orgContext);
 // res.locals for the nav, portal header and <head> (see middleware/branding.js).
 app.use(branding);
 app.use(setLocals);
+app.use(analyticsLocals);
 
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
 app.use(`${BASE_PATH}/login`, authLimiter);
