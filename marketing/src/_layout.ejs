@@ -43,6 +43,21 @@
   "publisher": { "@type": "Organization", "name": "Connected Home Outfitters LLC" }
 }, null, 2) %>
 </script>
+
+<%# Google Analytics (GA4). In the shared layout, so it covers every page — and only the
+    MARKETING site. It is deliberately NOT in the app: app.connectedworkos.com serves
+    customer estimates and invoices at /e/:token and /i/:token, and single-use magic links
+    at /portal/verify/:token, so the path IS the credential. GA records the page path, which
+    would hand those tokens to a third party. Same reason the app sends X-Robots-Tag:
+    noindex and disallows crawling. %>
+<script async src="https://www.googletagmanager.com/gtag/js?id=<%= GA_ID %>"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', '<%= GA_ID %>');
+</script>
 </head>
 <body>
 

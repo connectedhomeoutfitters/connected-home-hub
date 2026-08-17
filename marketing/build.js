@@ -20,6 +20,9 @@ const ejs = require('ejs');
 const SRC = path.join(__dirname, 'src');
 const OUT = __dirname;
 const ORIGIN = 'https://connectedworkos.com';
+// GA4 measurement id. Marketing site only — see the note in src/_layout.ejs for why the
+// app deliberately has no analytics.
+const GA_ID = 'G-V465R82EGV';
 
 const pages = require('./src/_pages.js');
 const layout = path.join(SRC, '_layout.ejs');
@@ -36,8 +39,8 @@ function build() {
       throw new Error(`Manifest lists "${page.slug}" but ${path.relative(OUT, src)} does not exist`);
     }
 
-    const body = ejs.render(fs.readFileSync(src, 'utf8'), { page, pages, nav, ORIGIN }, { filename: src });
-    const html = ejs.render(fs.readFileSync(layout, 'utf8'), { page, pages, nav, ORIGIN, body }, { filename: layout });
+    const body = ejs.render(fs.readFileSync(src, 'utf8'), { page, pages, nav, ORIGIN, GA_ID }, { filename: src });
+    const html = ejs.render(fs.readFileSync(layout, 'utf8'), { page, pages, nav, ORIGIN, GA_ID, body }, { filename: layout });
 
     fs.writeFileSync(path.join(OUT, `${page.slug}.html`), html);
     written++;
