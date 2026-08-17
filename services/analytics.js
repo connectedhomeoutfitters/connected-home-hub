@@ -72,12 +72,44 @@ function redactReferrer(ref) {
   }
 }
 
+// ── who gets measured ───────────────────────────────────────────────────────
+// Only STAFF surfaces. Hub is multi-tenant and there is one analytics property, so
+// reporting customer-facing pages would funnel every tenant's own customers and
+// subcontractors into the vendor's analytics — people who never chose to be measured by
+// us, visiting a page they were emailed a link to. Staff are users of the product and
+// their usage is ordinary product analytics; a contractor's customer is not.
+//
+// This is an ALLOWLIST, deliberately. Default-deny means a route added later is excluded
+// until somebody consciously opts it in, rather than being reported until somebody
+// remembers to exclude it. For a privacy control that is the only safe direction — the
+// failure mode of forgetting is silence, not a leak.
+//
+// Excluded by falling through: /e/:token and /i/:token (customer estimates and invoices),
+// /portal/* (customer portal), /sub/* (subcontractor portal), and the public landing page.
+//
+// redactPath still runs on everything that IS reported. The two controls are independent:
+// this decides whether to report at all, redaction decides what a report may contain.
+function isStaffSurface(req) {
+  let p = req.path || '/';
+  const base = process.env.BASE_PATH || '';
+  if (base && p.startsWith(base)) p = p.slice(base.length) || '/';
+
+  if (p === '/admin' || p.startsWith('/admin/')) return true;
+  if (p === '/login') return true;
+  // '/' serves the public landing page to anonymous visitors and the staff dashboard to
+  // signed-in staff — one path, two different pages. Only the signed-in one is ours.
+  if (p === '/' && typeof req.isAuthenticated === 'function' && req.isAuthenticated()) return true;
+  return false;
+}
+
 // Populates res.locals.analytics for views/partials/head.ejs. Null when no measurement id
-// is configured, so the tag simply isn't rendered in environments that shouldn't report
-// (local dev, the NAS test instance) rather than polluting the property with test traffic.
+// is configured — so local dev and the NAS test instance never report — or when the page
+// isn't a staff surface.
 function analyticsLocals(req, res, next) {
-  res.locals.analytics = GA_ID ? { id: GA_ID, path: redactPath(req.originalUrl || req.path) } : null;
+  res.locals.analytics = (GA_ID && isStaffSurface(req))
+    ? { id: GA_ID, path: redactPath(req.originalUrl || req.path) }
+    : null;
   next();
 }
 
-module.exports = { redactPath, redactReferrer, analyticsLocals, GA_ID };
+module.exports = { redactPath, redactReferrer, isStaffSurface, analyticsLocals, GA_ID };
