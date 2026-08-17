@@ -1,0 +1,13 @@
+<!doctype html>
+<html>
+<body style="font-family: 'Roboto', Arial, Helvetica, sans-serif; color: #333; max-width: 560px; margin: 0 auto;">
+  <%- include('_header') %>
+  <p>Hi <%= customerName %>,</p>
+  <p>Just a reminder — your next <%= serviceTitle %> visit is coming up:</p>
+  <p style="font-size: 18px; font-weight: bold; color: #0799D6;"><%= when %></p>
+  <% if (address) { %><p><%= address %></p><% } %>
+  <p>Nothing to pay in advance — we'll invoice you after the work is done.</p>
+  <p>If you need to skip this visit or move it, just reply to this email and let us know.</p>
+  <%- include('_footer') %>
+</body>
+</html>

@@ -30,6 +30,7 @@ const TENANT_TABLES = new Set([
   'estimate_line_items',
   'invoice_line_items',
   'terms_templates',
+  'recurring_services',
   'estimate_template_items',
   'estimate_templates',
   'estimates',

@@ -747,6 +747,56 @@ the email (`consultation-on-the-way`), from the consultation's `consultant_id` �
 **`users.phone`** column, falling back to `company_settings.phone`. Staff phones are managed in
 **Settings → Users** (added to the create + edit forms and the list, `routes/admin/settings.js`).
 
+**Recurring services** (`041_recurring_services.sql`, `042_job_visit_reminders.sql`,
+`services/recurringServices.js`, `routes/admin/recurringServices.js`, nav link after Jobs) —
+seasonal/repeating work: mowing rounds, pool cleans, quarterly pest treatments. Full rationale
+in **`docs/adr/0002-recurring-services.md`**. This was the third of three prerequisites; the
+other two (invoice line items `039`, terms templates `040`) are already on prod.
+
+- **A recurring service is a GENERATOR OF VISITS, not a billing schedule.** `recurring_services`
+  holds only the pattern (cadence, day, season start/end, price per visit); each visit it
+  produces is an ordinary **`jobs` row** with the new `type='service'`. That one decision is why
+  the calendar, crew assignment, the subcontractor portal and the existing billing hook all
+  work on visits with **no changes to any of them** — verified in the browser: generated visits
+  simply appeared on `/admin/calendar`. Reschedule = move a job; skip = cancel a job.
+- **Billing is in arrears, always** (explicit owner decision). `billMonth` rolls a month's
+  **completed** visits into one itemised invoice per customer, on top of `039`'s
+  `invoice_line_items`. A visit that never happened never reaches an invoice, so a skip needs no
+  credit, refund or proration. **Protect that property** — it is what keeps this feature small.
+- **Idempotency is doubled, and the important half is in the DATABASE.** Generation relies on
+  **`UNIQUE(recurring_service_id, visit_date)`** on `jobs` and swallows `ER_DUP_ENTRY` as the
+  expected case, rather than application logic remembering what it already made — a
+  double-generated visit means a double-billed customer. Billing skips any visit already on a
+  **non-void** invoice via `NOT EXISTS`. Both confirmed through the real stack: second generate
+  run created 0, re-bill raised 0.
+- **`visit_date` is deliberately distinct from `scheduled_at`.** Rescheduling moves the
+  appointment but not the visit's identity, so a moved visit is still the same visit — it can't
+  be generated twice and still bills in the month it belonged to.
+- **Three cron jobs** (bringing the app to six): nightly `30 1` generator (~6-week horizon),
+  `0 3 1 * *` month-end biller for the month that just ended, and hourly `15 *` pre-visit
+  reminder (`services/visitReminders.js`, `views/emails/service-visit-reminder.ejs`). All sweep
+  tenants via `forEachActiveOrg`. The list page's manual **Generate** / **Bill** buttons are the
+  escape hatch; the biller has a **month picker** (defaulting to last month) so staff can close a
+  month early or re-run one after voiding, which re-running safely allows.
+- **Monthly cadence steps N months from `start_date`, never from the previous result.** Stepping
+  from the previous date lets February's clamp (31 → 28) drag the whole series permanently
+  earlier; anchoring on the start date returns it to the 31st in March.
+
+**Gotcha (cost a real 500, found only by clicking the button): a literal POST route declared
+AFTER `POST /:id` is swallowed by it.** `/admin/recurring/generate` matched `POST /:id` with
+`id='generate'` and ran the UPDATE, which failed only because MariaDB rejected the string as a
+DECIMAL (`ER_TRUNCATED_WRONG_VALUE`) — with a less strict column it would have silently written
+to nothing. Express matches in **declaration order**, so literal paths must be declared before a
+wildcard `:id`. Now fixed by ordering *and* a `router.param('id')` guard that 404s a non-numeric
+id. **Worth checking the other admin routers for the same shape.**
+
+**Gotcha: MySQL evaluates `UPDATE ... SET` assignments left to right, and a later clause reads
+the NEW value of an earlier one.** `routes/admin/jobs.js` re-arms the visit reminder with
+`reminder_sent_at = CASE WHEN scheduled_at <=> ? ...`, which **must be listed before**
+`scheduled_at=?` — after it, the comparison reads the value just written, always matches, and the
+reminder never re-arms on a reschedule. Verified against the real DB (same time → stamp kept;
+moved → re-armed). `<=>` is the null-safe equality so unscheduled↔unscheduled counts as unchanged.
+
 ---
 
 ## PICK UP HERE (last session ended 2026-08-14)

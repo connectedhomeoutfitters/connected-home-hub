@@ -1,0 +1,135 @@
+<%- include('../partials/head', { title: isNew ? 'New Recurring Service' : 'Recurring Service' }) %>
+<%- include('../partials/nav') %>
+
+<div class="container" style="max-width: 900px;">
+  <p class="mb-1"><a href="<%= basePath %>/admin/recurring">&larr; Recurring services</a></p>
+  <h1 class="h3 mb-3"><%= isNew ? 'New recurring service' : service.title %></h1>
+
+  <% if (error) { %><div class="alert alert-danger"><%= error %></div><% } %>
+
+  <div class="card mb-4">
+    <div class="card-body">
+      <form method="POST" action="<%= basePath %>/admin/recurring<%= isNew ? '' : '/' + service.id %>">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label" for="customer_id">Customer</label>
+            <% if (isNew) { %>
+              <select name="customer_id" id="customer_id" class="form-select" required>
+                <option value="">&mdash; choose &mdash;</option>
+                <% customers.forEach(c => { %>
+                  <option value="<%= c.id %>" <%= String(service.customer_id) === String(c.id) ? 'selected' : '' %>><%= c.name %></option>
+                <% }) %>
+              </select>
+            <% } else { %>
+              <%# Not editable. Moving a series to another customer would strand its visits
+                  and any invoice already raised against them. End it and start a new one. %>
+              <input class="form-control" value="<%= (customers.find(c => c.id === service.customer_id) || {}).name || '' %>" disabled>
+            <% } %>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="title">Service</label>
+            <input type="text" name="title" id="title" class="form-control" maxlength="200" required
+                   value="<%= service.title %>" placeholder="e.g. Weekly mowing">
+          </div>
+
+          <div class="col-md-3">
+            <label class="form-label" for="unit_price">Price per visit</label>
+            <div class="input-group">
+              <span class="input-group-text">$</span>
+              <input type="number" step="0.01" min="0" name="unit_price" id="unit_price"
+                     class="form-control" value="<%= service.unit_price %>">
+            </div>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="cadence">How often</label>
+            <select name="cadence" id="cadence" class="form-select">
+              <% CADENCES.forEach(c => { %>
+                <option value="<%= c %>" <%= service.cadence === c ? 'selected' : '' %>>
+                  <%= c === 'weekly' ? 'Weekly' : (c === 'biweekly' ? 'Every 2 weeks' : 'Monthly') %>
+                </option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="day_of_week">Day</label>
+            <select name="day_of_week" id="day_of_week" class="form-select">
+              <% DAYS.forEach((d, i) => { %>
+                <option value="<%= i %>" <%= String(service.day_of_week) === String(i) ? 'selected' : '' %>><%= d %></option>
+              <% }) %>
+            </select>
+            <div class="form-text">Ignored for monthly, which repeats on the start date.</div>
+          </div>
+
+          <div class="col-md-3">
+            <label class="form-label" for="start_date">Season starts</label>
+            <input type="date" name="start_date" id="start_date" class="form-control" required
+                   value="<%= String(service.start_date || '').slice(0,10) %>">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="end_date">Season ends <span class="text-muted">(optional)</span></label>
+            <input type="date" name="end_date" id="end_date" class="form-control"
+                   value="<%= String(service.end_date || '').slice(0,10) %>">
+            <div class="form-text">Leave blank to run until you end it.</div>
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="notes">Notes <span class="text-muted">(internal)</span></label>
+            <textarea name="notes" id="notes" class="form-control" rows="2"
+                      placeholder="Gate code, dog, where to park"><%= service.notes || '' %></textarea>
+          </div>
+        </div>
+        <button class="btn btn-primary mt-3" type="submit"><%= isNew ? 'Create service' : 'Save changes' %></button>
+      </form>
+    </div>
+  </div>
+
+  <% if (!isNew) { %>
+    <div class="card mb-4">
+      <div class="card-body">
+        <h2 class="h5 mb-1">Status</h2>
+        <p class="text-muted small">
+          Pausing stops new visits being scheduled. Visits already on the calendar stay put,
+          so cancel those individually if the customer wants them skipped.
+        </p>
+        <form method="POST" action="<%= basePath %>/admin/recurring/<%= service.id %>/status" class="row g-2 align-items-end">
+          <div class="col-auto">
+            <label class="form-label" for="status">Set to</label>
+            <select name="status" id="status" class="form-select">
+              <option value="active" <%= service.status === 'active' ? 'selected' : '' %>>Active</option>
+              <option value="paused" <%= service.status === 'paused' ? 'selected' : '' %>>Paused</option>
+              <option value="ended" <%= service.status === 'ended' ? 'selected' : '' %>>Ended</option>
+            </select>
+          </div>
+          <div class="col-auto">
+            <label class="form-label" for="paused_until">Paused until <span class="text-muted">(optional)</span></label>
+            <input type="date" name="paused_until" id="paused_until" class="form-control"
+                   value="<%= String(service.paused_until || '').slice(0,10) %>">
+          </div>
+          <div class="col-auto"><button class="btn btn-outline-secondary" type="submit">Apply</button></div>
+        </form>
+      </div>
+    </div>
+
+    <h2 class="h5 mb-3">Visits</h2>
+    <% if (!visits || !visits.length) { %>
+      <p class="text-muted">None scheduled yet &mdash; use "Generate upcoming visits" on the list page.</p>
+    <% } else { %>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead><tr><th>Visit date</th><th>Scheduled</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            <% visits.forEach(v => { %>
+              <tr>
+                <td><%= String(v.visit_date).slice(0,10) %></td>
+                <td class="small text-muted"><%= v.scheduled_at ? new Date(v.scheduled_at).toLocaleString() : '—' %></td>
+                <td><span class="badge bg-secondary"><%= v.status %></span></td>
+                <td class="text-end"><a class="small" href="<%= basePath %>/admin/jobs/<%= v.id %>/edit">reschedule or skip</a></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+      <p class="text-muted small">Only completed visits are billed, so a cancelled visit never reaches an invoice.</p>
+    <% } %>
+  <% } %>
+</div>
+<%- include('../partials/footer') %>

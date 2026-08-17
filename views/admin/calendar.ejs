@@ -5,6 +5,7 @@
     consultation:     { cls: 'cho-ev-consultation', label: 'Consultation' },
     install:          { cls: 'cho-ev-install',      label: 'Install' },
     estimate_followup:{ cls: 'cho-ev-followup',     label: 'Est. follow-up' },
+    service:          { cls: 'cho-ev-service',      label: 'Service visit' },
     other:            { cls: 'cho-ev-other',        label: 'Other' },
     due:              { cls: 'cho-ev-due',          label: 'Due' },
   };
@@ -26,7 +27,7 @@
 
   <!-- Legend -->
   <div class="mb-2 small d-flex flex-wrap gap-2">
-    <% ['consultation','install','estimate_followup','other','due'].forEach(k => { %>
+    <% ['consultation','install','estimate_followup','service','other','due'].forEach(k => { %>
       <span class="cho-cal-ev <%= EV[k].cls %> d-inline-block" style="cursor:default;"><%= EV[k].label %></span>
     <% }) %>
   </div>

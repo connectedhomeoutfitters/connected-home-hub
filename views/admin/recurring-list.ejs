@@ -1,0 +1,72 @@
+<%- include('../partials/head', { title: 'Recurring Services' }) %>
+<%- include('../partials/nav') %>
+
+<div class="container">
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+    <div>
+      <h1 class="h3 mb-1">Recurring Services</h1>
+      <p class="text-muted mb-0">Work that repeats — mowing, pool cleans, quarterly treatments.</p>
+    </div>
+    <a class="btn btn-primary" href="<%= basePath %>/admin/recurring/new"><i class="bi bi-plus-lg"></i> New service</a>
+  </div>
+
+  <% if (generated !== null) { %><div class="alert alert-success"><%= generated %> upcoming visit(s) added to the calendar.</div><% } %>
+  <% if (billed !== null) { %><div class="alert alert-success"><%= billed %> invoice(s) raised. Review and send them from Invoices.</div><% } %>
+
+  <%# Both run on a schedule; these are for pulling work forward or closing a month early. %>
+  <div class="d-flex flex-wrap gap-2 mb-4">
+    <form method="POST" action="<%= basePath %>/admin/recurring/generate">
+      <button class="btn btn-outline-secondary btn-sm" type="submit"><i class="bi bi-calendar-plus"></i> Generate upcoming visits</button>
+    </form>
+    <%# Month is pickable, defaulting to the one that just ended — the same month the cron
+        bills. Being able to name it is what lets staff close a month early, or re-run one
+        after voiding an invoice, without waiting for the next 1st. Re-running is safe: a
+        visit already on a live invoice is skipped. %>
+    <form method="POST" action="<%= basePath %>/admin/recurring/bill" class="d-flex gap-2 align-items-center">
+      <label class="visually-hidden" for="bill-month">Month to bill</label>
+      <input type="month" id="bill-month" name="month_input" class="form-control form-control-sm"
+             style="width: auto;" value="<%= defaultBillMonth %>">
+      <button class="btn btn-outline-secondary btn-sm" type="submit"><i class="bi bi-receipt"></i> Bill completed visits</button>
+    </form>
+  </div>
+
+  <% if (!services.length) { %>
+    <div class="card"><div class="card-body">
+      <p class="mb-1">No recurring services yet.</p>
+      <p class="text-muted small mb-0">
+        Set one up for a customer on a repeating schedule. Visits appear on the calendar
+        automatically, and completed visits are rolled into one invoice at the end of each month.
+      </p>
+    </div></div>
+  <% } else { %>
+    <div class="table-responsive">
+      <table class="table align-middle">
+        <thead><tr><th>Customer</th><th>Service</th><th>Schedule</th><th class="text-end">Price</th><th>Status</th><th class="text-end">Upcoming</th><th></th></tr></thead>
+        <tbody>
+          <% services.forEach(s => { %>
+            <tr<%= s.status === 'ended' ? ' class="text-muted"' : '' %>>
+              <td><%= s.customer_name %></td>
+              <td><%= s.title %></td>
+              <td class="small">
+                <%= s.cadence === 'monthly' ? 'Monthly' : (s.cadence === 'biweekly' ? 'Every 2 weeks' : 'Weekly') %><%
+                  %><% if (s.cadence !== 'monthly' && s.day_of_week !== null) { %> on <%= DAYS[s.day_of_week] %><% } %>
+                <div class="text-muted">
+                  from <%= String(s.start_date).slice(0,10) %><% if (s.end_date) { %> to <%= String(s.end_date).slice(0,10) %><% } %>
+                </div>
+              </td>
+              <td class="text-end">$<%= Number(s.unit_price).toFixed(2) %></td>
+              <td>
+                <% if (s.status === 'active') { %><span class="badge bg-success">Active</span>
+                <% } else if (s.status === 'paused') { %><span class="badge bg-warning text-dark">Paused<%= s.paused_until ? ' to ' + String(s.paused_until).slice(0,10) : '' %></span>
+                <% } else { %><span class="badge bg-secondary">Ended</span><% } %>
+              </td>
+              <td class="text-end"><%= s.upcoming %></td>
+              <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="<%= basePath %>/admin/recurring/<%= s.id %>/edit">Open</a></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+<%- include('../partials/footer') %>

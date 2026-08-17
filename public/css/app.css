@@ -197,6 +197,9 @@ body {
 .cho-ev-consultation { background: #cfe8f7; color: #084c74; }
 .cho-ev-install      { background: var(--cho-accent); color: #fff; }
 .cho-ev-followup     { background: #fff3cd; color: #664d03; }
+/* Recurring service visits. Always set colour alongside background here — an unpaired
+   background inherits whatever the surrounding text colour is and goes low-contrast. */
+.cho-ev-service      { background: #d4edda; color: #0f5132; }
 .cho-ev-other        { background: #e2e3e5; color: #41464b; }
 .cho-ev-due          { background: #fff; color: #6c757d; border: 1px dashed #adb5bd; }
 

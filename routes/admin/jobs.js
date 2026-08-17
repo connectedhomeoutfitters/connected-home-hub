@@ -167,9 +167,23 @@ router.post('/:id', async (req, res, next) => {
   try {
     const { title, status, due_date, scheduled_at, assigned_to, subcontractor_id, notes } = req.body;
     await req.db.execute(
-      `UPDATE jobs SET title=?, status=?, due_date=?, scheduled_at=?, assigned_to=?, subcontractor_id=?, notes=? WHERE id=? AND org_id=?`,
-      [title, status, due_date || null, scheduled_at ? scheduled_at.replace('T', ' ') + ':00' : null,
-        assigned_to || null, subcontractor_id || null, notes || null, req.params.id, req.orgId]
+      // Re-arm the pre-visit reminder whenever the appointment time actually moves: a
+      // customer told "Tuesday 9am" must hear about Thursday. Only on a real change, so
+      // saving an unrelated field (notes, assignee) doesn't re-send a reminder already
+      // delivered for the same time. See services/visitReminders.js.
+      // reminder_sent_at is assigned FIRST on purpose. MySQL evaluates SET assignments
+      // left to right, and a later clause reads the NEW value of an earlier one — so
+      // comparing against scheduled_at after assigning it would always match and never
+      // re-arm. Reading it before the assignment compares old against new correctly.
+      // <=> is the null-safe equality, so unscheduled-to-unscheduled counts as unchanged.
+      `UPDATE jobs
+          SET reminder_sent_at = CASE WHEN scheduled_at <=> ? THEN reminder_sent_at ELSE NULL END,
+              title=?, status=?, due_date=?, scheduled_at=?, assigned_to=?, subcontractor_id=?, notes=?
+         WHERE id=? AND org_id=?`,
+      [scheduled_at ? scheduled_at.replace('T', ' ') + ':00' : null,
+        title, status, due_date || null, scheduled_at ? scheduled_at.replace('T', ' ') + ':00' : null,
+        assigned_to || null, subcontractor_id || null, notes || null,
+        req.params.id, req.orgId]
     );
     if (status === 'done') {
       const invoiceId = await onInstallJobDone(req, req.params.id);

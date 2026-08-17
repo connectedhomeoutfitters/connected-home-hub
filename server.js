@@ -15,6 +15,8 @@ const branding = require('./middleware/branding');
 const { sendDueReminders } = require('./services/consultationReminders');
 const { sendExpiryReminders } = require('./services/warrantyReminders');
 const { expireStaleEstimates } = require('./services/estimateExpiry');
+const { generateVisitsForAllOrgs, billPreviousMonthForAllOrgs } = require('./services/recurringServices');
+const { sendVisitReminders } = require('./services/visitReminders');
 
 const app = express();
 const BASE_PATH = process.env.BASE_PATH || '';
@@ -143,6 +145,7 @@ app.use(`${BASE_PATH}/admin/labor-rates`, require('./routes/admin/laborRates'));
 app.use(`${BASE_PATH}/admin/subcontractors`, require('./routes/admin/subcontractors'));
 app.use(`${BASE_PATH}/admin/builders`, require('./routes/admin/builders'));
 app.use(`${BASE_PATH}/admin/warranties`, require('./routes/admin/warranties'));
+app.use(`${BASE_PATH}/admin/recurring`, require('./routes/admin/recurringServices'));
 // Mounted before the general settings router so /settings/payments/* resolves here.
 app.use(`${BASE_PATH}/admin/settings/payments`, require('./routes/admin/stripeConnect'));
 // Before /admin/settings so its own routes are not swallowed by the settings router.
@@ -163,6 +166,11 @@ app.use((err, req, res, next) => {
 cron.schedule('0 * * * *', () => {
   sendDueReminders().catch((err) => console.error('sendDueReminders failed:', err.message));
 });
+// Pre-visit heads-up for recurring service visits. Hourly like the consultation reminder,
+// and idempotent the same way (jobs.reminder_sent_at).
+cron.schedule('15 * * * *', () => {
+  sendVisitReminders().catch((err) => console.error('sendVisitReminders failed:', err.message));
+});
 
 // Daily at 9am — email customers whose warranties lapse within 30 days (see
 // services/warrantyReminders.js).
@@ -173,6 +181,16 @@ cron.schedule('0 9 * * *', () => {
 // Daily at 1am — expire sent estimates past their expires_at (see services/estimateExpiry.js).
 cron.schedule('0 1 * * *', () => {
   expireStaleEstimates().catch((err) => console.error('expireStaleEstimates failed:', err.message));
+});
+// Keep roughly six weeks of visits on the calendar. Safe to run daily: jobs has
+// UNIQUE(recurring_service_id, visit_date), so a repeat run creates nothing.
+cron.schedule('30 1 * * *', () => {
+  generateVisitsForAllOrgs().catch((err) => console.error('generateVisits failed:', err.message));
+});
+// Month-end rollup, on the 1st, for the month that just ended. Safe to re-run: a visit
+// already on a live invoice is skipped, so nobody is billed twice.
+cron.schedule('0 3 1 * *', () => {
+  billPreviousMonthForAllOrgs().catch((err) => console.error('billPreviousMonth failed:', err.message));
 });
 
 const PORT = process.env.PORT || 3100;
