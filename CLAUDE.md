@@ -1324,6 +1324,17 @@ working local `node_modules` (fixed by re-running plain `npm install`).
   fixed it. It was also still running pre-multi-tenancy code against the migrated test DB
   — **after migrating the shared test DB, always `gulp build` so `W:` gets the matching
   code**, or every write there fails on the NOT NULL `org_id`.
+- **A DSM update wipes every NAS PM2 process unless `pm2 save` has been run — FIXED
+  2026-08-17.** After a DSM update the whole PM2 list came up empty (`cho-hub-test` *and*
+  `gymr` gone) and both apps stayed down silently. The boot mechanism was never the problem:
+  `/etc/systemd/system/pm2-root.service` is enabled and runs `pm2 resurrect` on start. The
+  missing piece was that **`pm2 save` had never been run on this NAS**, so there was no
+  `/root/.pm2/dump.pm2` to resurrect from — `resurrect` reported "DUMP file doesn't exist"
+  and gave up. `pm2 save` has now been run, and the recovery path was verified by
+  `systemctl restart pm2-root.service` (what a DSM update effectively does): both processes
+  came back on their own and both hosts returned 200. **Re-run `pm2 save` on the NAS after
+  adding or removing a process**, exactly as the VPS section already says for prod — the
+  NAS simply never had it done once.
 - **`W:\choHubProject` needs its own `.env`, created directly on the NAS** (never
   synced by gulp) — different `PORT` (`3001`), `BASE_PATH` (`/choHubProject`), and
   `GOOGLE_CALLBACK_URL` (`https://masinet.synology.me/choHubProject/google/callback` — note
