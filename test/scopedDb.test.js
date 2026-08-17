@@ -196,17 +196,34 @@ test('attachOrg scopes a token request that has no session at all', () => {
 
 test('the tenant table list matches migration 030', () => {
   const fs = require('node:fs');
-  const sql = fs.readFileSync(__dirname + '/../migrations/030_orgs_multitenancy.sql', 'utf8');
+  const path = require('node:path');
 
+  // Scan EVERY migration, not just 030. A tenant table can arrive two ways: an existing
+  // table gains org_id (030's expand step), or a later migration creates a table that has
+  // org_id from birth (invoice_line_items in 039). Checking only 030 meant a table added
+  // afterwards was silently unguarded by config/scopedDb.js — which is the exact
+  // cross-tenant leak this suite exists to prevent.
+  const dir = path.join(__dirname, '..', 'migrations');
   const migrated = new Set();
-  const re = /ALTER TABLE\s+(\w+)\s+ADD COLUMN org_id/gi;
-  let m;
-  while ((m = re.exec(sql)) !== null) migrated.add(m[1].toLowerCase());
+
+  for (const file of fs.readdirSync(dir).filter(f => f.endsWith('.sql')).sort()) {
+    const sql = fs.readFileSync(path.join(dir, file), 'utf8');
+
+    // Existing table gains org_id.
+    for (const m of sql.matchAll(/ALTER TABLE\s+(\w+)\s+ADD COLUMN org_id/gi)) {
+      migrated.add(m[1].toLowerCase());
+    }
+    // New table declared with an org_id column. Body is matched to the first ');' at the
+    // start of a line, which is how every CREATE TABLE in this repo is formatted.
+    for (const m of sql.matchAll(/CREATE TABLE\s+(?:IF NOT EXISTS\s+)?(\w+)\s*\(([\s\S]*?)^\)/gim)) {
+      if (/^\s*org_id\s/im.test(m[2])) migrated.add(m[1].toLowerCase());
+    }
+  }
 
   const declared = [...TENANT_TABLES].sort();
   assert.deepStrictEqual(
     [...migrated].sort(),
     declared,
-    'TENANT_TABLES in config/scopedDb.js has drifted from migration 030'
+    'TENANT_TABLES in config/scopedDb.js has drifted from the migrations. A tenant table (one with org_id) must be registered there or the scoping guard will not protect it.'
   );
 });

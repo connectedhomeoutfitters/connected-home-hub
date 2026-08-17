@@ -28,6 +28,7 @@ const TENANT_TABLES = new Set([
   'documents',
   'email_log',
   'estimate_line_items',
+  'invoice_line_items',
   'estimate_template_items',
   'estimate_templates',
   'estimates',

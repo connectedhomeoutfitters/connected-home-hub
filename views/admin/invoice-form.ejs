@@ -31,9 +31,13 @@
       <div class="col-md-6 mb-3">
         <label class="form-label">Amount</label>
         <div class="input-group">
+          <%# Not `required`: an itemised invoice takes its total from the lines, and the
+              server derives it either way so the two can never disagree. %>
           <span class="input-group-text">$</span>
-          <input type="number" step="0.01" min="0.01" name="amount" class="form-control" value="<%= preset.amount %>" required>
+          <input type="number" step="0.01" min="0.01" name="amount" id="inv-amount"
+                 class="form-control" value="<%= preset.amount %>">
         </div>
+        <div class="form-text" id="inv-amount-help">Or itemise below and this is worked out for you.</div>
       </div>
     </div>
 
@@ -42,6 +46,51 @@
       <input type="text" name="description" class="form-control" maxlength="500"
         value="<%= preset.description %>" placeholder="e.g. Final balance — theater install">
     </div>
+
+    <%# Itemised detail. Optional — a one-line invoice needs none — but required for
+        anything a customer will want broken down, and the foundation the recurring monthly
+        rollup is built on (see docs/adr/0002-recurring-services.md). %>
+    <div class="mb-3">
+      <label class="form-label">Line items <span class="text-muted">(optional)</span></label>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-2">
+          <thead>
+            <tr>
+              <th style="min-width:16rem">Description</th>
+              <th style="width:7rem" class="text-end">Qty</th>
+              <th style="width:9rem" class="text-end">Unit price</th>
+              <th style="width:9rem" class="text-end">Amount</th>
+              <th style="width:3rem"></th>
+            </tr>
+          </thead>
+          <tbody id="line-items-body"></tbody>
+          <tfoot>
+            <tr>
+              <td colspan="3" class="text-end fw-semibold">Total</td>
+              <td class="text-end fw-semibold" id="lines-total">$0.00</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="add-line">
+        <i class="bi bi-plus-lg"></i> Add line
+      </button>
+      <div class="form-text">Leave empty to bill a single amount using the field above.</div>
+    </div>
+
+    <%# Cloned for each new row. An inert <template> rather than cloning an existing row,
+        because on a fresh invoice there are none — the bug that broke new-estimate line
+        entry (CLAUDE.md, migration 018). %>
+    <template id="line-row-template">
+      <tr class="line-item-row">
+        <td><input type="text" name="line_description" class="form-control form-control-sm" maxlength="500" placeholder="e.g. Mowing — 4 Aug"></td>
+        <td><input type="number" name="line_quantity" class="form-control form-control-sm text-end" step="0.01" min="0" value="1"></td>
+        <td><input type="number" name="line_unit_price" class="form-control form-control-sm text-end" step="0.01" min="0" value="0.00"></td>
+        <td class="text-end line-amount">$0.00</td>
+        <td class="text-end"><button type="button" class="btn btn-sm btn-outline-danger remove-line" aria-label="Remove line">&times;</button></td>
+      </tr>
+    </template>
 
     <div class="mb-3">
       <label class="form-label">Due date <span class="text-muted">(optional)</span></label>

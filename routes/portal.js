@@ -9,6 +9,7 @@ const { generateEstimatePdf } = require('../services/estimatePdf');
 const estimateTerms = require('../config/estimateTerms');
 const { getCompany } = require('../services/companySettings');
 const { paymentContext } = require('../services/stripeAccounts');
+const { lineItemsForInvoice } = require('../services/invoicing');
 const activity = require('../services/activityLog');
 
 const TOKEN_TTL_DAYS = 30;

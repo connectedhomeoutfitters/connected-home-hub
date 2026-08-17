@@ -55,6 +55,37 @@
     </div>
   </div>
 
+  <%# Itemised detail when there is any. An invoice with no lines renders its single
+      `description` in the card above, which is every invoice created before 039. %>
+  <% if (lines && lines.length) { %>
+  <div class="card mb-4">
+    <div class="card-body">
+      <h2 class="h5 mb-3">Items</h2>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead><tr><th>Description</th><th class="text-end">Qty</th><th class="text-end">Unit</th><th class="text-end">Amount</th></tr></thead>
+          <tbody>
+            <% lines.forEach(l => { %>
+              <tr>
+                <td><%= l.description %></td>
+                <td class="text-end"><%= Number(l.quantity) %></td>
+                <td class="text-end"><%= money(l.unit_price) %></td>
+                <td class="text-end"><%= money(Number(l.quantity) * Number(l.unit_price)) %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+          <tfoot>
+            <tr class="fw-semibold">
+              <td colspan="3" class="text-end">Total</td>
+              <td class="text-end"><%= money(invoice.amount) %></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+  <% } %>
+
   <!-- Actions -->
   <div class="d-flex gap-2 flex-wrap mb-4">
     <% if (invoice.status === 'pending') { %>

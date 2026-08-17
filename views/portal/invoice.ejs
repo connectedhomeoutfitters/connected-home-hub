@@ -2,7 +2,32 @@
 <%- include('../partials/portal-header') %>
 <div class="container py-5" style="max-width: 500px;">
   <h1 class="h3">Invoice — <%= invoice.type %></h1>
-  <p>Amount due: <strong>$<%= invoice.amount %></strong></p>
+  <% if (invoice.description) { %><p class="text-muted"><%= invoice.description %></p><% } %>
+
+  <%# Itemised breakdown when the invoice has lines. Older invoices have none and just
+      show the amount, exactly as before. %>
+  <% if (typeof lines !== 'undefined' && lines && lines.length) { %>
+    <table class="table table-sm align-middle mt-3">
+      <thead>
+        <tr><th>Description</th><th class="text-end">Qty</th><th class="text-end">Unit</th><th class="text-end">Amount</th></tr>
+      </thead>
+      <tbody>
+        <% lines.forEach(l => { %>
+          <tr>
+            <td><%= l.description %></td>
+            <td class="text-end"><%= Number(l.quantity) %></td>
+            <td class="text-end">$<%= Number(l.unit_price).toFixed(2) %></td>
+            <td class="text-end">$<%= (Number(l.quantity) * Number(l.unit_price)).toFixed(2) %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+      <tfoot>
+        <tr class="fw-bold"><td colspan="3" class="text-end">Amount due</td><td class="text-end">$<%= invoice.amount %></td></tr>
+      </tfoot>
+    </table>
+  <% } else { %>
+    <p>Amount due: <strong>$<%= invoice.amount %></strong></p>
+  <% } %>
 
   <% if (invoice.status === 'paid') { %>
     <div class="alert alert-success">Paid on <%= invoice.paid_at %>. Thank you!</div>

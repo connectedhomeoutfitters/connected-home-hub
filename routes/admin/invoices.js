@@ -3,7 +3,7 @@ const router = express.Router();
 const crypto = require('crypto');
 const { requireAuth } = require('../../middleware/auth');
 const { sendMail } = require('../../services/mailer');
-const { createInvoice } = require('../../services/invoicing');
+const { createInvoice, lineItemsForInvoice, lineItemsTotal } = require('../../services/invoicing');
 const { getCompany } = require('../../services/companySettings');
 const activity = require('../../services/activityLog');
 const { recordManualPayment, labelFor } = require('../../services/manualPayment');
@@ -36,13 +36,31 @@ router.get('/new', async (req, res, next) => {
       [req.orgId]
     );
     res.render('admin/invoice-form', {
-      pageScript: null, customers, error: null,
+      pageScript: 'page-invoice-form.js', customers, error: null,
       preset: { customer_id: req.query.customer_id || '', type: 'standalone', amount: '', description: '', due_date: '' },
     });
   } catch (err) {
     next(err);
   }
 });
+
+// Line arrays post in parallel (line_description[], line_quantity[], line_unit_price[]),
+// so row N is the Nth entry of each. Deliberately NOT named description/quantity — the
+// invoice's own `description` field would merge into the same array and corrupt both, the
+// mistake already documented for the estimate builder in CLAUDE.md.
+function lineItemsFromBody(body) {
+  const toArray = (v) => (v === undefined ? [] : Array.isArray(v) ? v : [v]);
+  const descs = toArray(body.line_description);
+  const qtys = toArray(body.line_quantity);
+  const prices = toArray(body.line_unit_price);
+  return descs
+    .map((description, i) => ({
+      description: String(description || '').trim(),
+      quantity: Number(qtys[i] ?? 1) || 0,
+      unit_price: Number(prices[i] ?? 0) || 0,
+    }))
+    .filter((l) => l.description);
+}
 
 router.post('/', async (req, res, next) => {
   const { customer_id, type, amount, description, due_date } = req.body;
@@ -52,15 +70,22 @@ router.post('/', async (req, res, next) => {
       [req.orgId]
     );
     res.status(400).render('admin/invoice-form', {
-      pageScript: null, customers, error,
+      pageScript: 'page-invoice-form.js', customers, error,
       preset: { customer_id, type, amount, description, due_date },
     });
   };
   try {
-    const amt = parseFloat(amount);
+    const lines = lineItemsFromBody(req.body);
+    // With lines the total is theirs; the amount field is only used when itemising is
+    // skipped. createInvoice enforces the same rule, so the two cannot disagree.
+    const amt = lines.length ? lineItemsTotal(lines) : parseFloat(amount);
     if (!customer_id) return rerender('Please choose a customer.');
     if (!['final', 'standalone'].includes(type)) return rerender('Invalid invoice type.');
-    if (isNaN(amt) || amt <= 0) return rerender('Enter an amount greater than zero.');
+    if (isNaN(amt) || amt <= 0) {
+      return rerender(lines.length
+        ? 'Line items must add up to more than zero.'
+        : 'Enter an amount greater than zero, or add line items.');
+    }
 
     // The customer must belong to this org — a forged customer_id would otherwise bill
     // against another tenant's customer.
@@ -75,10 +100,12 @@ router.post('/', async (req, res, next) => {
       customer_id, type, amount: amt,
       description: (description || '').trim() || null,
       due_date: due_date || null,
+      lines,
     });
     await activity.log({
       ...activity.staff(req), action: 'invoice.created', entityType: 'invoice', entityId: invoiceId,
-      customerId: Number(customer_id), detail: `${type} invoice ($${amt.toFixed(2)}) created`,
+      customerId: Number(customer_id),
+      detail: `${type} invoice ($${amt.toFixed(2)}) created${lines.length ? ` with ${lines.length} line item(s)` : ''}`,
     });
     res.redirect(`${res.locals.basePath}/admin/invoices/${invoiceId}`);
   } catch (err) {
@@ -115,6 +142,7 @@ router.get('/:id', async (req, res, next) => {
       [invoice.id, req.orgId]
     );
     const payToken = tokens[0]?.token || null;
+    const lines = await lineItemsForInvoice(req.db, req.orgId, invoice.id);
 
     // What is still owed, net of refunds — pre-fills the record-payment amount and lets a
     // part payment leave the invoice open.
@@ -124,7 +152,7 @@ router.get('/:id', async (req, res, next) => {
     const outstanding = Math.max(0, Number(invoice.amount) - paid);
 
     res.render('admin/invoice-detail', {
-      pageScript: null, invoice, payments, payToken,
+      pageScript: null, invoice, payments, payToken, lines,
       saved: req.query.sent === '1',
       autoCreated: req.query.created === '1',
       recorded: req.query.recorded || null,
