@@ -59,38 +59,36 @@ Every operation the business actually needs is then an edit to one row:
 | Winter shutdown | suspend generation; the series and its history stay |
 | Customer cancels | deactivate the series; already-scheduled visits stand |
 
-### Billing: monthly rollup, in arrears or in advance
+### Billing: monthly rollup, after the work
 
-**One invoice per month, listing the visits.** Not per visit. Stripe takes roughly
-2.9% + 30¢, which on a $45 mow is about **3.6%** — paying that 26 times a year instead of
-12 is a real cost for no benefit, and it fills the customer's inbox and the payments list
-with noise. This is also simply what lawn companies do.
+**One invoice per month, listing the visits actually completed.** Not per visit. Stripe
+takes roughly 2.9% + 30¢, which on a $45 mow is about **3.6%** — paying that 26 times a
+year instead of 12 is a real cost for no benefit, and it fills the customer's inbox and the
+payments list with noise. This is also simply what lawn companies do.
 
-Each service chooses when that invoice is raised:
+**Always in arrears.** At month end, invoice the visits that happened. This is exactly the
+shape of `onInstallJobDone` — work happened, therefore bill — so it reuses a path that is
+already idempotent and already syncs to Ledger.
 
-- **Arrears (default).** At month end, invoice the visits actually completed. This is
-  exactly the shape of `onInstallJobDone` — work happened, therefore bill — so it reuses a
-  path that is already idempotent and already syncs to Ledger.
-- **Advance.** At month start, invoice the visits *scheduled* for that month. A visit
-  later skipped becomes a **credit on the next invoice** rather than a refund, because
-  refunding a card costs the fee twice and reconciles badly.
+The tradeoff being accepted is real: **you do the work before you are paid.** It is
+accepted because the alternative doubles the design (see rejected alternatives) and because
+a skipped visit then needs no mechanic at all — it simply never appears on an invoice.
+That single property removes credits, refunds and proration from the whole feature.
 
-Per-service choice was requested so a new or unreliable customer can be put on advance
-while established ones stay in arrears. **Both modes produce the same artefact** — one
-monthly invoice with visit lines — which is what keeps the second mode cheap.
+A customer who cannot be trusted to pay in arrears is not a recurring-service customer yet;
+the existing one-off flow already covers them, with an estimate and a deposit up front.
 
 ### Notifications
 
 Two different messages, deliberately not merged:
 
-- **"You have mowing scheduled Thursday 9am."** Informational, sent a few days out. This
-  is what stops a customer being surprised, and it is the natural place to say "call us to
-  skip". It carries a pay link **only** for advance services with an unpaid invoice.
-- **"Your August invoice is ready."** The actual payment prompt, monthly.
+- **"You have mowing scheduled Thursday 9am."** Informational, sent a few days out. It
+  stops a customer being surprised and is the natural place to say "call us to skip". It
+  carries **no pay link** — there is nothing to pay for work that has not happened.
+- **"Your August invoice is ready."** The payment prompt, monthly, after the fact.
 
-The original request was a single "upcoming service — pay now" message. Rollup billing
-splits it in two, because on an arrears service there is nothing to pay yet when the
-reminder goes out.
+The original request was a single "upcoming service — pay now" message. Billing in arrears
+splits it in two, because when the reminder goes out there is nothing owed yet.
 
 ### Pausing is staff-only, for now
 
@@ -107,6 +105,13 @@ Revisit once the rest works.
   the connected account, and dunning when a card expires or declines. That is most of the
   work and all of the risk, for a convenience that a pay link already covers. Revisit when
   there is demand.
+- **Prepay, or prepay selectable per service.** Considered and dropped on 2026-08-17 for
+  simplicity. Charging in advance means invoicing visits that have not happened, so a
+  skipped visit needs a credit-forward mechanic (refunding a card pays the fee twice and
+  reconciles badly), the reminder email needs two variants, and non-payment needs a policy
+  nobody wants to write: does the crew still go? Billing in arrears makes a skipped visit
+  cost nothing to model — it simply never reaches an invoice. Adding a `billing_mode`
+  column later is additive if collections ever become a real problem.
 - **Per-visit invoices.** Multiplies card fees by ~26/12 and buries the payments list.
 - **A separate `visits` table.** A visit already *is* a job — scheduled, assignable,
   completable, billable. A parallel table would need its own calendar, its own crew
@@ -120,8 +125,9 @@ Revisit once the rest works.
 
 - **`recurring_services`** — `org_id`, `customer_id`, `title`, `unit_price`, `cadence`
   (`weekly` / `biweekly` / `monthly` / `custom_days`), `day_of_week`, `season_start`,
-  `season_end`, `billing_mode` (`arrears` / `advance`), `status`
+  `season_end`, `status`
   (`active` / `paused` / `ended`), `paused_until`, `next_generation_at`.
+  No `billing_mode` — everything bills in arrears. Adding one later is additive.
 - **`jobs`** — `type` gains `'service'`, plus `recurring_service_id` (nullable) and
   `visit_date`. A one-off job keeps `recurring_service_id NULL`, so nothing existing
   changes.

@@ -800,8 +800,10 @@ order:
 
    The agreed shape: a recurring service **generates visits as ordinary `jobs`**
    (`type='service'`), so they inherit the calendar, crew assignment and the existing
-   billing hook; billing is a **monthly rollup** of visits, in arrears by default or in
-   advance per service. Deliberately **not** Stripe Subscriptions — a subscription bills
+   billing hook; billing is a **monthly rollup** of visits, always **in arrears** —
+   prepay was considered and dropped, because billing only completed work means a skipped
+   visit needs no credit, refund or proration at all. Deliberately **not** Stripe
+   Subscriptions — a subscription bills
    the calendar and cannot express "we skipped a visit". **Largest prerequisite:
    `invoices` cannot hold line items today**, and a rollup invoice is meaningless without
    them.
