@@ -90,6 +90,76 @@ Two different messages, deliberately not merged:
 The original request was a single "upcoming service — pay now" message. Billing in arrears
 splits it in two, because when the reminder goes out there is nothing owed yet.
 
+### How a customer agrees to it
+
+**A recurring service originates from an accepted estimate.** Not from staff typing one in.
+
+This was missing from the first draft of this ADR, and it mattered: the only mechanism in
+the product for "the customer agreed to this scope and this price" is the estimate
+e-signature flow, which records `signature_name`, `accepted_at`, `accepted_ip` and
+`accepted_user_agent`. A recurring service is a **standing authorisation to bill
+repeatedly** — a larger commitment than any single job — and creating one directly would
+give it no signed record at all, while a one-off $200 install has one.
+
+So the estimate gains a recurring option (cadence, price per visit, season dates, term),
+and accepting it creates the `recurring_services` row, exactly as accepting an estimate
+today creates the deposit invoice and the install job. No new signing machinery, and the
+signed artefact states the cadence and price the customer actually agreed to.
+
+Staff can still create a series by hand for a customer who signed on paper — but that is
+the exception, and it should record who did it and why, not be the main path.
+
+### Terms and conditions need a second body of text
+
+`config/estimateTerms.js` is written for one-off installation work: deposit, final payment,
+equipment availability, change orders, customer-supplied equipment, limited warranty. Close
+to none of that applies to a mowing contract, and the clauses a recurring agreement needs
+do not exist anywhere:
+
+- **Term and renewal** — season start and end, whether it auto-renews.
+- **Cancellation** — how much notice either side must give.
+- **Skipped and missed visits** — who may skip, how much notice, whether a late skip is
+  still billed.
+- **Access** — gates, dogs, parked cars. If the crew arrives and cannot work, is it billed?
+- **Weather and rescheduling** — that a visit may move, and that moving it is not a breach.
+- **Price changes** — notice required before a rate rises, typically at renewal.
+- **Billing and payment terms** — monthly in arrears, when payment is due.
+
+This is a **structural** change, not just new copy: `estimateTerms(companyName, override)`
+returns a single body of text, and terms are not selectable per estimate. A tenant selling
+both installs and maintenance needs two sets, and the estimate must record which one was
+shown — the terms are part of what was signed, so the signed record has to be able to say
+which terms they were.
+
+### Late fees, and the fact that `due_date` does nothing today
+
+`invoices.due_date` is written on create and rendered on the invoice page and the customer
+portal. **Nothing reads it.** There is no overdue detection, no reminder, and no fee. That
+is tolerable when every invoice follows a job the customer is waiting on; it stops being
+tolerable when the work already happened and billing is monthly in arrears, because
+non-payment is then the business's whole exposure.
+
+Two separate things, and they should ship in this order:
+
+1. **Dunning — reminders on an overdue invoice.** A cron that finds invoices past
+   `due_date` and emails a reminder, then again at intervals, stopping when paid or voided.
+   This is the part that actually collects money, it needs no new terms and it carries no
+   legal exposure. It is also a fourth use of the same idempotent-reminder pattern already
+   used for warranties, consultations and estimate expiry (`reminder_sent_at` style
+   stamping, so a redelivery cannot double-send).
+
+2. **Late fees.** Needs payment terms configured per org (net 15/30, grace days), a fee
+   rule (flat or percentage, once or monthly), and a decision on whether the fee is a line
+   on the next invoice or an invoice of its own. **A fee is only enforceable if it was in
+   the agreement the customer signed**, which is why this depends on the terms work above
+   rather than being independent of it.
+
+   **Late fee limits are regulated and vary by jurisdiction** — caps, mandatory grace
+   periods and disclosure requirements differ by state. The software should therefore let a
+   tenant *configure* the rate and grace period rather than ship a hardcoded default, and
+   the numbers a tenant chooses are theirs to confirm with their own advisor. This ADR does
+   not attempt to state what is lawful.
+
 ### Pausing is staff-only, for now
 
 The customer portal is **entirely read-only** today (view, accept or decline an estimate,
@@ -131,6 +201,8 @@ Revisit once the rest works.
 - **`jobs`** — `type` gains `'service'`, plus `recurring_service_id` (nullable) and
   `visit_date`. A one-off job keeps `recurring_service_id NULL`, so nothing existing
   changes.
+- **`estimates`** — a recurring option (cadence, unit price, season dates, term) and a
+  reference to which terms body was shown, since the terms are part of what was signed.
 - **`invoices`** — needs to carry line detail, which it does not today (`amount` is a
   single figure, `description` a single string). Either an `invoice_line_items` table or
   reuse of the estimate line-item shape. **This is the largest piece of new work** and

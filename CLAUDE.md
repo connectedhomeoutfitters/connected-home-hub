@@ -804,9 +804,14 @@ order:
    prepay was considered and dropped, because billing only completed work means a skipped
    visit needs no credit, refund or proration at all. Deliberately **not** Stripe
    Subscriptions — a subscription bills
-   the calendar and cannot express "we skipped a visit". **Largest prerequisite:
-   `invoices` cannot hold line items today**, and a rollup invoice is meaningless without
-   them.
+   the calendar and cannot express "we skipped a visit". **Three prerequisites**, all recorded in the ADR: `invoices`
+   cannot hold line items today and a rollup invoice is meaningless without them; a
+   recurring service must originate from an **accepted estimate**, because the e-signature
+   flow is the only place a customer ever agrees to anything and a standing authorisation
+   to bill must not be the one thing with no signature; and the built-in T&Cs are written
+   for one-off installs, so recurring needs a **second body of terms** and estimates need
+   to record which body was shown. `invoices.due_date` is also written but never read —
+   nothing detects overdue, so dunning reminders come before any late-fee feature.
 
 2. **Hub's own logo — DONE 2026-08-14.** `public/img/logo.png` is now the ConnectedWorkOS
    product mark (1024×384, 279 KB, tagline-free variant — the app has a single logo slot
