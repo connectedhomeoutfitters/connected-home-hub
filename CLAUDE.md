@@ -788,7 +788,8 @@ AFTER `POST /:id` is swallowed by it.** `/admin/recurring/generate` matched `POS
 DECIMAL (`ER_TRUNCATED_WRONG_VALUE`) — with a less strict column it would have silently written
 to nothing. Express matches in **declaration order**, so literal paths must be declared before a
 wildcard `:id`. Now fixed by ordering *and* a `router.param('id')` guard that 404s a non-numeric
-id. **Worth checking the other admin routers for the same shape.**
+id. **Every other router was audited for the same shape (literal path declared after a
+same-shape wildcard, per method) and is clean** — this was the only instance.
 
 **Gotcha: MySQL evaluates `UPDATE ... SET` assignments left to right, and a later clause reads
 the NEW value of an earlier one.** `routes/admin/jobs.js` re-arms the visit reminder with
