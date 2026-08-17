@@ -13,8 +13,17 @@ const scopedDb = require('../config/scopedDb');
 
 const TIMEOUT_MS = 8000;
 
+// No default. This used to fall back to https://connectedhomeledger.com, which meant an
+// environment that simply forgot to set LEDGER_URL — a dev machine, a test box — posted
+// real transactions into PRODUCTION books. That happened on 2026-08-17: a local test of
+// offline payments wrote a $90 row into the live ledger.
+//
+// Every deployed environment sets this explicitly, so requiring it costs nothing and the
+// failure mode becomes "sync is skipped and says so" instead of "money appears in someone
+// else's books".
 function ledgerBaseUrl() {
-  return (process.env.LEDGER_URL || 'https://connectedhomeledger.com').replace(/\/$/, '');
+  const url = (process.env.LEDGER_URL || '').trim();
+  return url ? url.replace(/\/$/, '') : null;
 }
 
 // Only orgs that came from Ledger have somewhere to post; standalone Hub customers don't.
@@ -26,6 +35,10 @@ async function syncTargetFor(orgId) {
   if (!org.ledger_workspace_id) return { ok: false, reason: 'not_linked' };
   if (!org.ledger_sync_enabled) return { ok: false, reason: 'disabled' };
   if (!process.env.HUB_SSO_SECRET && !process.env.LEDGER_SSO_SECRET) return { ok: false, reason: 'no_secret' };
+  if (!ledgerBaseUrl()) {
+    console.error('LEDGER_URL is not set — refusing to post bookkeeping to a guessed host. Set it per environment.');
+    return { ok: false, reason: 'no_ledger_url' };
+  }
   return { ok: true, org };
 }
 

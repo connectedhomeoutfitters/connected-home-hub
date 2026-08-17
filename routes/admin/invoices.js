@@ -6,6 +6,7 @@ const { sendMail } = require('../../services/mailer');
 const { createInvoice } = require('../../services/invoicing');
 const { getCompany } = require('../../services/companySettings');
 const activity = require('../../services/activityLog');
+const { recordManualPayment, labelFor } = require('../../services/manualPayment');
 
 router.use(requireAuth);
 
@@ -101,7 +102,8 @@ router.get('/:id', async (req, res, next) => {
     if (!invoice) return res.status(404).render('error', { message: 'Invoice not found' });
 
     const [payments] = await req.db.execute(
-      `SELECT id, amount, amount_refunded, status, card_brand, card_last4, created_at
+      `SELECT id, amount, amount_refunded, status, method, reference, received_at,
+              card_brand, card_last4, created_at
        FROM payments WHERE invoice_id = ? AND org_id = ? ORDER BY created_at DESC`,
       [invoice.id, req.orgId]
     );
@@ -114,10 +116,21 @@ router.get('/:id', async (req, res, next) => {
     );
     const payToken = tokens[0]?.token || null;
 
+    // What is still owed, net of refunds — pre-fills the record-payment amount and lets a
+    // part payment leave the invoice open.
+    const paid = payments
+      .filter(p => p.status === 'succeeded')
+      .reduce((t, p) => t + Number(p.amount) - Number(p.amount_refunded), 0);
+    const outstanding = Math.max(0, Number(invoice.amount) - paid);
+
     res.render('admin/invoice-detail', {
       pageScript: null, invoice, payments, payToken,
       saved: req.query.sent === '1',
       autoCreated: req.query.created === '1',
+      recorded: req.query.recorded || null,
+      outstanding,
+      methodLabel: labelFor,
+      today: new Date().toISOString().slice(0, 10),
     });
   } catch (err) {
     next(err);
@@ -196,6 +209,31 @@ router.post('/:id/void', async (req, res, next) => {
     );
     res.redirect(`${res.locals.basePath}/admin/invoices/${req.params.id}`);
   } catch (err) {
+    next(err);
+  }
+});
+
+// Record a payment taken outside Stripe — cash, cheque, bank transfer, Venmo and the
+// like. Everything that makes an invoice "paid" (the idempotency latch, the activity log,
+// the receipt, the push into the tenant's Ledger books) lives in the service, shared in
+// spirit with the Stripe webhook so the two cannot drift.
+router.post('/:id/record-payment', async (req, res, next) => {
+  try {
+    const result = await recordManualPayment(req.db, req.orgId, {
+      invoiceId: req.params.id,
+      amount: req.body.amount,
+      method: req.body.method,
+      reference: req.body.reference,
+      // <input type="date"> gives a bare date; store it as a time so it sorts with the
+      // card payments, which carry a real timestamp.
+      receivedAt: req.body.received_at ? `${req.body.received_at} 12:00:00` : null,
+      userId: req.user.id,
+      sendReceipt: req.body.send_receipt === '1',
+    });
+    const flag = result.invoicePaid ? 'paid' : 'partial';
+    res.redirect(`${res.locals.basePath}/admin/invoices/${req.params.id}?recorded=${flag}`);
+  } catch (err) {
+    if (err.status) return res.status(err.status).render('error', { message: err.message });
     next(err);
   }
 });

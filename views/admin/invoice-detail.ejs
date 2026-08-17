@@ -16,6 +16,8 @@
   </div>
 
   <% if (saved) { %><div class="alert alert-success">Invoice sent to the customer.</div><% } %>
+  <% if (recorded === 'paid') { %><div class="alert alert-success">Payment recorded — this invoice is now paid, and the income has been posted to your books.</div><% } %>
+  <% if (recorded === 'partial') { %><div class="alert alert-info">Part payment recorded. The invoice stays open until the balance is covered.</div><% } %>
   <% if (typeof autoCreated !== 'undefined' && autoCreated) { %><div class="alert alert-info">Final invoice created automatically from the completed job — review the amount and send it to the customer.</div><% } %>
 
   <div class="card mb-4">
@@ -72,6 +74,57 @@
     <% } %>
   </div>
 
+  <%# Money taken outside Stripe — cash, cheque, bank transfer, Venmo and the like.
+      Offered whenever the invoice is not settled, because a customer can pay part by card
+      and hand over the rest. Recording it posts the income to the tenant's Ledger books
+      exactly as a card payment does; without this, cash revenue never reaches them. %>
+  <% if (invoice.status === 'pending') { %>
+  <div class="card mb-4">
+    <div class="card-body">
+      <h2 class="h5 mb-1">Record a payment</h2>
+      <p class="text-muted small mb-3">
+        For money taken outside the app — cash, cheque, bank transfer, Venmo, Cash App.
+        Card payments record themselves.
+      </p>
+      <form method="POST" action="<%= basePath %>/admin/invoices/<%= invoice.id %>/record-payment" class="row g-3">
+        <div class="col-sm-6 col-lg-3">
+          <label class="form-label" for="rp-amount">Amount</label>
+          <div class="input-group">
+            <span class="input-group-text">$</span>
+            <input class="form-control" id="rp-amount" name="amount" type="number" step="0.01" min="0.01"
+                   value="<%= outstanding.toFixed(2) %>" required>
+          </div>
+          <div class="form-text">Outstanding: <%= money(outstanding) %></div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <label class="form-label" for="rp-method">How was it paid?</label>
+          <select class="form-select" id="rp-method" name="method" required>
+            <option value="cash">Cash</option>
+            <option value="check">Cheque</option>
+            <option value="bank_transfer">Bank transfer</option>
+            <option value="other">Venmo / Cash App / other</option>
+          </select>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <label class="form-label" for="rp-received">Date received</label>
+          <input class="form-control" id="rp-received" name="received_at" type="date" value="<%= today %>">
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <label class="form-label" for="rp-ref">Reference <span class="text-muted">(optional)</span></label>
+          <input class="form-control" id="rp-ref" name="reference" maxlength="120" placeholder="Cheque no., Venmo handle…">
+        </div>
+        <div class="col-12 d-flex flex-wrap align-items-center gap-3">
+          <button class="btn btn-primary" type="submit"><i class="bi bi-cash-stack"></i> Record payment</button>
+          <div class="form-check mb-0">
+            <input class="form-check-input" type="checkbox" id="rp-receipt" name="send_receipt" value="1" checked>
+            <label class="form-check-label" for="rp-receipt">Email the customer a receipt</label>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+  <% } %>
+
   <!-- Payments against this invoice -->
   <h2 class="h5 mb-3">Payments</h2>
   <% if (!payments.length) { %>
@@ -79,11 +132,16 @@
   <% } else { %>
     <div class="table-responsive">
       <table class="table table-sm align-middle">
-        <thead><tr><th>Date</th><th class="text-end">Amount</th><th class="text-end">Refunded</th><th>Status</th><th></th></tr></thead>
+        <thead><tr><th>Date</th><th>Method</th><th class="text-end">Amount</th><th class="text-end">Refunded</th><th>Status</th><th></th></tr></thead>
         <tbody>
           <% payments.forEach(p => { %>
             <tr>
-              <td class="small text-nowrap"><%= new Date(p.created_at).toLocaleDateString() %></td>
+              <td class="small text-nowrap"><%= new Date(p.received_at || p.created_at).toLocaleDateString() %></td>
+              <td class="small">
+                <%= methodLabel(p.method) %><% if (p.method === 'card' && p.card_last4) { %>
+                  <span class="text-muted"><%= p.card_brand %> ····<%= p.card_last4 %></span>
+                <% } else if (p.reference) { %><span class="text-muted"><%= p.reference %></span><% } %>
+              </td>
               <td class="text-end"><%= money(p.amount) %></td>
               <td class="text-end"><%= Number(p.amount_refunded) > 0 ? money(p.amount_refunded) : '—' %></td>
               <td><%- badge(p.status) %></td>

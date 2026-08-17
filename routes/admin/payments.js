@@ -180,6 +180,14 @@ router.post('/:id/refund', requireAdmin, async (req, res, next) => {
       if (amount > remaining + 0.001) return back(`Refund can't exceed the remaining $${remaining.toFixed(2)}.`);
     }
 
+    // An offline payment has no PaymentIntent to refund. Without this guard the retrieve
+    // below is called with NULL and Stripe returns a confusing error about a missing id,
+    // for what is really "you handed this person cash back, tell the app about it".
+    // Refunding cash is a manual act; recording it is the follow-up feature.
+    if (payment.method && payment.method !== 'card') {
+      return back(`This was a ${payment.method.replace('_', ' ')} payment, so there is no card charge to refund. Refund it the way it was taken, then void or adjust the invoice.`);
+    }
+
     // Every Stripe call below must target the account this org bills through — for a
     // connected tenant the charge doesn't exist on the platform account at all.
     const { options } = await paymentContext(req.orgId);
