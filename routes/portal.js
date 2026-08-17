@@ -6,7 +6,7 @@ const { resolveToken } = require('../middleware/customerAccess');
 const { createDepositInvoice } = require('./admin/estimates');
 const { sendMail } = require('../services/mailer');
 const { generateEstimatePdf } = require('../services/estimatePdf');
-const estimateTerms = require('../config/estimateTerms');
+const { renderTermsFor } = require('../services/terms');
 const { getCompany } = require('../services/companySettings');
 const { paymentContext } = require('../services/stripeAccounts');
 const { lineItemsForInvoice } = require('../services/invoicing');
@@ -36,7 +36,7 @@ router.get('/e/:token', resolveToken('estimate'), async (req, res, next) => {
       items,
       token: req.params.token,
       pageScript: null,
-      terms: estimateTerms(company.company_name, company.terms_override),
+      terms: (await renderTermsFor(req.db, req.orgId, rows[0], company)).html,
       error: null,
     });
   } catch (err) {
@@ -75,7 +75,7 @@ router.post('/e/:token/accept', resolveToken('estimate'), async (req, res, next)
       const company = await getCompany(req.orgId);
       conn.release();
       return res.status(400).render('portal/estimate', {
-        estimate, items, token: req.params.token, pageScript: null, terms: estimateTerms(company.company_name, company.terms_override),
+        estimate, items, token: req.params.token, pageScript: null, terms: (await renderTermsFor(req.db, req.orgId, estimate, company)).html,
         signatureName,
         error: !signatureName
           ? 'Please type your name to sign electronically before accepting.'

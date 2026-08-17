@@ -1,0 +1,94 @@
+<%- include('../partials/head', { title: 'Terms & Conditions' }) %>
+<%- include('../partials/nav') %>
+
+<div class="container" style="max-width: 900px;">
+  <p class="mb-1"><a href="<%= basePath %>/admin/settings">&larr; Settings</a></p>
+  <h1 class="h3 mb-1">Terms &amp; Conditions</h1>
+  <p class="text-muted">
+    The agreements your customers sign. Keep separate wording for different kinds of work —
+    a one-off install and a recurring maintenance agreement need different clauses.
+  </p>
+
+  <% if (saved) { %><div class="alert alert-success">Saved.</div><% } %>
+  <% if (error) { %><div class="alert alert-danger"><%= error %></div><% } %>
+
+  <div class="alert alert-info small">
+    <strong>Editing terms only affects estimates sent from now on.</strong>
+    The exact wording is recorded on each estimate when you send it, so an estimate a
+    customer has already signed keeps the terms they actually agreed to.
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-body">
+      <h2 class="h5 mb-3"><%= editing ? 'Edit terms' : 'Add terms' %></h2>
+      <form method="POST" action="<%= basePath %>/admin/settings/terms">
+        <% if (editing && editing.id) { %><input type="hidden" name="id" value="<%= editing.id %>"><% } %>
+        <div class="mb-3">
+          <label class="form-label" for="t-name">Name <span class="text-muted">(only you see this)</span></label>
+          <input type="text" name="name" id="t-name" class="form-control" maxlength="120" required
+                 value="<%= editing ? editing.name : '' %>"
+                 placeholder="e.g. Installation terms, or Lawn care agreement">
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="t-body">Terms text</label>
+          <textarea name="body" id="t-body" class="form-control" rows="14" required
+                    placeholder="Paste or write your terms. Line breaks are preserved."><%= editing ? editing.body : '' %></textarea>
+          <div class="form-text">
+            Plain text — line breaks are kept as you type them. Shown to the customer above
+            the signature box on the estimate.
+          </div>
+        </div>
+        <div class="form-check mb-3">
+          <input class="form-check-input" type="checkbox" name="is_default" id="t-default" value="1"
+                 <%= editing && editing.is_default ? 'checked' : '' %>>
+          <label class="form-check-label" for="t-default">Use these by default on new estimates</label>
+        </div>
+        <button class="btn btn-primary" type="submit"><%= editing ? 'Save changes' : 'Add terms' %></button>
+        <% if (editing) { %>
+          <a class="btn btn-outline-secondary" href="<%= basePath %>/admin/settings/terms">Cancel</a>
+        <% } %>
+      </form>
+    </div>
+  </div>
+
+  <h2 class="h5 mb-3">Your terms</h2>
+  <% if (!templates.length) { %>
+    <p class="text-muted">
+      None yet — estimates use the built-in default terms, or whatever you put in
+      Settings &rarr; Company. Add one above when you need different wording for a
+      different kind of work.
+    </p>
+  <% } else { %>
+    <div class="table-responsive">
+      <table class="table align-middle">
+        <thead><tr><th>Name</th><th>Preview</th><th></th></tr></thead>
+        <tbody>
+          <% templates.forEach(t => { %>
+            <tr<%= t.active ? '' : ' class="text-muted"' %>>
+              <td>
+                <%= t.name %>
+                <% if (t.is_default) { %><span class="badge bg-primary ms-1">Default</span><% } %>
+                <% if (!t.active) { %><span class="badge bg-secondary ms-1">Archived</span><% } %>
+              </td>
+              <td class="small text-muted"><%= t.body.replace(/\s+/g, ' ').slice(0, 90) %><%= t.body.length > 90 ? '…' : '' %></td>
+              <td class="text-end text-nowrap">
+                <a class="btn btn-sm btn-outline-secondary" href="<%= basePath %>/admin/settings/terms/<%= t.id %>/edit">Edit</a>
+                <% if (t.active) { %>
+                  <form method="POST" action="<%= basePath %>/admin/settings/terms/<%= t.id %>/archive" class="d-inline">
+                    <button class="btn btn-sm btn-outline-danger" type="submit">Archive</button>
+                  </form>
+                <% } else { %>
+                  <form method="POST" action="<%= basePath %>/admin/settings/terms/<%= t.id %>/restore" class="d-inline">
+                    <button class="btn btn-sm btn-outline-secondary" type="submit">Restore</button>
+                  </form>
+                <% } %>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+
+<%- include('../partials/footer') %>

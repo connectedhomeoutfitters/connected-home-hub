@@ -5,6 +5,7 @@ const { requireAuth } = require('../../middleware/auth');
 const { sendMail } = require('../../services/mailer');
 const { generateEstimatePdf } = require('../../services/estimatePdf');
 const { getCompany } = require('../../services/companySettings');
+const { listTemplates, snapshotBodyFor } = require('../../services/terms');
 const { lineItemsFromBody } = require('../../services/lineItems');
 const { computeEstimateTotals, parseFlatPrice } = require('../../services/estimatePricing');
 const { computeCosting } = require('../../services/estimateCosting');
@@ -377,6 +378,11 @@ router.post('/:id/send', async (req, res, next) => {
       [req.params.id, req.orgId]
     );
 
+    // Null when the org is still on the built-in terms — config/estimateTerms.js
+    // reproduces those deterministically from the company name, so there is nothing
+    // tenant-specific worth freezing.
+    const termsSnapshot = await snapshotBodyFor(req.db, req.orgId, estimate.terms_template_id);
+
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000);
     await req.db.execute(
@@ -384,8 +390,13 @@ router.post('/:id/send', async (req, res, next) => {
       [req.orgId, token, 'estimate', estimate.id, expiresAt]
     );
     await req.db.execute(
-      "UPDATE estimates SET status = 'sent', sent_at = NOW(), expires_at = DATE_ADD(NOW(), INTERVAL ? DAY) WHERE id = ? AND org_id = ?",
-      [ESTIMATE_VALID_DAYS, estimate.id, req.orgId]
+      // terms_snapshot is written here and never again: editing a template afterwards
+      // must not change an offer already sitting in a customer's inbox, and must not
+      // change what a signed estimate says they agreed to. Re-sending re-freezes, which
+      // is correct — that is a new offer.
+      `UPDATE estimates SET status = 'sent', sent_at = NOW(), terms_snapshot = ?,
+         expires_at = DATE_ADD(NOW(), INTERVAL ? DAY) WHERE id = ? AND org_id = ?`,
+      [termsSnapshot, ESTIMATE_VALID_DAYS, estimate.id, req.orgId]
     );
 
     const basePath = process.env.BASE_PATH || '';
