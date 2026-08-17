@@ -241,3 +241,27 @@ body {
 .cho-welcome__flow { margin: 0; padding-left: 1.15rem; }
 .cho-welcome__flow li { margin-bottom: .4rem; font-size: .95rem; }
 .cho-welcome__flow li:last-child { margin-bottom: 0; }
+
+/* ── Searchable customer picker (views/partials/customer-picker.ejs) ──────────
+   Always set colour alongside background here: an unpaired background inherits the
+   surrounding text colour and goes low-contrast, which is exactly how the light-on-light
+   bug on the marketing site happened. */
+.cho-picker { position: relative; }
+.cho-picker-results {
+  position: absolute; z-index: 1050; top: 100%; left: 0; right: 0;
+  margin: 2px 0 0; padding: 4px 0; list-style: none;
+  max-height: 280px; overflow-y: auto;
+  background: #fff; color: #212529;
+  border: 1px solid #ced4da; border-radius: .375rem;
+  box-shadow: 0 .5rem 1rem rgba(0,0,0,.15);
+}
+.cho-picker-item {
+  display: flex; flex-direction: column; gap: 1px;
+  padding: .35rem .75rem; cursor: pointer;
+  background: #fff; color: #212529;
+}
+.cho-picker-item:hover, .cho-picker-item.active { background: var(--cho-accent); color: #fff; }
+.cho-picker-item.active .cho-picker-meta, .cho-picker-item:hover .cho-picker-meta { color: #eaf6fd; }
+.cho-picker-name { font-weight: 500; }
+.cho-picker-meta { font-size: .8125rem; color: #6c757d; }
+.cho-picker-empty { padding: .35rem .75rem; color: #6c757d; font-size: .875rem; }

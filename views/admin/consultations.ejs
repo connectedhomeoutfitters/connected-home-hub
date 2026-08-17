@@ -18,17 +18,12 @@
 
   <div class="collapse mb-4" id="newConsultation">
     <div class="card card-body">
-      <% if (customers.length === 0) { %>
+      <% if (customerCount === 0) { %>
         <p class="text-muted mb-0">No customers yet — <a href="<%= basePath %>/admin/customers">add one</a> first (or convert a lead) before starting a consultation.</p>
       <% } else { %>
         <form action="<%= basePath %>/admin/consultations/new" method="GET" class="row g-2">
           <div class="col-md-8">
-            <select name="customer_id" class="form-select" required>
-              <option value="">Select a customer&hellip;</option>
-              <% customers.forEach(c => { %>
-                <option value="<%= c.id %>"><%= c.name %></option>
-              <% }) %>
-            </select>
+            <%- include('../partials/customer-picker', { name: 'customer_id', selectedId: '', selectedLabel: '', required: true, locked: false }) %>
           </div>
           <div class="col-md-4">
             <button class="btn btn-primary w-100" type="submit">Start</button>

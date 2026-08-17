@@ -15,12 +15,7 @@
 
     <div class="mb-3">
       <label class="form-label">Customer</label>
-      <select name="customer_id" class="form-select" required>
-        <option value="">— choose —</option>
-        <% customers.forEach(c => { %>
-          <option value="<%= c.id %>" <%= String(warranty.customer_id) === String(c.id) ? 'selected' : '' %>><%= c.name %></option>
-        <% }) %>
-      </select>
+      <%- include('../partials/customer-picker', { name: 'customer_id', selectedId: warranty.customer_id || '', selectedLabel: selectedCustomerName || '', required: true, locked: false }) %>
     </div>
 
     <div class="mb-3">

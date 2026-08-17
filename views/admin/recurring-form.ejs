@@ -13,18 +13,16 @@
         <div class="row g-3">
           <div class="col-md-6">
             <label class="form-label" for="customer_id">Customer</label>
-            <% if (isNew) { %>
-              <select name="customer_id" id="customer_id" class="form-select" required>
-                <option value="">&mdash; choose &mdash;</option>
-                <% customers.forEach(c => { %>
-                  <option value="<%= c.id %>" <%= String(service.customer_id) === String(c.id) ? 'selected' : '' %>><%= c.name %></option>
-                <% }) %>
-              </select>
-            <% } else { %>
-              <%# Not editable. Moving a series to another customer would strand its visits
-                  and any invoice already raised against them. End it and start a new one. %>
-              <input class="form-control" value="<%= (customers.find(c => c.id === service.customer_id) || {}).name || '' %>" disabled>
-            <% } %>
+            <%# Locked once created: moving a series to another customer would strand its
+                visits and any invoice already raised against them. End it and start a new
+                one instead. %>
+            <%- include('../partials/customer-picker', {
+                  name: 'customer_id',
+                  selectedId: service.customer_id || '',
+                  selectedLabel: selectedCustomerName || '',
+                  required: true,
+                  locked: !isNew,
+                }) %>
           </div>
           <div class="col-md-6">
             <label class="form-label" for="title">Service</label>

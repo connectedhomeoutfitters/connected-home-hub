@@ -1,0 +1,31 @@
+<%# Shared searchable customer picker.
+    Replaces the full-list <select> that every form used to render, which shipped one
+    <option> per customer and stopped being usable somewhere in the hundreds.
+
+    Usage:  include('../partials/customer-picker', {
+              name: 'customer_id',        // submitted field name
+              selectedId: <id|''>,        // current value, if editing
+              selectedLabel: '<name>',    // display text for that value
+              required: true,
+              locked: false               // render as read-only text instead
+            })
+
+    Submits the id in a hidden input, exactly like the <select> it replaces, so the routes
+    reading req.body.customer_id need no change. %>
+<% const pickerId = 'cp_' + name.replace(/[^a-z0-9]/gi, ''); %>
+<% if (locked) { %>
+  <input class="form-control" value="<%= selectedLabel || '' %>" disabled>
+<% } else { %>
+  <div class="cho-picker" data-picker id="<%= pickerId %>">
+    <input type="hidden" name="<%= name %>" value="<%= selectedId || '' %>" data-picker-value>
+    <input type="text" class="form-control" autocomplete="off" role="combobox"
+           aria-expanded="false" aria-autocomplete="list"
+           data-picker-input
+           data-picker-url="<%= basePath %>/admin/customers/search"
+           placeholder="Search by name, email or phone"
+           value="<%= selectedLabel || '' %>"
+           <%= required ? 'data-picker-required' : '' %>>
+    <ul class="cho-picker-results d-none" data-picker-results role="listbox"></ul>
+    <div class="form-text d-none" data-picker-hint>Pick a customer from the list.</div>
+  </div>
+<% } %>

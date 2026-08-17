@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
 const { requireAuth } = require('../../middleware/auth');
+const { customerName } = require('../../services/customerLookup');
 const { sendMail } = require('../../services/mailer');
 const { createInvoice, lineItemsForInvoice, lineItemsTotal } = require('../../services/invoicing');
 const { getCompany } = require('../../services/companySettings');
@@ -31,12 +32,9 @@ router.get('/', async (req, res, next) => {
 // acceptance, so they're not offered here).
 router.get('/new', async (req, res, next) => {
   try {
-    const [customers] = await req.db.execute(
-      'SELECT id, name, email FROM customers WHERE org_id = ? ORDER BY name',
-      [req.orgId]
-    );
+    
     res.render('admin/invoice-form', {
-      pageScript: 'page-invoice-form.js', customers, error: null,
+      pageScript: ['page-invoice-form.js', 'customer-picker.js'], selectedCustomerName: await customerName(req.db, req.orgId, req.query.customer_id), error: null,
       preset: { customer_id: req.query.customer_id || '', type: 'standalone', amount: '', description: '', due_date: '' },
     });
   } catch (err) {
@@ -65,12 +63,9 @@ function lineItemsFromBody(body) {
 router.post('/', async (req, res, next) => {
   const { customer_id, type, amount, description, due_date } = req.body;
   const rerender = async (error) => {
-    const [customers] = await req.db.execute(
-      'SELECT id, name, email FROM customers WHERE org_id = ? ORDER BY name',
-      [req.orgId]
-    );
+    
     res.status(400).render('admin/invoice-form', {
-      pageScript: 'page-invoice-form.js', customers, error,
+      pageScript: ['page-invoice-form.js', 'customer-picker.js'], selectedCustomerName: await customerName(req.db, req.orgId, req.body.customer_id), error,
       preset: { customer_id, type, amount, description, due_date },
     });
   };

@@ -17,6 +17,40 @@ router.get('/', (req, res) => {
   res.render('admin/settings-index', { pageScript: null });
 });
 
+// ── Lead intake ─────────────────────────────────────────────────────────────
+// POST /webhooks/lead-intake has been multi-tenant since migration 030 — it resolves the
+// org from orgs.lead_webhook_secret. But that secret was exposed nowhere, so a new tenant
+// literally could not obtain their own key without someone reading it out of the database.
+// This page is that missing surface.
+const crypto = require('crypto');
+const newLeadSecret = () => crypto.randomBytes(24).toString('hex');
+
+router.get('/lead-intake', async (req, res, next) => {
+  try {
+    // Cross-org by necessity: `orgs` is the tenant table itself, not tenant DATA, so it is
+    // reached through the documented escape hatch rather than the scoped handle.
+    const [[org]] = await req.db.unscoped.execute(
+      'SELECT id, lead_webhook_secret FROM orgs WHERE id = ?', [req.orgId]
+    );
+    res.render('admin/settings-lead-intake', {
+      pageScript: null, org,
+      endpoint: `${process.env.BASE_URL || ''}${res.locals.basePath}/webhooks/lead-intake`,
+      rotated: req.query.rotated === '1',
+    });
+  } catch (err) { next(err); }
+});
+
+// Generate on demand rather than at provisioning time, so an org that never wires up a
+// website form never carries a live credential it didn't ask for.
+router.post('/lead-intake/rotate', async (req, res, next) => {
+  try {
+    await req.db.unscoped.execute(
+      'UPDATE orgs SET lead_webhook_secret = ? WHERE id = ?', [newLeadSecret(), req.orgId]
+    );
+    res.redirect(`${res.locals.basePath}/admin/settings/lead-intake?rotated=1`);
+  } catch (err) { next(err); }
+});
+
 // Email delivery log — last 200 send attempts, optionally filtered to failures.
 router.get('/email-log', async (req, res, next) => {
   try {

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { requireAuth } = require('../../middleware/auth');
+const { customerName } = require('../../services/customerLookup');
 
 router.use(requireAuth);
 
@@ -22,21 +23,12 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-async function customerList(db, orgId) {
-  const [customers] = await db.execute(
-    'SELECT id, name FROM customers WHERE org_id = ? ORDER BY name',
-    [orgId]
-  );
-  return customers;
-}
-
 router.get('/new', async (req, res, next) => {
   try {
-    const customers = await customerList(req.db, req.orgId);
     // Prefill customer (and default the provider for a labor warranty) when launched from
     // a customer or a completed job.
     res.render('admin/warranty-form', {
-      pageScript: null, isNew: true, customers, error: null,
+      pageScript: 'customer-picker.js', isNew: true, selectedCustomerName: await customerName(req.db, req.orgId, req.query.customer_id), error: null,
       warranty: {
         customer_id: req.query.customer_id || '',
         job_id: req.query.job_id || null,
@@ -72,9 +64,8 @@ router.post('/', async (req, res, next) => {
     const error = validate(req.body) ||
       (await ownsCustomer(req.db, req.orgId, req.body.customer_id) ? null : 'Please choose a customer.');
     if (error) {
-      const customers = await customerList(req.db, req.orgId);
       return res.status(400).render('admin/warranty-form', {
-        pageScript: null, isNew: true, customers, error,
+        pageScript: 'customer-picker.js', isNew: true, selectedCustomerName: await customerName(req.db, req.orgId, req.body.customer_id), error,
         warranty: { ...req.body },
       });
     }
@@ -99,8 +90,7 @@ router.get('/:id/edit', async (req, res, next) => {
     );
     const warranty = rows[0];
     if (!warranty) return res.status(404).render('error', { message: 'Warranty not found' });
-    const customers = await customerList(req.db, req.orgId);
-    res.render('admin/warranty-form', { pageScript: null, isNew: false, customers, error: null, warranty });
+    res.render('admin/warranty-form', { pageScript: 'customer-picker.js', isNew: false, selectedCustomerName: await customerName(req.db, req.orgId, warranty.customer_id), error: null, warranty });
   } catch (err) {
     next(err);
   }
@@ -111,9 +101,8 @@ router.post('/:id', async (req, res, next) => {
     const error = validate(req.body) ||
       (await ownsCustomer(req.db, req.orgId, req.body.customer_id) ? null : 'Please choose a customer.');
     if (error) {
-      const customers = await customerList(req.db, req.orgId);
       return res.status(400).render('admin/warranty-form', {
-        pageScript: null, isNew: false, customers, error,
+        pageScript: 'customer-picker.js', isNew: false, selectedCustomerName: await customerName(req.db, req.orgId, req.body.customer_id), error,
         warranty: { id: req.params.id, ...req.body },
       });
     }

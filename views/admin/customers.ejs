@@ -1,25 +1,132 @@
 <%- include('../partials/head', { title: 'Customers' }) %>
 <%- include('../partials/nav') %>
+<%
+  // Preserve the other query params when changing one of them, so sorting a filtered list
+  // doesn't silently drop the search (and paging doesn't drop the sort).
+  const qs = (over) => {
+    const p = new URLSearchParams();
+    const merged = Object.assign({ q, sort: sortKey, page }, over);
+    if (merged.q) p.set('q', merged.q);
+    if (merged.sort && merged.sort !== 'recent') p.set('sort', merged.sort);
+    if (merged.page && Number(merged.page) > 1) p.set('page', merged.page);
+    const s = p.toString();
+    return basePath + '/admin/customers' + (s ? '?' + s : '');
+  };
+  // A sortable column header: click to sort, click again to reverse where there's a pair.
+  const sortLink = (label, key, altKey) => {
+    const isActive = sortKey === key || (altKey && sortKey === altKey);
+    const next = (sortKey === key && altKey) ? altKey : key;
+    const caret = !isActive ? '' :
+      (sortKey === key ? ' <i class="bi bi-caret-down-fill"></i>' : ' <i class="bi bi-caret-up-fill"></i>');
+    return `<a href="${qs({ sort: next, page: 1 })}" class="cho-th-sort${isActive ? ' active' : ''}">${label}${caret}</a>`;
+  };
+  const money = (n) => '$' + Number(n || 0).toFixed(2);
+%>
 <div class="container">
-  <h1 class="h3 mb-4">Customers</h1>
-  <table class="table">
-    <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Added</th><th></th></tr></thead>
-    <tbody>
-      <% customers.forEach(c => { %>
-        <tr>
-          <td><a href="<%= basePath %>/admin/customers/<%= c.id %>" class="text-decoration-none"><%= c.name %></a></td>
-          <td><%= c.email %></td>
-          <td><%= c.phone || '' %></td>
-          <td><%= c.created_at %></td>
-          <td class="text-end">
-            <a class="btn btn-sm btn-outline-secondary" href="<%= basePath %>/admin/customers/<%= c.id %>/edit">Edit</a>
-            <a class="btn btn-sm btn-outline-primary" href="<%= basePath %>/admin/consultations/new?customer_id=<%= c.id %>">New Consultation</a>
-            <a class="btn btn-sm btn-outline-primary" href="<%= basePath %>/admin/estimates/new?customer_id=<%= c.id %>">New Estimate</a>
-          </td>
-        </tr>
-      <% }) %>
-    </tbody>
-  </table>
-  <!-- TODO: add-customer form/modal -->
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h1 class="h3 mb-0">Customers</h1>
+    <a class="btn btn-primary" href="<%= basePath %>/admin/customers/new"><i class="bi bi-plus"></i> New customer</a>
+  </div>
+
+  <form method="GET" action="<%= basePath %>/admin/customers" class="row g-2 align-items-end mb-3">
+    <div class="col-sm-6 col-md-5">
+      <label class="form-label mb-1" for="q">Search</label>
+      <input type="search" id="q" name="q" class="form-control" value="<%= q %>"
+             placeholder="Name, email, phone or address">
+    </div>
+    <div class="col-sm-4 col-md-3">
+      <label class="form-label mb-1" for="sort">Sort by</label>
+      <select id="sort" name="sort" class="form-select">
+        <% Object.keys(SORTS).forEach(k => { %>
+          <option value="<%= k %>" <%= sortKey === k ? 'selected' : '' %>><%= SORTS[k].label %></option>
+        <% }) %>
+      </select>
+    </div>
+    <div class="col-auto">
+      <button class="btn btn-outline-secondary" type="submit">Apply</button>
+    </div>
+    <% if (q || sortKey !== 'recent') { %>
+      <div class="col-auto">
+        <a class="btn btn-link px-1" href="<%= basePath %>/admin/customers">Clear</a>
+      </div>
+    <% } %>
+  </form>
+
+  <% if (!customers.length) { %>
+    <div class="card"><div class="card-body">
+      <% if (q) { %>
+        <p class="mb-0 text-muted">No customers match &ldquo;<%= q %>&rdquo;.</p>
+      <% } else { %>
+        <p class="mb-1">No customers yet.</p>
+        <p class="mb-0 text-muted">Add one directly, or convert a lead from the
+          <a href="<%= basePath %>/admin/leads">Leads</a> page.</p>
+      <% } %>
+    </div></div>
+  <% } else { %>
+    <p class="text-muted small mb-2">
+      <%= total %> customer<%= total === 1 ? '' : 's' %><%= q ? ' matching your search' : '' %>.
+    </p>
+    <div class="table-responsive">
+      <table class="table align-middle">
+        <thead>
+          <tr>
+            <th><%- sortLink('Name', 'name', 'name_desc') %></th>
+            <th>Contact</th>
+            <th class="text-end"><%- sortLink('Paid', 'value') %></th>
+            <th><%- sortLink('Last activity', 'activity') %></th>
+            <th><%- sortLink('Added', 'recent', 'oldest') %></th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% customers.forEach(c => { %>
+            <tr>
+              <td>
+                <a href="<%= basePath %>/admin/customers/<%= c.id %>" class="text-decoration-none fw-semibold"><%= c.name %></a>
+                <% if (c.estimate_count) { %>
+                  <span class="text-muted small d-block"><%= c.estimate_count %> estimate<%= c.estimate_count === 1 ? '' : 's' %></span>
+                <% } %>
+              </td>
+              <td class="small">
+                <%= c.email || '' %>
+                <% if (c.phone) { %><span class="text-muted d-block"><%= c.phone %></span><% } %>
+              </td>
+              <td class="text-end"><%= Number(c.total_paid) > 0 ? money(c.total_paid) : '—' %></td>
+              <td class="small text-muted">
+                <%= c.last_activity ? new Date(c.last_activity).toLocaleDateString() : '—' %>
+              </td>
+              <td class="small text-muted"><%= new Date(c.created_at).toLocaleDateString() %></td>
+              <td class="text-end">
+                <%# Start any of the three things you'd actually do next for a customer,
+                    without going via the customer page and picking them again. %>
+                <div class="btn-group btn-group-sm">
+                  <a class="btn btn-outline-primary" title="New estimate"
+                     href="<%= basePath %>/admin/estimates/new?customer_id=<%= c.id %>"><i class="bi bi-file-earmark-text"></i></a>
+                  <a class="btn btn-outline-primary" title="New job"
+                     href="<%= basePath %>/admin/jobs?customer_id=<%= c.id %>"><i class="bi bi-list-check"></i></a>
+                  <a class="btn btn-outline-primary" title="New recurring service"
+                     href="<%= basePath %>/admin/recurring/new?customer_id=<%= c.id %>"><i class="bi bi-arrow-repeat"></i></a>
+                  <a class="btn btn-outline-primary" title="New consultation"
+                     href="<%= basePath %>/admin/consultations/new?customer_id=<%= c.id %>"><i class="bi bi-clipboard-check"></i></a>
+                  <a class="btn btn-outline-secondary" title="Edit"
+                     href="<%= basePath %>/admin/customers/<%= c.id %>/edit"><i class="bi bi-pencil"></i></a>
+                </div>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+
+    <% if (pages > 1) { %>
+      <nav class="d-flex justify-content-between align-items-center">
+        <span class="text-muted small">Page <%= page %> of <%= pages %></span>
+        <div class="btn-group btn-group-sm">
+          <a class="btn btn-outline-secondary <%= page <= 1 ? 'disabled' : '' %>" href="<%= qs({ page: page - 1 }) %>">Previous</a>
+          <a class="btn btn-outline-secondary <%= page >= pages ? 'disabled' : '' %>" href="<%= qs({ page: page + 1 }) %>">Next</a>
+        </div>
+      </nav>
+    <% } %>
+  <% } %>
 </div>
 <%- include('../partials/footer') %>

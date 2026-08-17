@@ -9,14 +9,7 @@
   <form method="POST" action="<%= basePath %>/admin/invoices">
     <div class="mb-3">
       <label class="form-label">Customer</label>
-      <select name="customer_id" class="form-select" required>
-        <option value="">— choose —</option>
-        <% customers.forEach(c => { %>
-          <option value="<%= c.id %>" <%= String(preset.customer_id) === String(c.id) ? 'selected' : '' %>>
-            <%= c.name %> (<%= c.email %>)
-          </option>
-        <% }) %>
-      </select>
+      <%- include('../partials/customer-picker', { name: 'customer_id', selectedId: preset.customer_id || '', selectedLabel: selectedCustomerName || '', required: true, locked: false }) %>
     </div>
 
     <div class="row">

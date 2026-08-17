@@ -33,11 +33,13 @@ router.get('/', async (req, res, next) => {
        ORDER BY e.created_at DESC`,
       [req.orgId]
     );
-    const [customers] = await req.db.execute(
-      'SELECT id, name FROM customers WHERE org_id = ? ORDER BY name',
+    // Only the count: the picker searches server-side, so the form no longer needs the
+    // list — this is purely for the "no customers yet" empty state.
+    const [[{ n: customerCount }]] = await req.db.execute(
+      'SELECT COUNT(*) AS n FROM customers WHERE org_id = ?',
       [req.orgId]
     );
-    res.render('admin/estimates', { pageScript: null, estimates, customers });
+    res.render('admin/estimates', { pageScript: 'customer-picker.js', estimates, customerCount });
   } catch (err) {
     next(err);
   }

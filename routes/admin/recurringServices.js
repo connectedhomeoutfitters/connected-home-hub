@@ -11,6 +11,7 @@ const router = express.Router();
 const { requireAuth } = require('../../middleware/auth');
 const { generateVisits, billMonth } = require('../../services/recurringServices');
 const activity = require('../../services/activityLog');
+const { customerName } = require('../../services/customerLookup');
 
 router.use(requireAuth);
 
@@ -28,14 +29,6 @@ const CADENCES = ['weekly', 'biweekly', 'monthly'];
 const lastMonth = (now = new Date()) => new Date(now.getFullYear(), now.getMonth() - 1, 1);
 const monthInputValue = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
-async function customersFor(req) {
-  const [rows] = await req.db.execute(
-    'SELECT id, name FROM customers WHERE org_id = ? ORDER BY name',
-    [req.orgId]
-  );
-  return rows;
-}
 
 router.get('/', async (req, res, next) => {
   try {
@@ -62,8 +55,8 @@ router.get('/', async (req, res, next) => {
 router.get('/new', async (req, res, next) => {
   try {
     res.render('admin/recurring-form', {
-      pageScript: null, isNew: true, DAYS, CADENCES, error: null,
-      customers: await customersFor(req),
+      pageScript: 'customer-picker.js', isNew: true, DAYS, CADENCES, error: null,
+      selectedCustomerName: await customerName(req.db, req.orgId, req.query.customer_id),
       service: {
         customer_id: req.query.customer_id || '',
         title: '', unit_price: '', cadence: 'weekly', day_of_week: 1,
@@ -91,8 +84,8 @@ router.get('/:id/edit', async (req, res, next) => {
       [service.id, req.orgId]
     );
     res.render('admin/recurring-form', {
-      pageScript: null, isNew: false, DAYS, CADENCES, error: null,
-      customers: await customersFor(req), service, visits,
+      pageScript: 'customer-picker.js', isNew: false, DAYS, CADENCES, error: null,
+      selectedCustomerName: await customerName(req.db, req.orgId, service.customer_id), service, visits,
     });
   } catch (err) { next(err); }
 });
@@ -117,8 +110,8 @@ router.post('/', async (req, res, next) => {
     const f = parseBody(req.body);
     if (!f.customer_id || !f.title || !f.start_date) {
       return res.status(400).render('admin/recurring-form', {
-        pageScript: null, isNew: true, DAYS, CADENCES,
-        customers: await customersFor(req),
+        pageScript: 'customer-picker.js', isNew: true, DAYS, CADENCES,
+        selectedCustomerName: await customerName(req.db, req.orgId, req.body.customer_id),
         service: { ...f, status: 'active', paused_until: null },
         error: 'Choose a customer, give it a name, and set a start date.',
       });

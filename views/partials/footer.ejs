@@ -1,6 +1,10 @@
   <script src="<%= basePath %>/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+  <%# pageScript takes a filename or an array of them — several pages now need both their
+      own script and the shared customer picker. %>
   <% if (typeof pageScript !== 'undefined' && pageScript) { %>
-    <script src="<%= basePath %>/js/<%= pageScript %>"></script>
+    <% [].concat(pageScript).filter(Boolean).forEach(s => { %>
+      <script src="<%= basePath %>/js/<%= s %>"></script>
+    <% }) %>
   <% } %>
 </body>
 </html>

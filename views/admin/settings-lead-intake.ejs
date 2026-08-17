@@ -1,0 +1,94 @@
+<%- include('../partials/head', { title: 'Lead Intake' }) %>
+<%- include('../partials/nav') %>
+<div class="container" style="max-width: 820px;">
+  <p class="mb-1"><a href="<%= basePath %>/admin/settings">&larr; Settings</a></p>
+  <h1 class="h3 mb-1">Lead intake</h1>
+  <p class="text-muted">Send enquiries from your website straight into <a href="<%= basePath %>/admin/leads">Leads</a>, so nobody re-types them.</p>
+
+  <% if (rotated) { %>
+    <div class="alert alert-warning">
+      New key generated. The old one stopped working immediately &mdash; update your website
+      before your next enquiry, or it will be rejected.
+    </div>
+  <% } %>
+
+  <div class="card mb-4">
+    <div class="card-body">
+      <h2 class="h5">Your endpoint</h2>
+      <p class="text-muted small">Your website posts JSON here. Every request must carry your key in the <code>X-CHO-Hub-Secret</code> header &mdash; that header is how we know the lead is yours.</p>
+
+      <label class="form-label mb-1">Endpoint URL</label>
+      <input class="form-control mb-3" readonly value="<%= endpoint %>">
+
+      <label class="form-label mb-1">Your key</label>
+      <% if (org.lead_webhook_secret) { %>
+        <input class="form-control font-monospace mb-2" readonly value="<%= org.lead_webhook_secret %>">
+        <p class="text-muted small">Treat this like a password &mdash; anyone holding it can create leads in your account.</p>
+        <form method="POST" action="<%= basePath %>/admin/settings/lead-intake/rotate">
+          <button class="btn btn-outline-secondary btn-sm" type="submit">Generate a new key</button>
+          <span class="text-muted small ms-2">Use this if the key has been shared or exposed.</span>
+        </form>
+      <% } else { %>
+        <p class="text-muted">No key yet.</p>
+        <form method="POST" action="<%= basePath %>/admin/settings/lead-intake/rotate">
+          <button class="btn btn-primary" type="submit">Generate a key</button>
+        </form>
+      <% } %>
+    </div>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-body">
+      <h2 class="h5">What to send</h2>
+      <p class="text-muted small">Only <code>name</code> and <code>email</code> are required. Send whichever of the rest your form collects; anything else you include is kept on the lead as raw data, so nothing a customer typed is lost even if there's no field for it yet.</p>
+      <div class="table-responsive">
+        <table class="table table-sm">
+          <thead><tr><th>Field</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><code>name</code></td><td class="text-muted small">Required.</td></tr>
+            <tr><td><code>email</code></td><td class="text-muted small">Required.</td></tr>
+            <tr><td><code>phone</code></td><td class="text-muted small"></td></tr>
+            <tr><td><code>property_address</code></td><td class="text-muted small">Where the work would happen.</td></tr>
+            <tr><td><code>interests</code></td><td class="text-muted small">A list, e.g. <code>["Lawn care","Irrigation"]</code>.</td></tr>
+            <tr><td><code>budget</code>, <code>timeline</code></td><td class="text-muted small">Free text, exactly as the customer chose it.</td></tr>
+            <tr><td><code>additional_details</code></td><td class="text-muted small">Their &ldquo;anything else?&rdquo; box.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-body">
+      <h2 class="h5">Wiring it up</h2>
+      <p class="text-muted small mb-3">Any website that can send a webhook will work &mdash; the endpoint takes plain JSON, so it isn't tied to one platform.</p>
+
+      <h3 class="h6 mb-1">WordPress</h3>
+      <p class="text-muted small">Most form plugins (Elementor Pro, WPForms, Gravity Forms, Contact&nbsp;Form&nbsp;7) can post to a URL on submit &mdash; look for &ldquo;Webhook&rdquo; in the form's actions. Set the URL above, add the header, and map your fields to the names in the table.</p>
+
+      <h3 class="h6 mb-1 mt-3">Squarespace, Wix, Webflow, HubSpot</h3>
+      <p class="text-muted small">Use the platform's webhook or automation step, or connect it through Zapier / Make. Same URL, same header.</p>
+
+      <h3 class="h6 mb-1 mt-3">Anything else</h3>
+      <p class="text-muted small mb-2">If your site can't send webhooks, your web developer can post from the form handler directly:</p>
+      <pre class="bg-light p-3 rounded small mb-0"><code>POST <%= endpoint %>
+Content-Type: application/json
+X-CHO-Hub-Secret: <%= org.lead_webhook_secret || 'your-key-here' %>
+
+{
+  "name": "Jane Doe",
+  "email": "jane@example.com",
+  "phone": "555-0100",
+  "property_address": "12 Oak Street",
+  "interests": ["Lawn care"],
+  "additional_details": "Quarter-acre lot, weekly in summer"
+}</code></pre>
+    </div>
+  </div>
+
+  <p class="text-muted small">
+    Leads arriving here land in <a href="<%= basePath %>/admin/leads">Leads</a>, where you
+    can work them and convert one into a customer.
+  </p>
+</div>
+<%- include('../partials/footer') %>
