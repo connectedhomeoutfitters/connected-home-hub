@@ -25,6 +25,9 @@ function setLocals(req, res, next) {
   // whatever filters and sorts are already applied — paging a filtered list must not
   // silently drop the filter.
   res.locals.currentQuery = req.query || {};
+  // The product's public marketing site — a different host, so always absolute and never
+  // prefixed with basePath. Used by the sign-in/landing pages to link back out.
+  res.locals.marketingUrl = process.env.MARKETING_URL || 'https://connectedworkos.com';
   next();
 }
 

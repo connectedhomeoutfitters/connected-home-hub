@@ -1,0 +1,20 @@
+<%# Footer for the product's own entry pages: the three sign-in screens, the landing page
+    and the SSO error page. Deliberately NOT used on tenant-branded pages (estimates,
+    invoices, the portal dashboard) — those belong to the contractor, and putting the
+    platform vendor's marketing link under a contractor's invoice would be advertising in
+    someone else's customer relationship.
+
+    marketingUrl is an absolute URL to a different host, so no basePath and it opens in the
+    same tab: someone who wants the product site is leaving the app on purpose. %>
+<footer class="auth-footer">
+  <div class="container">
+    <p class="auth-footer__brand">
+      <a href="<%= marketingUrl %>">ConnectedWorkOS</a>
+      <span class="auth-footer__sep">·</span>
+      <span>Every job, start to paid.</span>
+    </p>
+    <p class="auth-footer__meta">
+      &copy; <%= new Date().getFullYear() %> Connected Home Outfitters LLC
+    </p>
+  </div>
+</footer>

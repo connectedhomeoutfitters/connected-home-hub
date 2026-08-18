@@ -55,3 +55,70 @@ body.portal-page .btn-success:hover {
 .portal-header img {
   height: 48px;
 }
+
+/* ── Product entry pages: sign-in, landing, SSO error ────────────────────────
+   Scoped to body.portal-page like the rest of this file, so admin pages are untouched.
+   Every rule sets colour alongside background — an unpaired background inherits
+   .portal-page's muted body colour and goes low-contrast, which is how the light-on-light
+   bug happened on the marketing site. */
+
+/* Header gains a back-link on product pages only, so the logo stays centred by keeping it
+   absolutely positioned rather than turning the header into a flex row. */
+body.portal-page .portal-header--product { position: relative; }
+body.portal-page .portal-header__home {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: .875rem;
+  color: var(--cho-text);
+  text-decoration: none;
+  white-space: nowrap;
+}
+body.portal-page .portal-header__home:hover { color: var(--cho-accent); text-decoration: underline; }
+/* Below sm the absolute link would sit on top of the logo. */
+@media (max-width: 575.98px) {
+  body.portal-page .portal-header--product { padding-top: 3rem; }
+  body.portal-page .portal-header__home { top: .75rem; transform: none; left: 50%; margin-left: -6.5rem; }
+}
+
+body.portal-page.auth-page { display: flex; flex-direction: column; min-height: 100vh; }
+body.portal-page .auth-main { flex: 1 0 auto; width: 100%; max-width: 26rem; margin: 0 auto; padding: 2.5rem 1rem 3rem; }
+/* The landing and SSO-error pages use a plain .container rather than .auth-main. Without
+   this they don't grow, and the footer floats up the middle of the page instead of sitting
+   at the bottom. */
+body.portal-page.auth-page > .container { flex: 1 0 auto; }
+
+body.portal-page .auth-card {
+  background: #fff;
+  color: var(--cho-text);
+  border: 1px solid #e5e9ed;
+  border-radius: .75rem;
+  padding: 1.75rem;
+  box-shadow: 0 1px 3px rgba(16, 34, 48, .06);
+}
+body.portal-page .auth-card__sub { font-size: .9rem; color: var(--cho-text); margin-bottom: 1.25rem; }
+
+/* "or" divider with rules either side, without an extra wrapper element. */
+body.portal-page .auth-or {
+  display: flex; align-items: center; gap: .75rem;
+  margin: 1rem 0; color: var(--cho-text); font-size: .875rem;
+}
+body.portal-page .auth-or::before,
+body.portal-page .auth-or::after { content: ""; flex: 1; height: 1px; background: #e5e9ed; }
+
+body.portal-page .auth-alt { text-align: center; font-size: .875rem; color: var(--cho-text); margin: 1.25rem 0 0; }
+
+body.portal-page .auth-footer {
+  flex-shrink: 0;
+  border-top: 1px solid #e5e9ed;
+  background: #fff;
+  color: var(--cho-text);
+  padding: 1.25rem 0;
+  text-align: center;
+}
+body.portal-page .auth-footer__brand { margin: 0 0 .2rem; font-size: .875rem; }
+body.portal-page .auth-footer__brand a { color: var(--cho-accent); text-decoration: none; font-weight: 500; }
+body.portal-page .auth-footer__brand a:hover { text-decoration: underline; }
+body.portal-page .auth-footer__meta { margin: 0; font-size: .8rem; color: var(--cho-text); }
+body.portal-page .auth-footer__sep { opacity: .5; margin: 0 .35rem; }

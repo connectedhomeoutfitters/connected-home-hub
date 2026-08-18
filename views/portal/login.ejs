@@ -1,8 +1,9 @@
-<%- include('../partials/head', { title: 'Customer Portal', portalBranded: true, bodyClass: 'portal-page' }) %>
-<%- include('../partials/portal-header') %>
-<div class="container py-5" style="max-width: 460px;">
-  <h1 class="h4 mb-2">Customer Portal</h1>
-  <p class="text-muted">View your estimates, invoices, and payment history.</p>
+<%- include('../partials/head', { title: 'Customer Portal', portalBranded: true, bodyClass: 'portal-page auth-page' }) %>
+<%- include('../partials/portal-header', { productLink: true }) %>
+<main class="auth-main">
+  <div class="auth-card">
+    <h1 class="h4 mb-1">Customer Portal</h1>
+    <p class="auth-card__sub">View your estimates, invoices, and payment history.</p>
 
   <% if (sent) { %>
     <div class="alert alert-success">
@@ -23,9 +24,11 @@
     </form>
   <% } %>
 
-  <hr class="my-4">
-  <p class="text-center text-muted small mb-0">
-    Work here? <a href="<%= basePath %>/login">Staff sign in</a>
-  </p>
-</div>
+  </div>
+
+  <p class="auth-alt">Work here? <a href="<%= basePath %>/login">Company sign in</a>
+    <span class="auth-footer__sep">·</span>
+    <a href="<%= basePath %>/sub/login">Subcontractor sign in</a></p>
+</main>
+<%- include('../partials/auth-footer') %>
 <%- include('../partials/footer') %>

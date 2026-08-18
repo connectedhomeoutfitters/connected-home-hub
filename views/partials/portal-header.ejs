@@ -1,3 +1,17 @@
-<div class="portal-header">
+<%# Header for portal and product pages.
+    Renders the TENANT's logo where an org is known (branding.logoPath falls back to the
+    bundled product mark otherwise), so a contractor's customer sees the contractor.
+
+    productLink: pass true ONLY on the product's own entry pages (sign-in, landing, SSO
+    error) to add a way back to the marketing site. It is deliberately absent on
+    tenant-branded pages — a link to the platform vendor under a contractor's invoice is
+    advertising inside someone else's customer relationship. %>
+<% const _showProductLink = typeof productLink !== 'undefined' && productLink; %>
+<div class="portal-header<%= _showProductLink ? ' portal-header--product' : '' %>">
   <img src="<%= branding.logoPath %>" alt="<%= branding.companyName || 'ConnectedWorkOS' %>">
+  <% if (_showProductLink) { %>
+    <a class="portal-header__home" href="<%= marketingUrl %>">
+      <i class="bi bi-arrow-left"></i> connectedworkos.com
+    </a>
+  <% } %>
 </div>
