@@ -9,10 +9,28 @@
 # robots.txt that allows everything. That is the surface meant to rank.
 #
 # Belt and braces: server.js also sends `X-Robots-Tag: noindex, nofollow` on every
-# response here. The header is what actually keeps a URL out of the index if it is
-# discovered through a link; this file is what stops the fetch happening at all. Blocking
-# the crawl does mean a crawler cannot read that header, so the two cover different cases
-# on purpose — not crawling token URLs is the more important of the two.
+# response here. The two controls cover different cases — this file stops the fetch, the
+# header stops the indexing.
 
 User-agent: *
 Disallow: /
+
+# ...with three deliberate exceptions, added 2026-08-18.
+#
+# Search Console reported "Indexed, though blocked by robots.txt". The cause is the
+# interaction between the two controls above: the marketing site links to these three
+# sign-in pages, so Google DISCOVERS them, but `Disallow: /` stops it fetching them — and a
+# page it cannot fetch is a page whose `X-Robots-Tag: noindex` it can never read. Google
+# then indexes the bare URL from the link alone.
+#
+# Blocking a URL therefore does NOT keep it out of the index; only the header does, and the
+# header is only readable if the crawl is allowed. So these three are opened up precisely
+# so Googlebot can fetch them, read the noindex, and drop them.
+#
+# Safe to allow: all three are public sign-in forms with no customer data, and a GET does
+# nothing (the magic-link email is only sent on POST). Everything else — every token URL —
+# stays disallowed, and none of those is linked from anywhere public, so nothing discovers
+# them in the first place.
+Allow: /login
+Allow: /portal/login
+Allow: /sub/login
