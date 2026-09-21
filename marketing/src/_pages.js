@@ -29,9 +29,9 @@ module.exports = [
     slug: 'getting-paid',
     url: '/getting-paid',
     nav: 'Getting paid',
-    title: 'Getting paid — card deposits and invoices through your own Stripe account | ConnectedWorkOS',
+    title: 'Getting paid — card deposits and invoices through your own Stripe or Square account | ConnectedWorkOS',
     description:
-      'How payments work in ConnectedWorkOS: connect your own Stripe account, take card deposits when a quote is accepted, invoice the balance, and handle refunds. What Stripe asks for, what it costs, and when you get paid.',
+      'How payments work in ConnectedWorkOS: connect your own Stripe or Square account, take card deposits when a quote is accepted, invoice the balance, and handle refunds. What it costs and when you get paid.',
     priority: '0.9',
     changefreq: 'monthly',
   },
@@ -41,7 +41,7 @@ module.exports = [
     nav: 'FAQ',
     title: 'Frequently asked questions | ConnectedWorkOS',
     description:
-      'Do I need Stripe? What are the fees? Do my customers need an account? Do I have to use Connected Home Ledger? Straight answers about ConnectedWorkOS.',
+      'Stripe or Square? What are the fees? Do my customers need an account? Do I have to use Connected Home Ledger? Straight answers about ConnectedWorkOS.',
     priority: '0.7',
     changefreq: 'monthly',
   },

@@ -4,12 +4,12 @@
   // hand-maintaining two copies guarantees they drift.
   const faqs = [
     {
-      q: 'Do I need a Stripe account?',
-      a: 'To take card payments, yes. You connect one you already have, or create one during setup — it is free to open. Everything else (quoting, scheduling, invoicing, warranties) works without it, but the pay page will tell your customer that payment is unavailable until an account is connected.'
+      q: 'Do I need a Stripe or Square account?',
+      a: 'To take card payments you need Stripe or Square — whichever you already use. Already on Square? Connect that account and invoice payments land next to your in-person sales. Otherwise connect a Stripe account you have, or create one during setup — it is free to open. Everything else (quoting, scheduling, invoicing, warranties) works without either, but the pay page will tell your customer that payment is unavailable until an account is connected.'
     },
     {
       q: 'What does it cost?',
-      a: 'A flat subscription, billed as part of your Connected Home Ledger plan. We do not take a percentage of your invoices. Stripe charges its own per-transaction fee on card payments, deducted before payout — that is billed by Stripe, separately from us.'
+      a: 'A flat subscription, billed as part of your Connected Home Ledger plan. We do not take a percentage of your invoices. Your processor — Stripe or Square — charges its own per-transaction fee on card payments, deducted before payout; that is billed by them, separately from us.'
     },
     {
       q: 'Do my customers need an account?',
@@ -21,7 +21,7 @@
     },
     {
       q: 'Where does my money go?',
-      a: 'Into your own Stripe account, then to your bank on Stripe’s payout schedule. We never hold your funds. The connection lets us create charges on your behalf; it does not give us your money or your keys.'
+      a: 'Into your own Stripe or Square account, then to your bank on that processor’s payout schedule. We never hold your funds. The connection lets us create charges and refunds on your behalf; it does not give us your money or your account keys, and you can revoke it from your processor’s dashboard at any time.'
     },
     {
       q: 'What trades is it for?',

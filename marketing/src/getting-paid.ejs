@@ -1,19 +1,55 @@
 <%- include('_pagehead', {
   eyebrow: 'Getting paid',
   heading: 'Card payments, into your account',
-  lede: 'ConnectedWorkOS collects card payments through a payment processor you connect yourself. Today that processor is Stripe. Your money goes to your bank, we never hold it, and card numbers never touch our servers.'
+  lede: 'ConnectedWorkOS collects card payments through a payment processor you connect yourself — Stripe or Square, whichever you already use. Your money goes to your bank, we never hold it, and card numbers never touch our servers.'
 }) %>
+
+<!-- ══ Choose a processor ═══════════════════════════════════════════════════ -->
+<section class="band band--tint">
+  <div class="wrap">
+    <div class="band__head">
+      <p class="eyebrow eyebrow--dark">Two processors</p>
+      <h2>Stripe or Square — bring the one you have</h2>
+      <p>
+        Most contractors already take cards somewhere. If that's Square — a reader in the
+        truck, a register in the shop — connect it and your ConnectedWorkOS invoices land
+        in the same account as your in-person sales, on the same payouts, in the same
+        dashboard. If it's Stripe, or you have neither, Stripe is a free account you can
+        open during setup.
+      </p>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <span class="card__tag">Stripe</span>
+        <h3>Online-first, free to open</h3>
+        <p>The right choice if you don't take cards today, or already use Stripe. Setup includes Stripe's own onboarding — business details and a bank account — which takes about ten minutes once.</p>
+      </div>
+      <div class="card">
+        <span class="card__tag">Square</span>
+        <h3>Already on Square? Two minutes.</h3>
+        <p>You sign in to the Square account you already have, approve the connection, and you're done — there's no second onboarding because Square already knows your business. Invoice payments show up next to your POS sales.</p>
+      </div>
+    </div>
+
+    <p class="callout">
+      <strong>One or the other, and you can switch.</strong> A business takes card payments
+      through one processor at a time. Connect both if you like and choose which is live in
+      Settings; payments already taken stay with the processor that took them.
+    </p>
+  </div>
+</section>
 
 <!-- ══ Setup ════════════════════════════════════════════════════════════════ -->
 <section class="band band--paper">
   <div class="wrap">
     <div class="band__head">
       <p class="eyebrow eyebrow--dark">Setting it up</p>
-      <h2>Connecting Stripe, step by step</h2>
+      <h2>Connecting, step by step</h2>
       <p>
-        This is a one-time job and takes about ten minutes, most of it Stripe's own
-        onboarding rather than ours. You'll want your business details and a bank account
-        to hand.
+        A one-time job. With Square it's a couple of minutes; with Stripe it's about ten,
+        most of it Stripe's own onboarding rather than ours, so have your business details
+        and a bank account to hand.
       </p>
     </div>
 
@@ -22,28 +58,28 @@
         <span class="steps__no">01</span>
         <div>
           <h3>Open Settings → Payments</h3>
-          <p>Inside ConnectedWorkOS. There's one button: <em>Connect with Stripe</em>.</p>
+          <p>Inside ConnectedWorkOS. Two buttons: <em>Connect with Stripe</em> and <em>Connect with Square</em>. Pick the one you use.</p>
         </div>
       </li>
       <li class="steps__item">
         <span class="steps__no">02</span>
         <div>
-          <h3>Sign in to Stripe, or create an account</h3>
-          <p>If you already take card payments through Stripe, sign in and pick that account — you don't need a second one. If you don't have one, you create it here, and it's free to open.</p>
+          <h3>Sign in to the processor</h3>
+          <p>You're sent to Stripe or Square to sign in to your own account and approve the connection. If you already take card payments there, pick that account — you don't need a second one. New to Stripe? You create the account right there, and it's free to open.</p>
         </div>
       </li>
       <li class="steps__item">
         <span class="steps__no">03</span>
         <div>
-          <h3>Give Stripe your business details</h3>
-          <p>Stripe asks the questions a payment processor is legally required to ask: your business name and structure, an address, your EIN or SSN for a sole proprietor, and the bank account for payouts. This is between you and Stripe — we never see it.</p>
+          <h3>New Stripe account only: your business details</h3>
+          <p>Stripe asks the questions a payment processor is legally required to ask: your business name and structure, an address, your EIN or SSN for a sole proprietor, and the bank account for payouts. This is between you and Stripe — we never see it. An existing Square or Stripe account has already answered these, so this step doesn't appear.</p>
         </div>
       </li>
       <li class="steps__item">
         <span class="steps__no">04</span>
         <div>
           <h3>You land back in ConnectedWorkOS, connected</h3>
-          <p>That's it. Quotes can now take a deposit on acceptance, and invoices can be paid by card.</p>
+          <p>That's it. Quotes can now take a deposit on acceptance, and invoices can be paid by card. Square businesses with more than one location pick which one payments are taken at.</p>
         </div>
       </li>
     </ol>
@@ -65,9 +101,10 @@
         <p class="eyebrow">Where the money goes</p>
         <h2>It is your account, not ours</h2>
         <p>
-          The connection is a Stripe Connect authorisation: you own the account, you agree
-          to Stripe's terms directly with Stripe, and we're permitted to create charges on
-          your behalf. We never take custody of your money, and we never hold your keys.
+          The connection is an authorisation — Stripe Connect, or Square's OAuth — that
+          you grant and can revoke: you own the account, you agree to the processor's terms
+          directly with them, and we're permitted to create charges and refunds on your
+          behalf. We never take custody of your money, and we never hold your account keys.
         </p>
       </div>
 
@@ -75,11 +112,11 @@
         <div class="flow__head">Customer pays a deposit</div>
         <div class="flow__row"><span class="flow__label">Card charged</span><span class="flow__val flow__val--pay">$1,297.38</span></div>
         <div class="flow__arrow"><span>&#8595;</span> settles into</div>
-        <div class="flow__head">Your Stripe account</div>
-        <div class="flow__row"><span class="flow__label">Less Stripe's processing fee</span><span class="flow__val">charged by Stripe</span></div>
+        <div class="flow__head">Your Stripe or Square account</div>
+        <div class="flow__row"><span class="flow__label">Less the processing fee</span><span class="flow__val">charged by the processor</span></div>
         <div class="flow__arrow"><span>&#8595;</span> pays out to</div>
         <div class="flow__head">Your bank account</div>
-        <div class="flow__row"><span class="flow__label">On Stripe's payout schedule</span><span class="flow__val">typically 2 business days</span></div>
+        <div class="flow__row"><span class="flow__label">On the processor's payout schedule</span><span class="flow__val">typically 1–2 business days</span></div>
       </div>
     </div>
   </section>
@@ -100,17 +137,17 @@
         <p>A flat monthly or annual price for ConnectedWorkOS, billed as part of your Connected Home Ledger plan. It does not change with how much you invoice — we take no percentage of your jobs.</p>
       </div>
       <div class="card">
-        <span class="card__tag">From Stripe</span>
+        <span class="card__tag">From Stripe or Square</span>
         <h3>Card processing fees</h3>
-        <p>Stripe charges a per-transaction fee on each card payment and deducts it before payout. Those rates are Stripe's, they're published on Stripe's pricing page, and they can change — so we don't quote a number here that might be wrong by the time you read it.</p>
+        <p>Your processor charges a per-transaction fee on each card payment and deducts it before payout. Those rates are theirs, they're published on Stripe's and Square's own pricing pages, and they can change — so we don't quote a number here that might be wrong by the time you read it. Square businesses pay the same online rate they already pay for invoices from Square itself.</p>
       </div>
     </div>
 
     <p class="callout">
       <strong>Nobody takes a cut of your revenue except the card networks.</strong> Some
       field-service tools charge you a percentage of every invoice on top of processing.
-      We don't — you pay a subscription, Stripe charges for moving money, and that's the
-      whole list.
+      We don't — you pay a subscription, your processor charges for moving money, and
+      that's the whole list.
     </p>
   </div>
 </section>
@@ -137,17 +174,17 @@
       <div class="card">
         <span class="card__tag">Refunds</span>
         <h3>Full or partial</h3>
-        <p>Refund from the payment it belongs to. The customer gets a receipt, and your books are adjusted so the income isn't overstated.</p>
+        <p>Refund from the payment it belongs to, through whichever processor took it. The customer gets a receipt, and your books are adjusted so the income isn't overstated.</p>
       </div>
       <div class="card">
         <span class="card__tag">Reconciliation</span>
         <h3>You can see the money</h3>
-        <p>Every payment, with card brand and last four, a link to the Stripe receipt, and a filterable sales journal you can export as CSV for your accountant.</p>
+        <p>Every payment, with card brand and last four, a link to the processor's receipt, and a filterable sales journal you can export as CSV for your accountant.</p>
       </div>
       <div class="card">
         <span class="card__tag">Security</span>
         <h3>Card data never reaches us</h3>
-        <p>The payment form is Stripe's, embedded in the page. Card numbers go from your customer to Stripe directly — our servers never see or store them.</p>
+        <p>The payment form is Stripe's or Square's, embedded in the page. Card numbers go from your customer to the processor directly — our servers never see or store them.</p>
       </div>
       <div class="card">
         <span class="card__tag">Your customer</span>
@@ -163,11 +200,14 @@
   <div class="wrap">
     <div class="band__head">
       <p class="eyebrow eyebrow--dark">Other processors</p>
-      <h2>Stripe is what's supported today</h2>
+      <h2>Stripe and Square are what's supported today</h2>
       <p>
-        We're deliberately not listing processors we don't support yet. If the one you use
-        matters to your decision, <a href="mailto:chris@connectedhomeoutfitters.com?subject=Payment%20processor">tell us which one</a> — that's
-        the most useful signal for what we build next.
+        Square was added because contractors asked for it. We're deliberately not listing
+        processors we don't support yet — if the one you use matters to your decision,
+        <a href="mailto:chris@connectedhomeoutfitters.com?subject=Payment%20processor">tell us which one</a>; that's
+        the most useful signal for what we build next. In-person payments through a Square
+        reader aren't part of ConnectedWorkOS yet; today the connection is for invoices paid
+        online.
       </p>
     </div>
   </div>
