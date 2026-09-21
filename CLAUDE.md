@@ -1196,6 +1196,65 @@ with a confusing OAuth error. Verify with
 A throwaway tenant exists on the test DB for this: org 6 "Sandbox Test Contracting",
 login `sandbox@example.test` / `SandboxTest!2026`. The weekly prod→test sync will remove it.
 
+### Square as a second card processor (2026-09-21)
+
+`043_square_payments.sql`, `docs/adr/0003-payment-providers.md` — read the ADR before
+touching anything under this heading. Tenants who already run on Square (POS, readers,
+payouts) can connect it instead of Stripe and have invoice payments land in that account.
+**One provider per org, chosen by `orgs.payment_provider`** (explicit switch, never
+inferred from which ids are set — same reasoning as `uses_platform_stripe`). CHO (org 1)
+stays on the platform Stripe account; there is no platform Square and no fallback — an
+unconnected tenant gets the same 503 as before.
+
+- **Files:** `services/squareApi.js` (dependency-free `fetch` client — deliberately not
+  the `square` npm SDK), `services/squareAccounts.js` (org state, sealed tokens, renewal),
+  `services/secretBox.js` (AES-256-GCM, key `SQUARE_TOKEN_ENCRYPTION_KEY`),
+  `services/paymentProvider.js` (`paymentContextFor(orgId)` → tagged union the pay route
+  and pay page branch on), `services/squarePayments.js` (settle), `routes/admin/
+  squareConnect.js` (OAuth, mirrors `stripeConnect.js`), `routes/admin/paymentSettings.js`
+  (the shared Settings → Payments page + provider switch — `GET /` moved here out of
+  `stripeConnect.js`), `public/js/page-pay-square.js`, `POST /webhooks/square`.
+- **Two refactors that Stripe now also runs through**, both verified with a real
+  test-mode `pm_card_visa` charge + refund afterwards: `services/invoicePayment.js`
+  (`latchInvoicePaid` + `afterInvoicePaid` — the one place an invoice becomes paid; the
+  Stripe webhook, Square settle and `manualPayment.js` all call it) and
+  `services/paymentsSync.js#reconcileRefunds`, now provider-aware and **the one place a
+  refund notification fires** — keyed to the transition into `succeeded` as observed there.
+  Both refund routes insert their row as `pending` and let reconciliation notify. Reason:
+  Square answers a refund with `PENDING` and completes it via webhook seconds later, so a
+  route that only notified on synchronous success never emailed the customer (Stripe hid
+  this because its refunds succeed synchronously).
+- **Square's webhook events are NOT ordered.** `payment.created` (`APPROVED`) arrived after
+  the synchronous `COMPLETED` settle and regressed the payments row to `pending`; the
+  invoice survived only because of the latch. `settleSquarePayment` never lets a row that
+  reached `succeeded` regress. Webhook signature = HMAC-SHA256 over **notification URL +
+  body** — the URL is part of the signed input, so it must match the Console byte for byte
+  (computed from `BASE_URL + BASE_PATH`, `SQUARE_WEBHOOK_URL` overrides).
+- **CSP, fifth time:** `form-action` needs `squareup.com`, `*.squareup.com`,
+  `squareupsandbox.com`, `*.squareupsandbox.com` — the authorize URL is a redirect chain
+  (`connect.` → apex → `/logout` → `/login`) and Chrome checks every hop. With only
+  `connect.squareupsandbox.com` listed the button did nothing; the only evidence was a
+  `securitypolicyviolation` event naming our own form URL. Script/frame/connect hosts are
+  Square's published list, both environments listed so one CSP serves all.
+- **Sandbox OAuth only works with the test seller's sandbox dashboard open in the same
+  browser** (Developer Console → Sandbox test accounts → Square Dashboard); otherwise the
+  authorize page errors. `cnon:card-nonce-ok` / `cnon:card-nonce-declined` are the
+  sandbox equivalents of `pm_card_visa` — the extension cannot type into Square's card
+  iframe any more than Stripe's, so post the nonce to `/i/:token/pay` directly.
+- **Setup lives in the Developer Console** (developer.squareup.com/apps, signed in as the
+  CHO Square account): one application "ConnectedWorkOS" with a sandbox and a production
+  side. Copy the Application **Secret** (`sandbox-sq0csb-…` / `sq0csp-…`), **not** the
+  Access Token (`EAAA…`) shown on the same page — that mistake was made once. Redirect URL
+  `…/admin/settings/payments/square/callback`; webhook subscription `…/webhooks/square` on
+  `payment.created`/`payment.updated`/`refund.created`/`refund.updated`. Seventh cron
+  `45 2 * * *` renews tokens within a week of their 30-day expiry.
+- **Test fixtures on the test DB** (removed by the weekly prod→test sync): org 3 "Square
+  Test Contracting" (`squaretest@example.test` / `SquareTest!2026`) connected to sandbox
+  seller "Test Contractor"; a deactivated `stripetest@example.test` on org 1.
+- **NOT YET ON PROD.** Needs: the `_PROD` vault values under the plain names on the VPS,
+  `npm run migrate` (043), and the usual restart. The production redirect URL and webhook
+  subscription are already registered in the Console.
+
 ### Phase 5a — Hub → Ledger bookkeeping sync (2026-08-14)
 
 The differentiated feature: *"run your jobs in Hub and your books fill themselves in
@@ -1262,10 +1321,20 @@ and `/pricing` made public.
   Ledger migrations are applied **by hand**: `mysql chl_db < migrations/NNN.sql` as root
   on the VPS. Back up first; `/var/backups/chl/` holds a pre-change `users` dump.
 
-**Still to do:** the Stripe prices for Business+ do not exist yet, so the card renders a
-disabled "Coming Soon" (deliberate — a missing env var must never produce a checkout
-button that 400s). Create them, then set `STRIPE_PRICE_BUSINESS_PLUS_MONTHLY` /
-`_ANNUAL` on the VPS and restart `chl`.
+**Business+ is now fully LIVE — done, verified 2026-08-29.** The Stripe prices exist and
+are active in live mode (`price_1U4m4h23gE2V9wiiR1c8ySgF` $29/mo,
+`price_1U4m4i23gE2V9wiiWu5Vewvp` $290/yr), `STRIPE_PRICE_BUSINESS_PLUS_MONTHLY`/`_ANNUAL`
+are set on the VPS, and `/pricing` serves real checkout buttons. The disabled "Coming
+Soon" fallback in `views/pricing.ejs` is still there and still correct — it only fires
+when those env vars are unset, so a missing var can never produce a checkout button
+that 400s.
+
+**But the fallback only covers `/pricing`.** Ledger's landing page hard-coded its own
+Business+ card as "Coming Soon" (plus `schema.org/PreOrder` in the JSON-LD and a wrong
+$276/yr annual figure), and `views/help.ejs` described the tier as "coming soon" — none
+of which read `prices`, so none of it flipped when the prices went live and it advertised
+a dead tier for two weeks. Fixed 2026-08-29. **When a plan's status changes, grep for the
+copy, not just the gate**: `grep -rn -i "coming soon" views/` in gymrProject.
 
 **Two things that must not be forgotten later:**
 1. **Stripe Connect is required before a second tenant can take payments.**

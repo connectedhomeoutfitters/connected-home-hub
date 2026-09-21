@@ -23,7 +23,7 @@ const stripe = require('../config/stripe');
 // resolve an account with no session in hand.
 async function getOrgStripe(orgId) {
   const [rows] = await db.execute(
-    `SELECT id, name, stripe_account_id, uses_platform_stripe, stripe_connected_at,
+    `SELECT id, name, payment_provider, stripe_account_id, uses_platform_stripe, stripe_connected_at,
             stripe_account_name
        FROM orgs WHERE id = ?`,
     [orgId]

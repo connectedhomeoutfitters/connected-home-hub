@@ -105,7 +105,10 @@
             <td><%= p.invoice_type %></td>
             <td class="text-end">$<%= Number(p.amount).toFixed(2) %></td>
             <td class="text-end"><%= Number(p.amount_refunded) > 0 ? '$' + Number(p.amount_refunded).toFixed(2) : '—' %></td>
-            <td class="small text-nowrap"><%= p.card_brand ? p.card_brand + ' ••••' + (p.card_last4 || '') : '—' %></td>
+            <td class="small text-nowrap">
+              <%= p.card_brand ? p.card_brand + ' ••••' + (p.card_last4 || '') : (p.method && p.method !== 'card' ? p.method.replace('_', ' ') : '—') %>
+              <% if (p.provider === 'square') { %><span class="badge bg-light text-dark border ms-1">Square</span><% } %>
+            </td>
             <td><%- statusBadge(p.status) %><% if (Number(p.amount_refunded) > 0 && p.status === 'succeeded') { %> <span class="badge bg-secondary">refunded</span><% } %></td>
             <td class="text-end"><a href="<%= basePath %>/admin/payments/<%= p.id %>" class="btn btn-outline-secondary btn-sm">View</a></td>
           </tr>

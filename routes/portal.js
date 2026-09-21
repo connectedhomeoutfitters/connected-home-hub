@@ -8,7 +8,9 @@ const { sendMail } = require('../services/mailer');
 const { generateEstimatePdf } = require('../services/estimatePdf');
 const { renderTermsFor } = require('../services/terms');
 const { getCompany } = require('../services/companySettings');
-const { paymentContext } = require('../services/stripeAccounts');
+const { paymentContextFor } = require('../services/paymentProvider');
+const squareApi = require('../services/squareApi');
+const { settleSquarePayment } = require('../services/squarePayments');
 const { lineItemsForInvoice } = require('../services/invoicing');
 const activity = require('../services/activityLog');
 
@@ -217,7 +219,9 @@ router.get('/e/:token/pdf', resolveToken('estimate'), async (req, res, next) => 
   }
 });
 
-// Customer view of an invoice (deposit or final) with a Stripe payment button.
+// Customer view of an invoice (deposit or final) with a card payment form — Stripe's
+// Payment Element or Square's Web Payments card, whichever the business takes payment
+// through (services/paymentProvider.js).
 router.get('/i/:token', resolveToken('invoice'), async (req, res, next) => {
   try {
     const [rows] = await req.db.execute(
@@ -227,16 +231,22 @@ router.get('/i/:token', resolveToken('invoice'), async (req, res, next) => {
       [req.resourceId, req.orgId]
     );
     if (!rows[0]) return res.status(404).render('portal/expired');
-    // Stripe.js needs the connected account id alongside the PLATFORM publishable key —
-    // Connect has no per-tenant publishable key. Null for the platform org.
-    const { canAccept, stripeAccount } = await paymentContext(req.orgId);
+    const ctx = await paymentContextFor(req.orgId);
     res.render('portal/invoice', {
       invoice: rows[0],
       token: req.params.token,
-      stripePublishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
-      stripeAccount,
-      paymentsEnabled: canAccept,
-      pageScript: 'page-pay.js',
+      provider: ctx.provider,
+      // Stripe.js needs the connected account id alongside the PLATFORM publishable key —
+      // Connect has no per-tenant publishable key. Null for the platform org.
+      stripePublishableKey: ctx.provider === 'stripe' ? ctx.publishableKey : null,
+      stripeAccount: ctx.provider === 'stripe' ? ctx.stripeAccount : null,
+      // Square's card form is initialised client-side with the (public) application id
+      // and the seller's location; the access token never leaves the server.
+      square: ctx.provider === 'square'
+        ? { applicationId: ctx.applicationId, locationId: ctx.locationId, sdkUrl: ctx.sdkUrl }
+        : null,
+      paymentsEnabled: ctx.canAccept,
+      pageScript: ctx.provider === 'square' ? 'page-pay-square.js' : 'page-pay.js',
     });
   } catch (err) {
     next(err);
@@ -265,8 +275,15 @@ router.get('/i/:token/next-steps', resolveToken('invoice'), async (req, res, nex
   }
 });
 
-// Creates a Stripe PaymentIntent for the invoice behind this token. Frontend confirms it
-// with Stripe.js (Payment Element); the webhook is the source of truth for marking it paid.
+// Takes payment for the invoice behind this token.
+//
+//   Stripe: creates a PaymentIntent and returns its client secret; the browser confirms it
+//           with the Payment Element, and the webhook is the source of truth for marking
+//           the invoice paid.
+//   Square: the browser has already tokenised the card (Web Payments SDK) and posts the
+//           token as `sourceId`; we call CreatePayment, which normally returns COMPLETED
+//           synchronously, and settle the invoice in the same request. The payment.updated
+//           webhook then lands on the same idempotent settle path.
 router.post('/i/:token/pay', resolveToken('invoice'), async (req, res, next) => {
   try {
     const [rows] = await req.db.execute(
@@ -278,17 +295,19 @@ router.post('/i/:token/pay', resolveToken('invoice'), async (req, res, next) => 
       return res.status(400).json({ error: 'Invoice is not payable' });
     }
 
-    // Which Stripe account does this tenant's money go to? Org 1 (Connected Home
-    // Outfitters) charges the platform account directly as it always has; every other
-    // tenant charges their OWN connected account, so we never take custody of their
-    // revenue. See services/stripeAccounts.js.
-    const { options, canAccept } = await paymentContext(req.orgId);
-    if (!canAccept) {
+    // Which processor, and which account, does this tenant's money go to? Org 1
+    // (Connected Home Outfitters) charges the platform Stripe account directly as it
+    // always has; every other tenant charges their OWN connected Stripe or Square account,
+    // so we never take custody of their revenue. See services/paymentProvider.js.
+    const ctx = await paymentContextFor(req.orgId);
+    if (!ctx.canAccept) {
       // Fail loudly rather than quietly banking someone else's money into our account.
       return res.status(503).json({
         error: 'This business has not finished setting up payments yet. Please contact them directly.',
       });
     }
+
+    if (ctx.provider === 'square') return await paySquare(req, res, invoice, ctx);
 
     const intent = await stripe.paymentIntents.create({
       amount: Math.round(invoice.amount * 100),
@@ -301,11 +320,12 @@ router.post('/i/:token/pay', resolveToken('invoice'), async (req, res, next) => 
         invoice_id: String(invoice.id), type: invoice.type,
       },
       statement_descriptor_suffix: 'CHO JOB',
-    }, options);
+    }, ctx.options);
 
     await req.db.execute(
-      'INSERT INTO payments (org_id, invoice_id, stripe_payment_intent_id, amount, status) VALUES (?, ?, ?, ?, ?)',
-      [req.orgId, invoice.id, intent.id, invoice.amount, 'pending']
+      `INSERT INTO payments (org_id, invoice_id, provider, stripe_payment_intent_id, amount, status)
+       VALUES (?, ?, 'stripe', ?, ?, 'pending')`,
+      [req.orgId, invoice.id, intent.id, invoice.amount]
     );
 
     res.json({ clientSecret: intent.client_secret });
@@ -313,5 +333,61 @@ router.post('/i/:token/pay', resolveToken('invoice'), async (req, res, next) => 
     next(err);
   }
 });
+
+async function paySquare(req, res, invoice, ctx) {
+  const sourceId = typeof req.body?.sourceId === 'string' ? req.body.sourceId.trim() : '';
+  if (!sourceId) return res.status(400).json({ error: 'Card details were not received. Please try again.' });
+
+  // Our own row first, then the charge. Square requires an idempotency key per
+  // CreatePayment; a fresh UUID per attempt means a customer who retries after a decline
+  // gets a genuinely new attempt, while Square itself dedups any retransmit of one attempt.
+  const [ins] = await req.db.execute(
+    `INSERT INTO payments (org_id, invoice_id, provider, amount, status)
+     VALUES (?, ?, 'square', ?, 'pending')`,
+    [req.orgId, invoice.id, invoice.amount]
+  );
+  const paymentRowId = ins.insertId;
+
+  let payment;
+  try {
+    payment = await squareApi.createPayment(ctx.accessToken, {
+      source_id: sourceId,
+      idempotency_key: crypto.randomUUID(),
+      amount_money: squareApi.money(invoice.amount),
+      location_id: ctx.locationId,
+      // What the seller sees against this payment in their Square dashboard.
+      reference_id: `invoice-${invoice.id}`,
+      note: `${invoice.type} invoice #${invoice.id}`.slice(0, 500),
+    });
+  } catch (err) {
+    await req.db.execute(
+      "UPDATE payments SET status = 'failed' WHERE id = ? AND org_id = ?",
+      [paymentRowId, req.orgId]
+    );
+    if (err.name === 'SquareError') {
+      console.error(`Square CreatePayment failed for invoice ${invoice.id}:`, err.message);
+      // Square's detail strings are written for the cardholder ("Card declined", "CVV
+      // incorrect"), so they can be shown as-is.
+      const detail = err.errors?.[0]?.detail || 'The payment could not be completed.';
+      return res.status(402).json({ error: detail });
+    }
+    throw err;
+  }
+
+  await req.db.execute(
+    'UPDATE payments SET square_payment_id = ? WHERE id = ? AND org_id = ?',
+    [payment.id, paymentRowId, req.orgId]
+  );
+  const result = await settleSquarePayment(req.orgId, payment);
+
+  if (result.status === 'succeeded') {
+    return res.json({ status: 'completed', nextStepsUrl: `${res.locals.basePath}/i/${req.params.token}/next-steps` });
+  }
+  if (result.status === 'failed') {
+    return res.status(402).json({ error: 'The payment was declined.' });
+  }
+  // APPROVED/PENDING: the webhook will finish it. Tell the customer honestly.
+  return res.json({ status: 'pending' });
+}
 
 module.exports = router;

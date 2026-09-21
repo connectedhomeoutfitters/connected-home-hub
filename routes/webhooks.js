@@ -6,11 +6,10 @@ const scopedDb = require('../config/scopedDb');
 const stripe = require('../config/stripe');
 const { setEntitlement } = require('../services/orgProvisioning');
 const { paymentContext } = require('../services/stripeAccounts');
-const { pushPaidInvoice } = require('../services/ledgerSync');
-const { sendMail } = require('../services/mailer');
-const { getCompany } = require('../services/companySettings');
 const { reconcileRefunds } = require('../services/paymentsSync');
-const activity = require('../services/activityLog');
+const { latchInvoicePaid, afterInvoicePaid } = require('../services/invoicePayment');
+const { settleSquarePayment } = require('../services/squarePayments');
+const { orgBySquareMerchant } = require('../services/squareAccounts');
 
 // Webhooks arrive with no session, so there is no req.db here. Each handler resolves its
 // own tenant first — from the row the event refers to — and then works through a scoped
@@ -118,6 +117,7 @@ router.post('/stripe', express.raw({ type: 'application/json' }), async (req, re
     }
 
     const conn = await sdb.getConnection();
+    let firstTime = false;
     try {
       await conn.beginTransaction();
       await conn.execute(
@@ -125,55 +125,24 @@ router.post('/stripe', express.raw({ type: 'application/json' }), async (req, re
            card_last4 = ?, receipt_url = ? WHERE stripe_payment_intent_id = ? AND org_id = ?`,
         [chargeId, cardBrand, cardLast4, receiptUrl, intent.id, orgId]
       );
-      // `AND status <> 'paid'` makes this the idempotency latch for the whole handler:
-      // affectedRows is 1 only on the transition to paid, so a redelivered event (Stripe
-      // retries, or two endpoints pointing at this URL) can't send the customer a second
-      // receipt or log a duplicate activity entry. The payments UPDATE above is naturally
-      // idempotent, so it stays unconditional.
-      const [invUpdate] = await conn.execute(
-        "UPDATE invoices SET status = 'paid', paid_at = NOW() WHERE id = ? AND org_id = ? AND status <> 'paid'",
-        [intent.metadata.invoice_id, orgId]
-      );
+      // latchInvoicePaid is the idempotency latch for the whole handler: true only on the
+      // transition to paid, so a redelivered event (Stripe retries, or two endpoints
+      // pointing at this URL) can't send the customer a second receipt or log a duplicate
+      // activity entry. The payments UPDATE above is naturally idempotent, so it stays
+      // unconditional.
+      firstTime = await latchInvoicePaid(conn, orgId, intent.metadata.invoice_id);
       await conn.commit();
-
-      const firstTime = invUpdate.affectedRows === 1;
-      if (!firstTime) {
-        console.log(`payment_intent.succeeded for already-paid invoice ${intent.metadata.invoice_id} — skipping receipt`);
-      }
-
-      const [invoiceRows] = firstTime ? await conn.execute(
-        `SELECT i.*, c.name AS customer_name, c.email AS customer_email FROM invoices i
-         JOIN customers c ON c.id = i.customer_id AND c.org_id = i.org_id
-         WHERE i.id = ? AND i.org_id = ?`,
-        [intent.metadata.invoice_id, orgId]
-      ) : [[]];
-      const invoice = invoiceRows[0];
-      if (invoice) {
-        await activity.log({
-          orgId, actorType: 'system', action: 'invoice.paid', entityType: 'invoice', entityId: invoice.id,
-          customerId: invoice.customer_id, detail: `Payment of $${invoice.amount} received (${invoice.type})`,
-        });
-        const company = await getCompany(orgId);
-        await sendMail({
-          orgId,
-          to: invoice.customer_email,
-          subject: `Payment received — ${company.company_name}`,
-          template: 'payment-receipt',
-          data: { customerName: invoice.customer_name, amount: invoice.amount, invoiceType: invoice.type },
-        });
-
-        // Post the income into the tenant's Connected Home Ledger books. Deliberately NOT
-        // awaited: Ledger being slow or down must not delay (or fail) reconciling a
-        // payment here. It swallows its own errors, and an unsynced invoice is
-        // recoverable via ledgerSync.backfillOrg(). Sits inside the `firstTime` branch, so
-        // it inherits the same idempotency latch as the receipt email.
-        pushPaidInvoice(orgId, invoice.id);
-      }
     } catch (err) {
       await conn.rollback();
       console.error('Failed to reconcile payment:', err);
     } finally {
       conn.release();
+    }
+
+    if (firstTime) {
+      await afterInvoicePaid(sdb, orgId, intent.metadata.invoice_id, { via: 'stripe' });
+    } else {
+      console.log(`payment_intent.succeeded for already-paid invoice ${intent.metadata.invoice_id} — skipping receipt`);
     }
   }
 
@@ -191,6 +160,84 @@ router.post('/stripe', express.raw({ type: 'application/json' }), async (req, re
     } catch (err) {
       console.error('Failed to reconcile refund:', err.message);
     }
+  }
+
+  res.json({ received: true });
+});
+
+// --- Square ---------------------------------------------------------------------------
+//
+// One subscription per environment in the Square Developer Console, delivering
+// payment.created / payment.updated / refund.created / refund.updated here. The signature
+// is HMAC-SHA256 over (notification URL + raw body) with the subscription's signature key,
+// base64 — so the URL registered in the Console must match what BASE_URL/BASE_PATH build
+// here byte for byte, or every event is refused. Override with SQUARE_WEBHOOK_URL if the
+// public URL ever differs from what the app computes.
+function squareNotificationUrl() {
+  const override = (process.env.SQUARE_WEBHOOK_URL || '').trim();
+  if (override) return override;
+  return `${(process.env.BASE_URL || '').replace(/\/$/, '')}${process.env.BASE_PATH || ''}/webhooks/square`;
+}
+
+function verifySquareEvent(rawBody, signature, { key, url } = {}) {
+  const secret = key ?? (process.env.SQUARE_WEBHOOK_SIGNATURE_KEY || '').trim();
+  if (!secret) return { event: null, error: new Error('No Square webhook signature key configured') };
+  if (!signature) return { event: null, error: new Error('Missing x-square-hmacsha256-signature header') };
+  const expected = crypto.createHmac('sha256', secret)
+    .update((url ?? squareNotificationUrl()) + rawBody.toString('utf8'))
+    .digest('base64');
+  const a = Buffer.from(expected), b = Buffer.from(String(signature));
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    return { event: null, error: new Error('Square signature mismatch') };
+  }
+  try {
+    return { event: JSON.parse(rawBody.toString('utf8')), error: null };
+  } catch (err) {
+    return { event: null, error: err };
+  }
+}
+
+router.post('/square', express.raw({ type: 'application/json' }), async (req, res) => {
+  const { event, error } = verifySquareEvent(req.body, req.headers['x-square-hmacsha256-signature']);
+  if (!event) {
+    console.error('Square webhook verification failed:', error.message);
+    return res.status(400).send(`Webhook Error: ${error.message}`);
+  }
+
+  try {
+    if (event.type === 'payment.updated' || event.type === 'payment.created') {
+      const payment = event.data?.object?.payment;
+      if (!payment?.id) return res.json({ received: true });
+
+      // The payments row is authoritative for which tenant this is — a payment we never
+      // created (e.g. one taken on the seller's own POS) simply isn't ours and is ignored.
+      const [rows] = await db.execute('SELECT id, org_id FROM payments WHERE square_payment_id = ?', [payment.id]);
+      const orgId = rows[0]?.org_id;
+      if (!orgId) return res.json({ received: true, ignored: 'unknown_payment' });
+
+      // Cross-check the delivering merchant against the org, exactly as the Stripe handler
+      // checks event.account: a mismatch means misrouting, and marking the wrong tenant's
+      // invoice paid is worse than not marking it at all.
+      const org = await orgBySquareMerchant(event.merchant_id);
+      if (!org || org.id !== orgId) {
+        console.error(`Square webhook merchant mismatch for payment ${payment.id}: merchant ${event.merchant_id} vs org ${orgId}`);
+        return res.json({ received: true, ignored: 'merchant_mismatch' });
+      }
+
+      const result = await settleSquarePayment(orgId, payment);
+      if (!result.firstTime && result.status === 'succeeded') {
+        console.log(`Square ${event.type} for already-settled payment ${payment.id} — skipping receipt`);
+      }
+    }
+
+    if (event.type === 'refund.updated' || event.type === 'refund.created') {
+      const refund = event.data?.object?.refund;
+      if (refund?.payment_id) {
+        await reconcileRefunds({ squarePaymentId: refund.payment_id });
+      }
+    }
+  } catch (err) {
+    console.error('Failed to process Square webhook:', err.message);
   }
 
   res.json({ received: true });
@@ -285,3 +332,4 @@ module.exports = router;
 // Exported for test/stripeWebhookAuth.test.js — this decides whether a payment event is
 // trusted, so it's worth covering directly rather than only through the route.
 module.exports.verifyStripeEvent = verifyStripeEvent;
+module.exports.verifySquareEvent = verifySquareEvent;

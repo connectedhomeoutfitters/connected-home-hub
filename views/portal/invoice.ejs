@@ -33,7 +33,7 @@
     <div class="alert alert-success">Paid on <%= invoice.paid_at %>. Thank you!</div>
   <% } else if (!paymentsEnabled) { %>
     <%
-      // The business hasn't connected their Stripe account yet. Say so plainly rather than
+      // The business hasn't connected a card processor yet. Say so plainly rather than
       // showing a pay button that can't work — and never fall back to charging the
       // platform account, which would bank their revenue into ours.
     %>
@@ -41,6 +41,23 @@
       Online payment isn't available for this invoice yet. Please contact us directly to
       arrange payment.
     </div>
+  <% } else if (provider === 'square') { %>
+    <%# Square Web Payments SDK: the card field is Square's iframe; we only ever see a
+        one-time token, which page-pay-square.js posts to /i/:token/pay. %>
+    <div id="card-container"></div>
+    <button id="pay-button" class="btn btn-primary mt-3" disabled>Pay $<%= invoice.amount %></button>
+    <div id="payment-message" class="text-danger mt-2"></div>
+    <script src="<%= square.sdkUrl %>"></script>
+    <script nonce="<%= cspNonce %>">
+      window.CHO_HUB = {
+        provider: "square",
+        applicationId: "<%= square.applicationId %>",
+        locationId: "<%= square.locationId %>",
+        token: "<%= token %>",
+        basePath: "<%= basePath %>",
+        nextStepsUrl: "<%= basePath %>/i/<%= token %>/next-steps",
+      };
+    </script>
   <% } else { %>
     <div id="payment-element"></div>
     <button id="pay-button" class="btn btn-primary mt-3">Pay $<%= invoice.amount %></button>
@@ -48,6 +65,7 @@
     <script src="https://js.stripe.com/v3/"></script>
     <script nonce="<%= cspNonce %>">
       window.CHO_HUB = {
+        provider: "stripe",
         publishableKey: "<%= stripePublishableKey %>",
         // Connect: Stripe.js must be told which connected account the PaymentIntent lives
         // on, or it can't fetch it with the platform key. Empty for the platform org.

@@ -5,6 +5,9 @@
 // Standard OAuth flow: the contractor authorises our platform against their EXISTING
 // Stripe account (most already have one), we store only the returned account id, and from
 // then on their customers' payments settle to them. We never see or store their API keys.
+//
+// The settings page itself (and the Stripe/Square switch) is routes/admin/paymentSettings.js;
+// the Square counterpart of this file is routes/admin/squareConnect.js.
 
 const express = require('express');
 const router = express.Router();
@@ -23,24 +26,6 @@ const CONNECT_AUTHORIZE_URL = 'https://connect.stripe.com/oauth/authorize';
 function settingsUrl(res, qs = '') {
   return `${res.locals.basePath}/admin/settings/payments${qs}`;
 }
-
-router.get('/', async (req, res, next) => {
-  try {
-    const org = await getOrgStripe(req.orgId);
-    res.render('admin/settings-payments', {
-      pageScript: null,
-      org,
-      configured: !!process.env.STRIPE_CONNECT_CLIENT_ID,
-      connected: !!org?.stripe_account_id,
-      isPlatform: !!org?.uses_platform_stripe,
-      error: req.query.error || null,
-      saved: req.query.connected === '1',
-      disconnected: req.query.disconnected === '1',
-    });
-  } catch (err) {
-    next(err);
-  }
-});
 
 // Kick off OAuth. `state` is a one-time random value stored on the org and checked on the
 // way back, so a forged callback can't bind someone else's Stripe account to this tenant.
@@ -113,7 +98,7 @@ router.get('/callback', async (req, res, next) => {
     const name = await fetchAccountName(accountId);
     await req.db.execute(
       `UPDATE orgs SET stripe_account_id = ?, stripe_account_name = ?,
-         stripe_connected_at = NOW() WHERE id = ?`,
+         stripe_connected_at = NOW(), payment_provider = 'stripe' WHERE id = ?`,
       [accountId, name, req.orgId]
     );
 

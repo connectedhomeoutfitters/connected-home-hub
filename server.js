@@ -18,6 +18,7 @@ const { sendExpiryReminders } = require('./services/warrantyReminders');
 const { expireStaleEstimates } = require('./services/estimateExpiry');
 const { generateVisitsForAllOrgs, billPreviousMonthForAllOrgs } = require('./services/recurringServices');
 const { sendVisitReminders } = require('./services/visitReminders');
+const { refreshExpiringTokens } = require('./services/squareAccounts');
 
 const app = express();
 const BASE_PATH = process.env.BASE_PATH || '';
@@ -42,6 +43,11 @@ app.use((req, res, next) => {
 // Default CSP blocks both the Stripe.js script itself (cross-origin, not 'self') and
 // the Payment Element's internal iframes/API calls — Stripe requires explicit script-src/
 // frame-src/connect-src exceptions or the deposit/invoice pay page can never work.
+//
+// Square's Web Payments SDK needs the same treatment (its card field is an iframe from
+// squarecdn.com posting to pci-connect). Both the sandbox and production hosts are listed
+// so one CSP serves every environment; only SQUARE_ENV decides which is actually loaded.
+// Square's published CSP list: developer.squareup.com/docs/web-payments/content-security-policy
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -49,9 +55,13 @@ app.use(
         // googletagmanager serves gtag.js; google-analytics is where it beacons to. Paths
         // are redacted before they reach it — see services/analytics.js.
         scriptSrc: ["'self'", 'https://js.stripe.com', 'https://www.googletagmanager.com',
+          'https://web.squarecdn.com', 'https://sandbox.web.squarecdn.com',
           (req, res) => `'nonce-${res.locals.cspNonce}'`],
-        frameSrc: ["'self'", 'https://js.stripe.com', 'https://hooks.stripe.com'],
+        frameSrc: ["'self'", 'https://js.stripe.com', 'https://hooks.stripe.com',
+          'https://web.squarecdn.com', 'https://sandbox.web.squarecdn.com'],
         connectSrc: ["'self'", 'https://api.stripe.com',
+          'https://pci-connect.squareup.com', 'https://pci-connect.squareupsandbox.com',
+          'https://o160250.ingest.sentry.io',
           'https://www.google-analytics.com', 'https://analytics.google.com',
           'https://*.google-analytics.com', 'https://*.analytics.google.com'],
         imgSrc: ["'self'", 'data:', 'https://www.google-analytics.com', 'https://www.googletagmanager.com'],
@@ -60,7 +70,16 @@ app.use(
         // helmet's default `form-action 'self'` silently refuses the navigation and the
         // "Connect with Stripe" button appears to do nothing at all (no error, nothing in
         // the console). Same family as the script-src / script-src-attr gotchas above.
-        formAction: ["'self'", 'https://connect.stripe.com'],
+        //
+        // Square's authorize URL is itself a redirect CHAIN — connect.squareup.com →
+        // squareup.com → /logout → /login (with session=false) — and every hop must be
+        // allowed, so the apex and a wildcard are listed for each environment (a CSP
+        // wildcard does not match the bare apex). Proved in the browser: with only
+        // connect.squareupsandbox.com listed the button did nothing, and the only
+        // evidence was a securitypolicyviolation event naming our own form URL.
+        formAction: ["'self'", 'https://connect.stripe.com',
+          'https://squareup.com', 'https://*.squareup.com',
+          'https://squareupsandbox.com', 'https://*.squareupsandbox.com'],
       },
     },
   })
@@ -154,7 +173,11 @@ app.use(`${BASE_PATH}/admin/subcontractors`, require('./routes/admin/subcontract
 app.use(`${BASE_PATH}/admin/builders`, require('./routes/admin/builders'));
 app.use(`${BASE_PATH}/admin/warranties`, require('./routes/admin/warranties'));
 app.use(`${BASE_PATH}/admin/recurring`, require('./routes/admin/recurringServices'));
-// Mounted before the general settings router so /settings/payments/* resolves here.
+// Mounted before the general settings router so /settings/payments/* resolves here. The
+// Square router goes first (its own sub-path), then the shared page + provider switch,
+// then Stripe's connect/callback/disconnect legs on the same path.
+app.use(`${BASE_PATH}/admin/settings/payments/square`, require('./routes/admin/squareConnect'));
+app.use(`${BASE_PATH}/admin/settings/payments`, require('./routes/admin/paymentSettings'));
 app.use(`${BASE_PATH}/admin/settings/payments`, require('./routes/admin/stripeConnect'));
 // Before /admin/settings so its own routes are not swallowed by the settings router.
 app.use(`${BASE_PATH}/admin/settings/terms`, require('./routes/admin/termsTemplates'));
@@ -194,6 +217,11 @@ cron.schedule('0 1 * * *', () => {
 // UNIQUE(recurring_service_id, visit_date), so a repeat run creates nothing.
 cron.schedule('30 1 * * *', () => {
   generateVisitsForAllOrgs().catch((err) => console.error('generateVisits failed:', err.message));
+});
+// Square access tokens live ~30 days; renew any within a week of lapsing so a tenant's
+// pay page never goes dark on day 31 (see services/squareAccounts.js).
+cron.schedule('45 2 * * *', () => {
+  refreshExpiringTokens().catch((err) => console.error('square token refresh failed:', err.message));
 });
 // Month-end rollup, on the 1st, for the month that just ended. Safe to re-run: a visit
 // already on a live invoice is skipped, so nobody is billed twice.

@@ -12,7 +12,7 @@
   <h1 class="h3 mt-2 mb-4">Payment #<%= payment.id %></h1>
 
   <% if (saved) { %>
-    <div class="alert alert-success">Refund submitted to Stripe.</div>
+    <div class="alert alert-success">Refund submitted to <%= providerName %>.</div>
   <% } %>
   <% if (error) { %>
     <div class="alert alert-danger"><%= error %></div>
@@ -42,12 +42,17 @@
         <dt class="col-sm-4 text-muted fw-normal">Date</dt>
         <dd class="col-sm-8"><%= new Date(payment.created_at).toLocaleString() %></dd>
 
-        <dt class="col-sm-4 text-muted fw-normal">Stripe PaymentIntent</dt>
-        <dd class="col-sm-8"><code class="small"><%= payment.stripe_payment_intent_id %></code></dd>
+        <% if (payment.provider === 'square') { %>
+          <dt class="col-sm-4 text-muted fw-normal">Square payment</dt>
+          <dd class="col-sm-8"><code class="small"><%= payment.square_payment_id || '—' %></code></dd>
+        <% } else if (payment.stripe_payment_intent_id) { %>
+          <dt class="col-sm-4 text-muted fw-normal">Stripe PaymentIntent</dt>
+          <dd class="col-sm-8"><code class="small"><%= payment.stripe_payment_intent_id %></code></dd>
+        <% } %>
 
         <% if (payment.receipt_url) { %>
           <dt class="col-sm-4 text-muted fw-normal">Receipt</dt>
-          <dd class="col-sm-8"><a href="<%= payment.receipt_url %>" target="_blank" rel="noopener">View Stripe receipt <i class="bi bi-box-arrow-up-right small"></i></a></dd>
+          <dd class="col-sm-8"><a href="<%= payment.receipt_url %>" target="_blank" rel="noopener">View <%= providerName %> receipt <i class="bi bi-box-arrow-up-right small"></i></a></dd>
         <% } %>
       </dl>
     </div>
@@ -108,7 +113,7 @@
               </div>
             </div>
             <button type="submit" class="btn btn-danger mt-3">
-              <i class="bi bi-arrow-counterclockwise"></i> Refund to Stripe
+              <i class="bi bi-arrow-counterclockwise"></i> Refund via <%= providerName %>
             </button>
             <span class="text-muted small ms-2">This returns money to the customer's card and can't be undone.</span>
           </form>

@@ -2,9 +2,9 @@
 // Recording a payment that did not come through Stripe — cash, cheque, bank transfer,
 // Venmo / Cash App / Zelle.
 //
-// This deliberately mirrors the payment_intent.succeeded handler in routes/webhooks.js
-// rather than inventing a second way to mark an invoice paid. The two must agree on three
-// things or the books drift:
+// This shares services/invoicePayment.js with the Stripe and Square paths rather than
+// inventing a second way to mark an invoice paid. All of them must agree on three things
+// or the books drift:
 //
 //   1. the `AND status <> 'paid'` latch, so a double submit cannot double-send a receipt
 //      or double-log the activity entry;
@@ -18,9 +18,8 @@
 // the invoice only flips to paid once the recorded total actually covers it.
 
 const activity = require('./activityLog');
-const { getCompany } = require('./companySettings');
-const { sendMail } = require('./mailer');
 const { pushPaidInvoice } = require('./ledgerSync');
+const { latchInvoicePaid, sendPaymentReceipt } = require('./invoicePayment');
 
 const METHODS = ['cash', 'check', 'bank_transfer', 'other'];
 
@@ -87,11 +86,7 @@ async function recordManualPayment(db, orgId, input) {
     totalPaid = Number(sum.paid);
 
     if (totalPaid + 0.005 >= Number(invoice.amount)) {
-      const [upd] = await conn.execute(
-        "UPDATE invoices SET status = 'paid', paid_at = NOW() WHERE id = ? AND org_id = ? AND status <> 'paid'",
-        [invoiceId, orgId]
-      );
-      firstTime = upd.affectedRows === 1;
+      firstTime = await latchInvoicePaid(conn, orgId, invoiceId);
     }
 
     await conn.commit();
@@ -116,20 +111,7 @@ async function recordManualPayment(db, orgId, input) {
   });
 
   if (firstTime) {
-    if (sendReceipt && invoice.customer_email) {
-      try {
-        const company = await getCompany(orgId);
-        await sendMail({
-          orgId,
-          to: invoice.customer_email,
-          subject: `Payment received — ${company.company_name}`,
-          template: 'payment-receipt',
-          data: { customerName: invoice.customer_name, amount: invoice.amount, invoiceType: invoice.type },
-        });
-      } catch (err) {
-        console.error('manual payment receipt failed:', err.message);
-      }
-    }
+    if (sendReceipt && invoice.customer_email) await sendPaymentReceipt(orgId, invoice);
     // The whole point. Not awaited, for the same reason the webhook does not await it:
     // Ledger being down must never fail a payment that has already been taken.
     pushPaidInvoice(orgId, invoiceId);

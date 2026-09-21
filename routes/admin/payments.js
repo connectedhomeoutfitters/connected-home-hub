@@ -1,12 +1,14 @@
 const express = require('express');
+const crypto = require('crypto');
 const router = express.Router();
 const stripe = require('../../config/stripe');
 const { requireAuth, requireAdmin } = require('../../middleware/auth');
 const { pageParams, pager } = require('../../services/pagination');
 const { reconcileRefunds } = require('../../services/paymentsSync');
 const { paymentContext } = require('../../services/stripeAccounts');
-const { sendMail } = require('../../services/mailer');
-const { getCompany } = require('../../services/companySettings');
+const squareAccounts = require('../../services/squareAccounts');
+const squareApi = require('../../services/squareApi');
+const { providerLabel } = require('../../services/paymentProvider');
 const activity = require('../../services/activityLog');
 
 router.use(requireAuth);
@@ -166,6 +168,7 @@ router.get('/:id', async (req, res, next) => {
       payment,
       refunds,
       refundable,
+      providerName: providerLabel(payment.provider),
       error: req.query.error || null,
       saved: req.query.refunded === '1',
     });
@@ -174,9 +177,10 @@ router.get('/:id', async (req, res, next) => {
   }
 });
 
-// Issue a refund back to Stripe. Admin-only (moves money out). Supports partial refunds
-// (blank amount = refund the remaining balance). Records the refund with the staff note
-// + who issued it, then reconcileRefunds() re-syncs totals/invoice status from Stripe.
+// Issue a refund back to the card, through whichever processor took the payment. Admin-
+// only (moves money out). Supports partial refunds (blank amount = refund the remaining
+// balance). Records the refund with the staff note + who issued it, then
+// reconcileRefunds() re-syncs totals/invoice status from the processor.
 router.post('/:id/refund', requireAdmin, async (req, res, next) => {
   const back = (err) => res.redirect(`${res.locals.basePath}/admin/payments/${req.params.id}${err ? `?error=${encodeURIComponent(err)}` : '?refunded=1'}`);
   try {
@@ -207,6 +211,14 @@ router.post('/:id/refund', requireAdmin, async (req, res, next) => {
       return back(`This was a ${payment.method.replace('_', ' ')} payment, so there is no card charge to refund. Refund it the way it was taken, then void or adjust the invoice.`);
     }
 
+    const validReasons = ['duplicate', 'fraudulent', 'requested_by_customer'];
+    const reason = validReasons.includes(req.body.reason) ? req.body.reason : undefined;
+    const note = (req.body.note || '').trim() || null;
+
+    if (payment.provider === 'square') {
+      return await refundSquare(req, res, back, { payment, amount, reason, note });
+    }
+
     // Every Stripe call below must target the account this org bills through — for a
     // connected tenant the charge doesn't exist on the platform account at all.
     const { options } = await paymentContext(req.orgId);
@@ -228,10 +240,6 @@ router.post('/:id/refund', requireAdmin, async (req, res, next) => {
     }
     if (!chargeId) return back('No Stripe charge found for this payment.');
 
-    const validReasons = ['duplicate', 'fraudulent', 'requested_by_customer'];
-    const reason = validReasons.includes(req.body.reason) ? req.body.reason : undefined;
-    const note = (req.body.note || '').trim() || null;
-
     const refund = await stripe.refunds.create({
       charge: chargeId,
       amount: Math.round(amount * 100),
@@ -242,49 +250,17 @@ router.post('/:id/refund', requireAdmin, async (req, res, next) => {
       },
     }, options);
 
-    // Record our side first (captures note + who issued it), then reconcile totals from
-    // Stripe's authoritative refund list.
+    // Record our side first (captures note + who issued it) as PENDING, then reconcile
+    // from Stripe's authoritative refund list. Reconciliation is what flips the status and
+    // — on that transition — logs the activity entry and emails the customer, so the
+    // notification fires exactly once whether the refund completes now or via webhook.
     await req.db.execute(
-      `INSERT INTO refunds (org_id, payment_id, stripe_refund_id, amount, reason, note, status, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO refunds (org_id, payment_id, provider, stripe_refund_id, amount, reason, note, status, created_by)
+       VALUES (?, ?, 'stripe', ?, ?, ?, ?, 'pending', ?)
        ON DUPLICATE KEY UPDATE note = VALUES(note), created_by = VALUES(created_by)`,
-      [req.orgId, payment.id, refund.id, amount, reason || null, note,
-        ['succeeded', 'failed', 'canceled', 'pending'].includes(refund.status) ? refund.status : 'pending',
-        req.user.id]
+      [req.orgId, payment.id, refund.id, amount, reason || null, note, req.user.id]
     );
-    const result = await reconcileRefunds({ chargeId });
-
-    // Notify the customer, matching the auto-sent payment receipt. Non-blocking: a mail
-    // failure never undoes a completed Stripe refund.
-    if (refund.status === 'succeeded') {
-      const [[info]] = await req.db.execute(
-        `SELECT c.id AS customer_id, c.name AS customer_name, c.email AS customer_email, i.type AS invoice_type
-         FROM payments p
-         JOIN invoices i ON i.id = p.invoice_id AND i.org_id = p.org_id
-         JOIN customers c ON c.id = i.customer_id AND c.org_id = i.org_id
-         WHERE p.id = ? AND p.org_id = ?`,
-        [payment.id, req.orgId]
-      );
-      if (info) {
-        await activity.log({
-          ...activity.staff(req), action: 'refund.issued', entityType: 'payment', entityId: payment.id,
-          customerId: info.customer_id, detail: `Refunded $${amount.toFixed(2)} to ${info.customer_name}${result && result.fullyRefunded ? ' (full)' : ''}`,
-        });
-        const company = await getCompany(req.orgId);
-        await sendMail({
-          orgId: req.orgId,
-          to: info.customer_email,
-          subject: `Refund issued — ${company.company_name}`,
-          template: 'refund-issued',
-          data: {
-            customerName: info.customer_name,
-            amount: amount.toFixed(2),
-            invoiceType: info.invoice_type,
-            fullyRefunded: result ? result.fullyRefunded : false,
-          },
-        });
-      }
-    }
+    await reconcileRefunds({ chargeId });
 
     return back(null);
   } catch (err) {
@@ -293,5 +269,39 @@ router.post('/:id/refund', requireAdmin, async (req, res, next) => {
     next(err);
   }
 });
+
+// Square leg of POST /:id/refund. RefundPayment normally returns COMPLETED synchronously
+// for card payments; the refund.updated webhook then re-runs the same reconciliation.
+async function refundSquare(req, res, back, { payment, amount, reason, note }) {
+  if (!payment.square_payment_id) return back('No Square payment id found for this payment.');
+  const ctx = await squareAccounts.squareContext(req.orgId);
+  if (!ctx.accessToken) return back('Square is not connected for this business, so the refund cannot be sent.');
+
+  let refund;
+  try {
+    refund = await squareApi.refundPayment(ctx.accessToken, {
+      idempotency_key: crypto.randomUUID(),
+      payment_id: payment.square_payment_id,
+      amount_money: squareApi.money(amount),
+      // Square's reason is free text (shown to the seller); ours is Stripe's enum.
+      reason: [reason ? reason.replace(/_/g, ' ') : null, note].filter(Boolean).join(' — ').slice(0, 192) || undefined,
+    });
+  } catch (err) {
+    if (err.name === 'SquareError') return back(err.errors?.[0]?.detail || 'Square refused the refund.');
+    throw err;
+  }
+
+  // Recorded as PENDING for the same reason as the Stripe leg: reconcileRefunds owns the
+  // status and the customer notification. Square commonly answers PENDING here and
+  // completes via the refund.updated webhook seconds later.
+  await req.db.execute(
+    `INSERT INTO refunds (org_id, payment_id, provider, square_refund_id, amount, reason, note, status, created_by)
+     VALUES (?, ?, 'square', ?, ?, ?, ?, 'pending', ?)
+     ON DUPLICATE KEY UPDATE note = VALUES(note), created_by = VALUES(created_by)`,
+    [req.orgId, payment.id, refund.id, amount, reason || null, note, req.user.id]
+  );
+  await reconcileRefunds({ squarePaymentId: payment.square_payment_id });
+  return back(null);
+}
 
 module.exports = router;

@@ -1,91 +1,201 @@
 <%- include('../partials/head', { title: 'Payment Settings' }) %>
 <%- include('../partials/nav') %>
-<div class="container" style="max-width: 720px;">
-  <h1 class="h3 mb-4">Payments</h1>
+<div class="container" style="max-width: 760px;">
+  <h1 class="h3 mb-1">Payments</h1>
+  <p class="text-muted mb-4">
+    Connect the card processor your business already uses. Customer payments go straight
+    to your own account — we never hold your funds.
+  </p>
 
-  <% if (saved) { %><div class="alert alert-success">Stripe account connected. You can now collect deposits and invoice payments.</div><% } %>
-  <% if (disconnected) { %><div class="alert alert-warning">Stripe account disconnected. New payments are paused until you reconnect.</div><% } %>
+  <% if (connected === '1') { %><div class="alert alert-success">Stripe account connected. You can now collect deposits and invoice payments.</div><% } %>
+  <% if (connected === 'square' && square.hasLocation) { %><div class="alert alert-success">Square account connected. You can now collect deposits and invoice payments.</div><% } %>
+  <% if (connected === 'square' && !square.hasLocation) { %><div class="alert alert-warning">Square account connected. Choose the location to take payments at below to finish.</div><% } %>
+  <% if (disconnected === '1') { %><div class="alert alert-warning">Stripe account disconnected. New payments are paused until you reconnect.</div><% } %>
+  <% if (disconnected === 'square') { %><div class="alert alert-warning">Square account disconnected. New payments are paused until you connect a processor.</div><% } %>
+  <% if (locationSaved) { %><div class="alert alert-success">Square location saved.</div><% } %>
+  <% if (providerSaved) { %><div class="alert alert-success">Card payments are now taken through <%= provider === 'square' ? 'Square' : 'Stripe' %>.</div><% } %>
   <% if (error) { %>
     <div class="alert alert-danger">
       <% if (error === 'not_configured') { %>
         Stripe Connect isn't configured on this server yet. Contact support.
+      <% } else if (error === 'square_not_configured') { %>
+        Square isn't configured on this server yet. Contact support.
       <% } else if (error === 'denied') { %>
-        You cancelled the Stripe connection. Nothing was changed.
+        You cancelled the connection. Nothing was changed.
       <% } else if (error === 'bad_state') { %>
         That connection link was invalid or already used. Please start again.
       <% } else if (error === 'already_linked') { %>
-        That Stripe account is already connected to another business on this platform.
+        That account is already connected to another business on this platform.
       <% } else if (error === 'platform_org') { %>
         This account bills through the platform Stripe account and can't be reconnected.
+      <% } else if (error === 'provider_not_ready') { %>
+        That processor isn't connected yet, so it can't be made active.
+      <% } else if (error === 'bad_location') { %>
+        That location wasn't recognised. Please choose again.
       <% } else { %>
-        Could not connect Stripe: <%= error %>
+        Could not connect: <%= error %>
       <% } %>
     </div>
   <% } %>
 
-  <div class="card mb-4">
-    <div class="card-body">
-      <% if (isPlatform) { %>
-        <h2 class="h6">Billing through the platform account</h2>
-        <p class="text-muted mb-0">
-          Payments for this business settle directly through the platform's own Stripe
-          account. Nothing to configure here.
-        </p>
+  <%
+    const stripeReady = stripe.connected || stripe.isPlatform;
+    const squareReady = square.connected && square.hasLocation;
+    const bothReady = stripeReady && squareReady;
+  %>
 
-      <% } else if (connected) { %>
-        <h2 class="h6 d-flex align-items-center gap-2">
-          <span class="badge bg-success">Connected</span>
-          <%= org.stripe_account_name || 'Your Stripe account' %>
-        </h2>
-        <p class="text-muted">
-          Customer payments go straight to your own Stripe account
-          (<code><%= org.stripe_account_id %></code>), connected
-          <%= org.stripe_connected_at ? new Date(org.stripe_connected_at).toLocaleDateString() : '' %>.
-          Payouts, processing fees, and disputes are handled in your own Stripe dashboard.
-        </p>
-        <form method="POST" action="<%= basePath %>/admin/settings/payments/disconnect" id="disconnect-form">
-          <button type="submit" class="btn btn-outline-danger btn-sm">Disconnect Stripe</button>
+  <%# ---- Which processor is live ---- %>
+  <% if (bothReady) { %>
+    <div class="card mb-4 border-primary">
+      <div class="card-body">
+        <h2 class="h6">Active processor</h2>
+        <p class="text-muted small">Both are connected. New customer payments go through the one selected here; existing payments and refunds stay with the processor that took them.</p>
+        <form method="POST" action="<%= basePath %>/admin/settings/payments/provider" class="d-flex flex-wrap gap-3 align-items-center">
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="provider" id="prov-stripe" value="stripe" <%= provider === 'stripe' ? 'checked' : '' %>>
+            <label class="form-check-label" for="prov-stripe">Stripe</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="provider" id="prov-square" value="square" <%= provider === 'square' ? 'checked' : '' %>>
+            <label class="form-check-label" for="prov-square">Square</label>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">Save</button>
         </form>
-        <div class="form-text mt-2">
-          Disconnecting pauses new payments. Your existing payment history stays intact,
-          and nothing changes inside your Stripe account.
-        </div>
+      </div>
+    </div>
+  <% } %>
 
-      <% } else { %>
-        <h2 class="h6"><span class="badge bg-secondary">Not connected</span> Connect your Stripe account</h2>
-        <p class="text-muted">
-          Connect Stripe to collect deposits and invoice payments. Money goes directly to
-          your bank account — we never hold your funds and never see your Stripe keys.
-          You'll be sent to Stripe to approve the connection, then brought back here.
-        </p>
-        <% if (!configured) { %>
-          <div class="alert alert-warning mb-0">Stripe Connect isn't configured on this server yet.</div>
-        <% } else { %>
-          <form method="POST" action="<%= basePath %>/admin/settings/payments/connect">
-            <button type="submit" class="btn btn-primary">
-              <i class="bi bi-box-arrow-up-right"></i> Connect with Stripe
-            </button>
-          </form>
-        <% } %>
-      <% } %>
+  <div class="row g-4">
+    <%# ---- Stripe ---- %>
+    <div class="col-md-6">
+      <div class="card h-100 <%= provider === 'stripe' && stripeReady ? 'border-success' : '' %>">
+        <div class="card-body">
+          <h2 class="h6 d-flex align-items-center gap-2">
+            Stripe
+            <% if (provider === 'stripe' && stripeReady) { %><span class="badge bg-success">Active</span><% } %>
+          </h2>
+          <% if (stripe.isPlatform) { %>
+            <p class="text-muted mb-0 small">
+              Payments for this business settle directly through the platform's own Stripe
+              account. Nothing to configure here.
+            </p>
+
+          <% } else if (stripe.connected) { %>
+            <p class="small mb-1"><span class="badge bg-success">Connected</span> <%= stripe.org.stripe_account_name || 'Your Stripe account' %></p>
+            <p class="text-muted small">
+              Account <code><%= stripe.org.stripe_account_id %></code>, connected
+              <%= stripe.org.stripe_connected_at ? new Date(stripe.org.stripe_connected_at).toLocaleDateString() : '' %>.
+              Payouts, fees and disputes are handled in your Stripe dashboard.
+            </p>
+            <form method="POST" action="<%= basePath %>/admin/settings/payments/disconnect" class="js-confirm" data-confirm="Disconnect Stripe? New customer payments through Stripe will stop until you reconnect.">
+              <button type="submit" class="btn btn-outline-danger btn-sm">Disconnect Stripe</button>
+            </form>
+
+          <% } else { %>
+            <p class="text-muted small">
+              Connect an existing or new Stripe account. You'll be sent to Stripe to approve
+              the connection, then brought back here. We never see your Stripe keys.
+            </p>
+            <% if (!stripe.configured) { %>
+              <div class="alert alert-warning mb-0 small">Stripe Connect isn't configured on this server yet.</div>
+            <% } else { %>
+              <form method="POST" action="<%= basePath %>/admin/settings/payments/connect">
+                <button type="submit" class="btn btn-primary btn-sm">
+                  <i class="bi bi-box-arrow-up-right"></i> Connect with Stripe
+                </button>
+              </form>
+            <% } %>
+          <% } %>
+        </div>
+      </div>
+    </div>
+
+    <%# ---- Square ---- %>
+    <div class="col-md-6">
+      <div class="card h-100 <%= provider === 'square' && squareReady ? 'border-success' : '' %>">
+        <div class="card-body">
+          <h2 class="h6 d-flex align-items-center gap-2">
+            Square
+            <% if (provider === 'square' && squareReady) { %><span class="badge bg-success">Active</span><% } %>
+            <% if (square.env === 'sandbox') { %><span class="badge bg-warning text-dark">Sandbox</span><% } %>
+          </h2>
+          <% if (square.connected) { %>
+            <p class="small mb-1"><span class="badge bg-success">Connected</span> <%= square.org.square_merchant_name || 'Your Square account' %></p>
+            <p class="text-muted small mb-2">
+              Merchant <code><%= square.org.square_merchant_id %></code>, connected
+              <%= square.org.square_connected_at ? new Date(square.org.square_connected_at).toLocaleDateString() : '' %>.
+              Payouts, fees and disputes are handled in your Square dashboard.
+            </p>
+
+            <% if (square.locations) { %>
+              <%# Choosing a location — shown after connecting a multi-location seller, or on request. %>
+              <form method="POST" action="<%= basePath %>/admin/settings/payments/square/location" class="mb-2">
+                <label for="square-location" class="form-label small mb-1">Take payments at</label>
+                <% if (!square.locations.length) { %>
+                  <div class="alert alert-warning small mb-0">Square reported no active locations on this account.</div>
+                <% } else { %>
+                  <div class="input-group input-group-sm">
+                    <select class="form-select" name="location_id" id="square-location">
+                      <% square.locations.forEach(l => { %>
+                        <option value="<%= l.id %>" <%= l.id === square.org.square_location_id ? 'selected' : '' %>><%= l.name || l.id %></option>
+                      <% }) %>
+                    </select>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                  </div>
+                <% } %>
+              </form>
+            <% } else if (square.hasLocation) { %>
+              <p class="small mb-2">
+                Location: <strong><%= square.org.square_location_name || square.org.square_location_id %></strong>
+                <a class="ms-1" href="<%= basePath %>/admin/settings/payments?change_location=1">change</a>
+              </p>
+            <% } %>
+
+            <form method="POST" action="<%= basePath %>/admin/settings/payments/square/disconnect" class="js-confirm" data-confirm="Disconnect Square? New customer payments through Square will stop until you reconnect.">
+              <button type="submit" class="btn btn-outline-danger btn-sm">Disconnect Square</button>
+            </form>
+
+          <% } else { %>
+            <p class="text-muted small">
+              Already run your business on Square? Connect it and invoice payments land in
+              the same account as your in-person sales. You'll be sent to Square to approve
+              the connection, then brought back here.
+            </p>
+            <% if (!square.configured) { %>
+              <div class="alert alert-warning mb-0 small">Square isn't configured on this server yet.</div>
+            <% } else { %>
+              <form method="POST" action="<%= basePath %>/admin/settings/payments/square/connect">
+                <button type="submit" class="btn btn-primary btn-sm">
+                  <i class="bi bi-box-arrow-up-right"></i> Connect with Square
+                </button>
+              </form>
+            <% } %>
+          <% } %>
+        </div>
+      </div>
     </div>
   </div>
 
-  <a class="btn btn-outline-secondary" href="<%= basePath %>/admin/settings">Back to Settings</a>
+  <% if (!stripeReady && !squareReady) { %>
+    <div class="alert alert-warning mt-4 mb-0">
+      Until a processor is connected you can't take a deposit or an invoice payment — the
+      pay page tells your customer that online payment isn't available yet.
+    </div>
+  <% } %>
+
+  <a class="btn btn-outline-secondary mt-4" href="<%= basePath %>/admin/settings">Back to Settings</a>
 </div>
 
 <%
-  // Confirmation lives here rather than an inline onsubmit attribute — the CSP's
+  // Confirmations live here rather than inline onsubmit attributes — the CSP's
   // script-src-attr 'none' silently no-ops inline handlers (see CLAUDE.md).
 %>
 <script nonce="<%= cspNonce %>">
   document.addEventListener('DOMContentLoaded', function () {
-    var form = document.getElementById('disconnect-form');
-    if (!form) return;
-    form.addEventListener('submit', function (e) {
-      if (!confirm('Disconnect Stripe? New customer payments will be paused until you reconnect.')) {
-        e.preventDefault();
-      }
+    document.querySelectorAll('form.js-confirm').forEach(function (form) {
+      form.addEventListener('submit', function (e) {
+        if (!confirm(form.getAttribute('data-confirm'))) e.preventDefault();
+      });
     });
   });
 </script>

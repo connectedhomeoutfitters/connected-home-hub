@@ -6,14 +6,16 @@
 // is no "completed onboarding" flag to drift out of sync with reality. Delete your only
 // customer and that step honestly goes back to incomplete.
 //
-// Ordered by what blocks the most: you cannot take money at all without Stripe, so that
-// sits above cosmetics.
+// Ordered by what blocks the most: you cannot take money at all without a card processor,
+// so that sits above cosmetics.
 
 const db = require('../config/db');
 
 async function getSetupStatus(orgId) {
   const [[org]] = await db.execute(
-    'SELECT name, stripe_account_id, uses_platform_stripe, setup_dismissed_at, welcomed_at FROM orgs WHERE id = ?',
+    `SELECT name, stripe_account_id, uses_platform_stripe, payment_provider,
+            square_merchant_id, square_location_id, square_access_token,
+            setup_dismissed_at, welcomed_at FROM orgs WHERE id = ?`,
     [orgId]
   );
   if (!org) return null;
@@ -32,20 +34,25 @@ async function getSetupStatus(orgId) {
   const hasLabor    = await one('SELECT COUNT(*) AS c FROM labor_rates WHERE org_id = ? AND active = 1');
   const hasCustomer = await one('SELECT COUNT(*) AS c FROM customers WHERE org_id = ?');
 
-  // Payments settle into the tenant's OWN Stripe account. org 1 is the platform account
-  // itself, which Stripe will not let connect to itself, so it counts as done.
+  // Payments settle into the tenant's OWN Stripe or Square account. org 1 is the Stripe
+  // platform account itself, which Stripe will not let connect to itself, so it counts as
+  // done. "Ready" means the ACTIVE provider is ready — a connected Square account with the
+  // switch still on an unconnected Stripe is not.
   const stripeReady = !!org.stripe_account_id || !!org.uses_platform_stripe;
+  const squareReady = !!(org.square_merchant_id && org.square_access_token && org.square_location_id);
+  const paymentsReady = org.payment_provider === 'square' ? squareReady : stripeReady;
+  const providerName = org.payment_provider === 'square' ? 'Square' : 'Stripe';
 
   const items = [
     {
-      key: 'stripe',
-      done: stripeReady,
-      title: 'Connect Stripe',
-      body: stripeReady
-        ? 'Card payments go straight to your own Stripe account.'
-        : 'Until this is connected you cannot take a deposit or an invoice payment — the pay page will tell your customer payment is unavailable.',
+      key: 'payments',
+      done: paymentsReady,
+      title: 'Connect a card processor',
+      body: paymentsReady
+        ? `Card payments go straight to your own ${providerName} account.`
+        : 'Stripe or Square — whichever you already use. Until one is connected you cannot take a deposit or an invoice payment; the pay page will tell your customer payment is unavailable.',
       href: '/admin/settings/payments',
-      cta: 'Connect Stripe',
+      cta: 'Connect payments',
       blocking: true,
     },
     {
