@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ConnectedWorkOS Explainer</title>
+<!-- Source for the 60-second tour on connectedworkos.com. Render with render.js; open this
+     file directly to preview (?t=12 freezes on a frame). Same visual rules as the marketing
+     site (marketing/README.md): blueprint field, and hi-vis amber ONLY where money moves. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600&display=block" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css">
+<style>
+  :root {
+    --bp-900:#05192c; --bp-800:#082744; --bp-700:#0c355c; --bp-600:#14507f;
+    --paper:#f3f7fa; --paper-2:#e7eef4; --ink:#0a1b2e; --ink-soft:#46617a;
+    --cyan:#2bd4e8; --blue:#2b8ede; --hivis:#ffb020; --money-ink:#9a5a00;
+    --ok:#0a7d4f; --rule-dark:#cbdae6;
+    --fd:"Barlow Condensed",sans-serif; --fb:"IBM Plex Sans",sans-serif; --fm:"IBM Plex Mono",monospace;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { width:100%; height:100%; background:#020c16; overflow:hidden; }
+  body { display:flex; align-items:center; justify-content:center; font-family:var(--fb); color:#dceaf5; }
+  #stage {
+    position:relative; width:1920px; height:1080px; overflow:hidden; flex:none; transform-origin:center;
+    background-color:var(--bp-900);
+    background-image:linear-gradient(rgba(255,255,255,.075) 1px, transparent 1px),
+                     linear-gradient(90deg, rgba(255,255,255,.075) 1px, transparent 1px);
+    background-size:60px 60px;
+  }
+  .abs { position:absolute; }
+  .glow { position:absolute; border-radius:50%; filter:blur(90px); pointer-events:none; }
+  #glowA { width:1100px; height:800px; left:-300px; top:-360px; background:rgba(43,212,232,.16); }
+  #glowB { width:900px; height:700px; right:-300px; bottom:-380px; background:rgba(43,142,222,.14); }
+
+  /* type */
+  .eyebrow { font-family:var(--fm); font-size:20px; letter-spacing:.22em; text-transform:uppercase; color:var(--cyan); }
+  .h1, .h2 { font-family:var(--fd); font-weight:700; text-transform:uppercase; line-height:.96; color:#fff; letter-spacing:-.005em; }
+  .h1 { font-size:132px; }
+  .h2 { font-size:84px; }
+  .h1 em, .h2 em { font-style:normal; color:var(--cyan); }
+  .sub { font-size:30px; line-height:1.42; color:#bdd5e7; }
+  .subswap { position:relative; height:180px; }
+  .subswap > div { position:absolute; left:0; top:0; width:100%; }
+  .mono { font-family:var(--fm); letter-spacing:.08em; text-transform:uppercase; }
+
+  /* the logo's wordmark is dark navy, so it always sits on its own white plate (as on og-card.png) */
+  .plate { background:#fff; border-radius:6px; padding:18px 30px; box-shadow:0 24px 60px rgba(0,0,0,.35); }
+  .plate img { display:block; width:100%; }
+
+  .chip { display:inline-flex; align-items:center; gap:12px; padding:13px 20px; border-radius:3px; font-size:22px; font-weight:500;
+          background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.22); color:#dceaf5; white-space:nowrap; }
+  .chip i { color:var(--cyan); font-size:24px; }
+  .chip.money { background:var(--hivis); border-color:var(--hivis); color:var(--bp-900); font-weight:600; }
+  .chip.money i { color:var(--bp-900); }
+
+  /* ── app window ── */
+  #win { left:760px; top:140px; width:1060px; height:760px; background:#fff; color:var(--ink); border-radius:8px; overflow:hidden;
+         box-shadow:0 50px 110px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.12); }
+  .bar { height:46px; background:var(--paper-2); display:flex; align-items:center; gap:9px; padding:0 18px; border-bottom:1px solid var(--rule-dark); }
+  .dot { width:13px; height:13px; border-radius:50%; background:#c3d2de; }
+  .url { margin-left:18px; font-family:var(--fm); font-size:15px; color:var(--ink-soft); background:#fff; padding:5px 16px; border-radius:4px; border:1px solid var(--rule-dark); min-width:470px; }
+  .wbody { position:absolute; top:46px; left:0; right:0; bottom:0; display:flex; }
+  .side { width:200px; border-right:1px solid var(--rule-dark); padding:20px 12px; background:#fbfdfe; }
+  .side img { width:150px; margin:0 0 20px 10px; }
+  .nav { display:flex; align-items:center; gap:12px; padding:9px 12px; border-radius:4px; font-size:16px; font-weight:500; color:var(--ink-soft); margin-bottom:2px; }
+  .nav i { font-size:17px; color:#8aa3b8; }
+  .nav.on { background:rgba(43,142,222,.12); color:var(--bp-600); font-weight:600; }
+  .nav.on i { color:var(--blue); }
+  .main { position:relative; flex:1; }
+  .layer { position:absolute; inset:0; padding:22px 26px; }
+  .mtop { display:flex; align-items:center; justify-content:space-between; }
+  .mtitle { font-family:var(--fd); font-weight:700; font-size:34px; text-transform:uppercase; }
+  .msub { font-size:16px; color:var(--ink-soft); margin:2px 0 16px; }
+  .badge { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:3px; font-family:var(--fm); font-size:13px; letter-spacing:.1em; text-transform:uppercase; background:var(--paper-2); color:var(--ink-soft); }
+  .btnA { display:inline-flex; align-items:center; gap:8px; padding:10px 18px; border-radius:3px; background:var(--bp-600); color:#fff; font-family:var(--fd); font-weight:600; font-size:20px; letter-spacing:.04em; text-transform:uppercase; }
+
+  table.li { width:100%; border-collapse:collapse; font-size:16px; }
+  table.li th { font-family:var(--fm); font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-soft); text-align:left; padding:9px 10px; background:var(--paper); border-bottom:1px solid var(--rule-dark); }
+  table.li td { padding:12px 10px; border-bottom:1px solid #e6edf3; white-space:nowrap; }
+  table.li .n { text-align:right; font-variant-numeric:tabular-nums; }
+  table.li .cost { color:#7d93a6; }
+  .src { font-family:var(--fm); font-size:11px; letter-spacing:.1em; text-transform:uppercase; padding:3px 7px; border-radius:2px; }
+  .src.p { background:rgba(43,142,222,.12); color:var(--bp-600); }
+  .src.l { background:#eef3e6; color:#4d6b1f; }
+  .src.s { background:#f1eaf7; color:#6a3f8f; }
+  .boxes { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:18px; }
+  .box { border:1px solid var(--rule-dark); border-radius:4px; padding:14px 18px; background:#fff; }
+  .box h4 { font-family:var(--fm); font-weight:500; font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-soft); margin-bottom:8px; }
+  .tr2 { display:flex; justify-content:space-between; font-size:17px; padding:5px 0; font-variant-numeric:tabular-nums; }
+  .tr2.tot { border-top:1px solid var(--rule-dark); margin-top:4px; padding-top:9px; font-family:var(--fd); font-weight:700; font-size:24px; text-transform:uppercase; }
+  .tr2.dep span:last-child { color:var(--money-ink); font-weight:600; }
+  .tr2 .muted { color:var(--ink-soft); }
+  .qfoot { display:flex; gap:10px; margin-top:22px; }
+  .qfoot .badge { white-space:nowrap; padding:7px 12px; }
+  .mbar { height:12px; border-radius:2px; background:var(--paper-2); overflow:hidden; margin-top:10px; }
+  .mbar div { height:100%; width:0; background:linear-gradient(90deg, var(--blue), var(--cyan)); }
+
+  /* calendar */
+  .cal { margin-top:12px; display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); border-left:1px solid var(--rule-dark); border-top:1px solid var(--rule-dark); }
+  .cal .wd { font-family:var(--fm); font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-soft); padding:7px 8px; background:var(--paper); border-right:1px solid var(--rule-dark); border-bottom:1px solid var(--rule-dark); }
+  .cal .d { height:112px; padding:6px 7px; border-right:1px solid var(--rule-dark); border-bottom:1px solid var(--rule-dark); position:relative; }
+  .cal .d b { font-size:14px; font-weight:600; color:var(--ink-soft); }
+  .cal .d.dim b { color:#b7c7d4; }
+  .ev { display:block; margin-top:5px; font-size:12.5px; line-height:1.25; padding:4px 6px; border-radius:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ev.c { background:rgba(43,212,232,.16); color:#0b5f6b; border-left:3px solid var(--cyan); }
+  .ev.j { background:rgba(43,142,222,.14); color:var(--bp-600); border-left:3px solid var(--blue); }
+  .ev.u { background:#fff; color:var(--ink-soft); border:1px dashed var(--rule-dark); }
+  #evNew { background:var(--bp-600); color:#fff; border-left:3px solid var(--cyan); font-weight:600; }
+  #jobPanel { right:24px; top:84px; width:390px; background:#fff; border:1px solid var(--rule-dark); border-radius:6px; box-shadow:0 30px 70px rgba(5,25,44,.28); overflow:hidden; }
+  .jp-head { background:var(--bp-900); color:#fff; padding:14px 18px; }
+  .jp-kind { font-family:var(--fm); font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:var(--cyan); }
+  .jp-title { font-family:var(--fd); font-weight:700; font-size:28px; text-transform:uppercase; margin-top:2px; }
+  .jp-row { display:flex; justify-content:space-between; gap:12px; padding:9px 18px; border-bottom:1px solid #e6edf3; font-size:15.5px; }
+  .jp-row span:first-child { font-family:var(--fm); font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-soft); padding-top:2px; }
+  .pill { display:inline-flex; align-items:center; gap:6px; padding:3px 12px; border-radius:20px; font-weight:600; font-size:14px; }
+  .pill.sch { background:rgba(43,142,222,.14); color:var(--bp-600); }
+  .pill.done { background:#dff3ea; color:var(--ok); }
+  #invBlock { margin:12px 14px 6px; padding:12px 14px; border-left:4px solid var(--hivis); background:#fff8ea; border-radius:2px; overflow:hidden; }
+  #invBlock .k { font-family:var(--fm); font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--money-ink); }
+  #invBlock .v { font-family:var(--fd); font-weight:700; font-size:34px; color:var(--ink); }
+  #invBlock .s { font-size:14px; color:var(--ink-soft); }
+  #warBlock { margin:6px 14px 14px; padding:10px 14px; display:flex; gap:10px; align-items:center; background:var(--paper); border-radius:2px; font-size:14.5px; color:var(--ink); overflow:hidden; }
+  #warBlock i { color:var(--bp-600); font-size:20px; }
+
+  /* ── phone ── */
+  #phone { left:1120px; top:100px; width:450px; height:880px; border-radius:56px; background:#0b1520; padding:16px;
+           box-shadow:0 50px 110px rgba(0,0,0,.55), 0 0 0 2px rgba(255,255,255,.14); }
+  #screen { position:relative; width:100%; height:100%; border-radius:42px; overflow:hidden; background:#fff; color:var(--ink); }
+  .notch { position:absolute; left:50%; top:10px; width:120px; height:30px; margin-left:-60px; background:#0b1520; border-radius:20px; z-index:5; }
+  .scr { position:absolute; inset:0; padding:56px 26px 26px; }
+  .co { display:flex; align-items:center; gap:10px; padding-bottom:14px; border-bottom:1px solid var(--rule-dark); }
+  .co .mk { width:40px; height:40px; border-radius:8px; background:#2f7d3a; color:#fff; display:grid; place-items:center; font-size:22px; }
+  .co b { font-size:16px; } .co div div { font-size:12.5px; color:var(--ink-soft); }
+  .ph-kind { font-family:var(--fm); font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:var(--bp-600); margin-top:16px; }
+  .ph-title { font-family:var(--fd); font-weight:700; font-size:30px; text-transform:uppercase; line-height:1; margin:4px 0 10px; }
+  .ph-li { display:flex; justify-content:space-between; font-size:14.5px; padding:6px 0; border-bottom:1px solid #eef2f5; }
+  .ph-tot { display:flex; justify-content:space-between; font-family:var(--fd); font-weight:700; font-size:24px; text-transform:uppercase; padding:10px 0 2px; }
+  .ph-dep { display:flex; justify-content:space-between; font-size:14.5px; color:var(--ink-soft); }
+  .ph-dep b { color:var(--money-ink); }
+  .terms { margin-top:14px; padding:10px 12px; background:var(--paper); border-radius:4px; font-size:12.5px; color:var(--ink-soft); line-height:1.4; }
+  .cb { display:flex; align-items:center; gap:10px; margin-top:12px; font-size:14.5px; }
+  .cb .bx { width:24px; height:24px; border:2px solid var(--rule-dark); border-radius:4px; display:grid; place-items:center; color:#fff; font-size:18px; }
+  .sig { margin-top:10px; border:1px solid var(--rule-dark); border-radius:4px; padding:10px 12px; height:56px; font-family:"Segoe Script","Brush Script MT",cursive; font-size:24px; color:var(--bp-700); }
+  .sig .ph { font-family:var(--fb); font-size:14px; color:#9aafc0; }
+  .caret { display:inline-block; width:2px; height:24px; background:var(--bp-600); vertical-align:-4px; margin-left:2px; }
+  .phbtn { margin-top:14px; height:54px; border-radius:6px; display:grid; place-items:center; font-family:var(--fd); font-weight:700; font-size:22px; letter-spacing:.04em; text-transform:uppercase; }
+  .phbtn.acc { background:var(--bp-600); color:#fff; }
+  .phbtn.pay { background:var(--hivis); color:var(--bp-900); }
+  .big { font-family:var(--fd); font-weight:700; font-size:72px; line-height:1; margin:6px 0 4px; }
+  .card { margin-top:22px; border:1px solid var(--rule-dark); border-radius:6px; padding:14px; }
+  .card .lb { font-size:12.5px; color:var(--ink-soft); margin-bottom:4px; }
+  .card .in { border:1px solid var(--rule-dark); border-radius:4px; padding:11px 12px; font-family:var(--fm); font-size:16px; letter-spacing:.06em; height:46px; }
+  .card .row { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; }
+  #paid { position:absolute; inset:0; background:#fff; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:30px; }
+  #paid .ring { width:120px; height:120px; border-radius:50%; background:var(--hivis); color:var(--bp-900); display:grid; place-items:center; font-size:74px; }
+  #paid h3 { font-family:var(--fd); font-weight:700; font-size:40px; text-transform:uppercase; margin-top:22px; }
+  #paid p { color:var(--ink-soft); font-size:16px; margin-top:6px; }
+
+  /* ── books ── */
+  .bk { left:820px; width:960px; background:#fff; color:var(--ink); border-radius:4px; overflow:hidden; box-shadow:0 40px 90px rgba(0,0,0,.45); }
+  .bk-head { background:var(--bp-800); color:#fff; padding:14px 22px; font-family:var(--fm); font-size:15px; letter-spacing:.14em; text-transform:uppercase; display:flex; justify-content:space-between; align-items:center; }
+  .bk-head .tag { color:var(--cyan); }
+  .bk-row { display:flex; justify-content:space-between; align-items:center; padding:16px 22px; border-bottom:1px dashed var(--rule-dark); }
+  .bk-row .t { font-size:19px; font-weight:600; } .bk-row .c { font-size:14.5px; color:var(--ink-soft); margin-top:2px; }
+  .bk-row .a { font-family:var(--fd); font-weight:700; font-size:30px; font-variant-numeric:tabular-nums; }
+  .bk-row .a.in { color:var(--ok); }
+  #bkNew { background:#e9f7f0; overflow:hidden; }
+  #conduit { left:1290px; top:338px; width:4px; height:132px; background:linear-gradient(180deg, var(--hivis), rgba(255,176,32,.25)); }
+  #pulse { left:1280px; width:24px; height:24px; border-radius:50%; background:var(--hivis); box-shadow:0 0 0 8px rgba(255,176,32,.25); }
+  #conduitLbl { left:1322px; top:388px; font-family:var(--fm); font-size:16px; letter-spacing:.14em; text-transform:uppercase; color:#9dbdd6; }
+
+  /* chapters */
+  #chapters { left:0; right:0; bottom:34px; display:flex; justify-content:center; gap:16px; }
+  .chap { display:flex; flex-direction:column; align-items:flex-start; gap:8px; width:230px; font-family:var(--fm); font-size:14px; letter-spacing:.14em; text-transform:uppercase; color:#6f97b5; }
+  .chap .tr { width:100%; height:4px; background:rgba(255,255,255,.14); overflow:hidden; }
+  .chap .tr div { height:100%; width:0; background:var(--cyan); }
+  .chap.on { color:#fff; }
+
+  .cta { display:inline-flex; align-items:center; gap:14px; padding:24px 46px; border-radius:3px; background:var(--hivis); color:var(--bp-900); font-family:var(--fd); font-weight:700; font-size:40px; letter-spacing:.04em; text-transform:uppercase; box-shadow:0 18px 44px rgba(255,176,32,.28); }
+  #fade { inset:0; background:var(--bp-900); pointer-events:none; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="glow" id="glowA"></div>
+  <div class="glow" id="glowB"></div>
+
+  <!-- ─────────── S1 intro ─────────── -->
+  <div id="s1" class="abs" style="left:0;top:0;width:1920px;height:1080px;">
+    <div id="s1logo" class="abs plate" style="left:690px;top:150px;width:540px;"><img src="../../marketing/img/logo.png" alt=""></div
+    ><div id="s1eyebrow" class="abs eyebrow" style="left:0;width:1920px;top:440px;text-align:center;">The 60-second tour</div>
+    <div id="s1head" class="abs h1" style="left:0;width:1920px;top:500px;text-align:center;">Every job, <em>start to paid.</em></div>
+    <div id="s1sub" class="abs sub" style="left:0;width:1920px;top:660px;text-align:center;font-size:34px;">Quote it, get it signed, take the deposit, do the work, bill the balance.</div>
+  </div>
+
+  <!-- persistent corner logo -->
+  <div id="cornerLogo" class="abs plate" style="left:60px;top:40px;width:230px;padding:10px 16px;border-radius:4px;"><img src="../../marketing/img/logo.png" alt=""></div>
+
+  <!-- ─────────── left-column copy, one block per chapter ─────────── -->
+  <div id="copyQuote" class="abs" style="left:120px;top:250px;width:590px;">
+    <div class="eyebrow">01 · The quote</div>
+    <div class="h2" style="margin:20px 0 28px;">Priced from <em>your own list.</em></div>
+    <div class="subswap">
+      <div id="qs1" class="sub">Materials, labour and subcontracted work from your price list — or start from a job you’ve quoted before.</div>
+      <div id="qs2" class="sub">Cost sits beside price on every line, so you see the margin before you send it.</div>
+    </div>
+  </div>
+
+  <div id="copySign" class="abs" style="left:120px;top:230px;width:900px;">
+    <div class="eyebrow">02 · Signed &amp; paid</div>
+    <div class="h2" style="margin:20px 0 28px;">Signed online.<br><em>Deposit paid.</em></div>
+    <div class="subswap" style="width:820px;height:140px;">
+      <div id="ss1" class="sub">Your customer opens a link. No account, no app, no password.</div>
+      <div id="ss2" class="sub">They sign, pay the deposit by card, and it lands in your own Stripe or Square account.</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:16px;align-items:flex-start;margin-top:18px;">
+      <span class="chip" id="sigChip"><i class="bi bi-pen"></i> Signed by Dana Whitfield · time and IP recorded</span>
+      <span class="chip money" id="depChip"><i class="bi bi-credit-card-2-front"></i> +$1,118.77 deposit → your account</span>
+    </div>
+  </div>
+
+  <div id="copyWork" class="abs" style="left:120px;top:250px;width:590px;">
+    <div class="eyebrow">03 · The work</div>
+    <div class="h2" style="margin:20px 0 28px;">Scheduled. Done. <em>Billed.</em></div>
+    <div class="subswap">
+      <div id="ws1" class="sub">The job lands on the calendar and on the crew’s list, with the material list ready for the truck.</div>
+      <div id="ws2" class="sub">Mark it done and the balance invoices itself — net of the deposit. Nobody forgets the last invoice.</div>
+    </div>
+  </div>
+
+  <div id="copyBooks" class="abs" style="left:120px;top:250px;width:620px;">
+    <div class="eyebrow">04 · Your books</div>
+    <div class="h2" style="margin:20px 0 28px;">Your books <em>fill themselves in.</em></div>
+    <div class="sub">Every payment posts to Connected Home Ledger as business income — dated, categorised and net of refunds. Nothing to retype.</div>
+  </div>
+
+  <!-- ─────────── App window (quote + calendar) ─────────── -->
+  <div id="win" class="abs">
+    <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url" id="url">app.connectedworkos.com/admin/estimates/1042</span></div>
+    <div class="wbody">
+      <div class="side">
+        <img src="../../marketing/img/logo.png" alt="">
+        <div class="nav"><i class="bi bi-speedometer2"></i> Dashboard</div>
+        <div class="nav"><i class="bi bi-funnel"></i> Leads</div>
+        <div class="nav"><i class="bi bi-people"></i> Customers</div>
+        <div class="nav on" id="navEst"><i class="bi bi-file-earmark-text"></i> Estimates</div>
+        <div class="nav"><i class="bi bi-receipt"></i> Invoices</div>
+        <div class="nav"><i class="bi bi-tools"></i> Jobs</div>
+        <div class="nav" id="navCal"><i class="bi bi-calendar3"></i> Calendar</div>
+        <div class="nav"><i class="bi bi-credit-card"></i> Payments</div>
+        <div class="nav"><i class="bi bi-shield-check"></i> Warranties</div>
+      </div>
+      <div class="main">
+        <!-- quote builder -->
+        <div class="layer" id="lQuote">
+          <div class="mtop">
+            <div class="mtitle">Estimate Q-1042</div>
+            <span class="btnA" id="sendBtn"><i class="bi bi-send"></i> <span id="sendTxt">Send to customer</span></span>
+          </div>
+          <div class="msub">Spring cleanup &amp; sod · Dana Whitfield · 14 Ridgeline Dr</div>
+          <table class="li">
+            <thead><tr><th>Source</th><th>Description</th><th class="n">Qty</th><th class="n">Price</th><th class="n">Cost</th><th class="n">Amount</th></tr></thead>
+            <tbody id="qRows"></tbody>
+          </table>
+          <div class="boxes">
+            <div class="box" id="boxTot">
+              <h4>Totals</h4>
+              <div class="tr2"><span class="muted">Subtotal</span><span id="tSub">$0.00</span></div>
+              <div class="tr2"><span class="muted">Sales tax (8.25%)</span><span id="tTax">$0.00</span></div>
+              <div class="tr2 tot"><span>Total</span><span id="tTot">$0.00</span></div>
+              <div class="tr2 dep"><span class="muted">Deposit on acceptance (50%)</span><span id="tDep">$0.00</span></div>
+            </div>
+            <div class="box" id="boxProfit">
+              <h4>Profitability</h4>
+              <div class="tr2"><span class="muted">Revenue</span><span>$2,067.00</span></div>
+              <div class="tr2"><span class="muted">Cost · materials $682 · subs $160</span><span>$842.00</span></div>
+              <div class="tr2 tot"><span>Gross profit</span><span id="pGp">$0.00</span></div>
+              <div class="tr2"><span class="muted">Margin</span><span id="pMg" style="font-weight:600;color:var(--bp-600)">0%</span></div>
+              <div class="mbar"><div id="pBar"></div></div>
+            </div>
+          </div>
+          <div class="qfoot" id="qfoot">
+            <span class="badge"><i class="bi bi-files"></i> Started from a template</span>
+            <span class="badge"><i class="bi bi-hourglass-split"></i> Valid 30 days</span>
+            <span class="badge"><i class="bi bi-file-earmark-pdf"></i> PDF attached to the email</span>
+          </div>
+        </div>
+
+        <!-- calendar -->
+        <div class="layer" id="lCal">
+          <div class="mtop">
+            <div class="mtitle">November 2026</div>
+            <span class="badge"><i class="bi bi-chevron-left"></i> Today <i class="bi bi-chevron-right"></i></span>
+          </div>
+          <div class="cal" id="cal"></div>
+          <div id="jobPanel" class="abs">
+            <div class="jp-head"><div class="jp-kind">Job · Install</div><div class="jp-title">Spring cleanup &amp; sod</div></div>
+            <div class="jp-row"><span>Customer</span><b>Dana Whitfield</b></div>
+            <div class="jp-row"><span>Scheduled</span><b>Tue Nov 3 · 8:00 AM</b></div>
+            <div class="jp-row"><span>Crew</span><b>Marco R.</b></div>
+            <div class="jp-row"><span>Materials</span><b>3 pallets sod · 4 yd topsoil</b></div>
+            <div class="jp-row"><span>Status</span><span id="jpStatus" class="pill sch" style="font-family:var(--fb);letter-spacing:0;text-transform:none;color:var(--bp-600);font-size:14px;">Scheduled</span></div>
+            <div id="invBlock">
+              <div class="k">Final invoice · raised automatically</div>
+              <div class="v">$1,118.76</div>
+              <div class="s">Balance after the $1,118.77 deposit</div>
+            </div>
+            <div id="warBlock"><i class="bi bi-shield-check"></i> Workmanship warranty recorded · 1 year</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────── Phone (customer view) ─────────── -->
+  <div id="phone" class="abs">
+    <div id="screen">
+      <div class="notch"></div>
+      <div class="scr" id="scrQuote">
+        <div class="co"><span class="mk"><i class="bi bi-tree"></i></span><div><b>Greenline Lawn &amp; Landscape</b><div>Quote Q-1042 for Dana Whitfield</div></div></div>
+        <div class="ph-kind">Your quote</div>
+        <div class="ph-title">Spring cleanup &amp; sod</div>
+        <div class="ph-li"><span>Sod, St. Augustine (pallet) × 3</span><span>$855.00</span></div>
+        <div class="ph-li"><span>Topsoil blend (cu yd) × 4</span><span>$192.00</span></div>
+        <div class="ph-li"><span>Crew labour (hr) × 12</span><span>$780.00</span></div>
+        <div class="ph-li"><span>Haul-away &amp; disposal</span><span>$240.00</span></div>
+        <div class="ph-tot"><span>Total</span><span>$2,237.53</span></div>
+        <div class="ph-dep"><span>Deposit due on acceptance</span><b>$1,118.77</b></div>
+        <div class="terms">Terms &amp; conditions — scope, schedule, payment, warranty and cancellation, set by Greenline.</div>
+        <div class="cb"><span class="bx" id="cbx"><i class="bi bi-check-lg"></i></span> I accept the terms and this quote</div>
+        <div class="sig" id="sig"><span class="ph">Type your full name to sign</span></div>
+        <div class="phbtn acc" id="accBtn">Accept &amp; sign</div>
+      </div>
+      <div class="scr" id="scrPay">
+        <div class="co"><span class="mk"><i class="bi bi-tree"></i></span><div><b>Greenline Lawn &amp; Landscape</b><div>Deposit invoice · Spring cleanup &amp; sod</div></div></div>
+        <div class="ph-kind">Deposit due</div>
+        <div class="big">$1,118.77</div>
+        <div style="font-size:14.5px;color:var(--ink-soft);">50% of $2,237.53 · balance billed when the job is done</div>
+        <div class="card">
+          <div class="lb">Card number</div><div class="in" id="cardNo"></div>
+          <div class="row"><div><div class="lb">Expiry</div><div class="in" id="cardExp"></div></div><div><div class="lb">CVC</div><div class="in" id="cardCvc"></div></div></div>
+        </div>
+        <div class="phbtn pay" id="payBtn">Pay $1,118.77</div>
+        <div style="text-align:center;font-size:12.5px;color:var(--ink-soft);margin-top:12px;"><i class="bi bi-lock"></i> Processed by Stripe or Square — card details never touch our servers</div>
+        <div id="paid"><div class="ring"><i class="bi bi-check-lg"></i></div><h3>Deposit paid</h3><p>Receipt emailed to Dana.<br>Greenline will be in touch to schedule.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────── Books ─────────── -->
+  <div id="sBooks" class="abs" style="left:0;top:0;width:1920px;height:1080px;">
+    <div id="bkA" class="abs bk" style="top:190px;">
+      <div class="bk-head"><span>ConnectedWorkOS · Invoice paid</span><span class="tag">Greenline Lawn &amp; Landscape</span></div>
+      <div class="bk-row"><div><div class="t">Final invoice · Spring cleanup &amp; sod</div><div class="c">Dana Whitfield · paid by card</div></div><div class="a" style="color:var(--money-ink)">$1,118.76</div></div>
+    </div>
+    <div id="conduit" class="abs"></div>
+    <div id="pulse" class="abs"></div>
+    <div id="conduitLbl" class="abs">Posts automatically</div>
+    <div id="bkB" class="abs bk" style="top:490px;">
+      <div class="bk-head"><span>Connected Home Ledger · Business Workspace</span><span class="tag">Transactions</span></div>
+      <div id="bkNew" class="bk-row"><div><div class="t">Spring cleanup &amp; sod — final invoice</div><div class="c">Service revenue · from ConnectedWorkOS</div></div><div class="a in">+$1,118.76</div></div>
+      <div class="bk-row"><div><div class="t">Spring cleanup &amp; sod — deposit</div><div class="c">Service revenue · from ConnectedWorkOS</div></div><div class="a in">+$1,118.77</div></div>
+      <div class="bk-row"><div><div class="t">Garden centre</div><div class="c">Materials</div></div><div class="a">−$682.00</div></div>
+      <div class="bk-row" style="background:var(--paper);border-bottom:0;"><div class="t mono" style="font-size:15px;color:var(--ink-soft);font-weight:500;">Entered by hand</div><div class="a">$0.00</div></div>
+    </div>
+  </div>
+
+  <!-- ─────────── End card ─────────── -->
+  <div id="sEnd" class="abs" style="left:0;top:0;width:1920px;height:1080px;text-align:center;">
+    <div id="eLogo" class="abs plate" style="left:735px;top:120px;width:450px;"><img src="../../marketing/img/logo.png" alt=""></div>
+    <div id="eHead" class="abs h1" style="left:0;width:1920px;top:380px;font-size:120px;">Every job, <em>start to paid.</em></div>
+    <div id="ePlan" class="abs sub" style="left:0;width:1920px;top:530px;font-size:32px;">Included with the Connected Home Ledger <b style="color:#fff">Business+</b> plan · $29 a month or $290 a year</div>
+    <div id="eCta" class="abs" style="left:0;width:1920px;top:630px;"><span class="cta">Start with Connected Home Ledger <i class="bi bi-arrow-right"></i></span></div>
+    <div id="eNote" class="abs mono" style="left:0;width:1920px;top:780px;font-size:22px;color:#9dbdd6;">connectedworkos.com · Your Stripe or Square · No cut of your jobs</div>
+  </div>
+
+  <!-- chapters -->
+  <div id="chapters" class="abs">
+    <div class="chap" id="ch0"><div class="tr"><div></div></div>The quote</div>
+    <div class="chap" id="ch1"><div class="tr"><div></div></div>Signed &amp; paid</div>
+    <div class="chap" id="ch2"><div class="tr"><div></div></div>The work</div>
+    <div class="chap" id="ch3"><div class="tr"><div></div></div>Your books</div>
+  </div>
+
+  <div id="fade" class="abs"></div>
+</div>
+
+<script>
+const DURATION = 60;
+const $ = id => document.getElementById(id);
+const clamp = x => Math.max(0, Math.min(1, x));
+const eo = x => 1 - Math.pow(1 - clamp(x), 3);
+const eio = x => { x = clamp(x); return x < .5 ? 4*x*x*x : 1 - Math.pow(-2*x + 2, 3) / 2; };
+const lerp = (a, b, k) => a + (b - a) * k;
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const vis = (t, a, b, fi = .6, fo = .6) => (t < a || t > b) ? 0 : Math.min(prog(t, a, a + fi), 1 - prog(t, b - fo, b));
+const money = v => '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const pulse = (t, a, b) => 1 - Math.abs(prog(t, a, b) * 2 - 1);   // 0 → 1 → 0 across [a,b]
+
+function put(el, o, x = 0, y = 0, s = 1) {
+  el = typeof el === 'string' ? $(el) : el;
+  el.style.opacity = o;
+  el.style.visibility = o <= 0.001 ? 'hidden' : 'visible';
+  el.style.transform = `translate(${x}px,${y}px) scale(${s})`;
+}
+
+// Scene windows (seconds). Chapter starts are 0 / 17 / 30 / 43 — keep in step with
+// marketing/src/_tourVideo.js, which carries the same numbers for the watch page.
+const S = { intro:[0,6.0], quote:[6.2,16.8], sign:[17.0,29.8], work:[30.0,42.8], books:[43.0,51.0], end:[51.2,60] };
+
+// ── quote rows: [source class, source label, description, qty, price, unit cost]
+const ROWS = [
+  ['p', 'Product', 'Sod, St. Augustine (pallet)', 3, 285, 190],
+  ['p', 'Product', 'Topsoil blend (cu yd)',       4,  48,  28],
+  ['l', 'Labour',  'Crew labour (hr)',           12,  65,   0],
+  ['s', 'Sub',     'Haul-away & disposal',        1, 240, 160],
+];
+$('qRows').innerHTML = ROWS.map(r => `<tr><td><span class="src ${r[0]}">${r[1]}</span></td><td>${r[2].replace('&', '&amp;')}</td>` +
+  `<td class="n">${r[3]}</td><td class="n">${money(r[4])}</td><td class="n cost">${money(r[5])}</td><td class="n">${money(r[3] * r[4])}</td></tr>`).join('');
+const SUB = 2067, TAX = 170.53, TOT = 2237.53, DEP = 1118.77, GP = 1225;
+
+// ── calendar: Nov 2026 starts on a Sunday; 5 weeks shown
+const EVENTS = { 2:[['c','9:00 Consult · Ortiz']], 5:[['j','Gutter clean · Lee']], 9:[['c','10:30 Consult · Patel']],
+  12:[['j','Patio pavers · Ruiz'],['u','Due · follow up Kim']], 16:[['j','Mowing round']], 19:[['j','Tree trim · Novak']],
+  23:[['j','Mowing round']], 25:[['c','2:00 Consult · Brooks']], 30:[['j','Leaf removal · Shaw']] };
+let cal = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => `<div class="wd">${d}</div>`).join('');
+for (let i = 0; i < 35; i++) {
+  const day = i + 1, dim = day > 30, label = dim ? day - 30 : day;
+  const ev = (EVENTS[day] || []).map(e => `<span class="ev ${e[0]}">${e[1]}</span>`).join('');
+  cal += `<div class="d${dim ? ' dim' : ''}"><b>${label}</b>${ev}${day === 3 ? '<span class="ev" id="evNew">8:00 Whitfield · sod</span>' : ''}</div>`;
+}
+$('cal').innerHTML = cal;
+
+function typed(s, k) { return s.slice(0, Math.round(s.length * clamp(k))); }
+
+function renderAt(t) {
+  t = ((t % DURATION) + DURATION) % DURATION;
+
+  $('glowA').style.transform = `translate(${Math.sin(t/7)*70}px,${Math.cos(t/9)*40}px)`;
+  $('glowB').style.transform = `translate(${Math.cos(t/8)*70}px,${Math.sin(t/6)*40}px)`;
+  $('fade').style.opacity = Math.max(1 - prog(t, 0, .5), prog(t, 59.4, 60));
+
+  // ── intro
+  const v1 = vis(t, ...S.intro, .01, .7);
+  $('s1').style.visibility = v1 ? 'visible' : 'hidden';
+  put('s1logo',    v1 * eo(prog(t, .2, 1.2)), 0, lerp(30, 0, eo(prog(t, .2, 1.2))));
+  put('s1eyebrow', v1 * eo(prog(t, .9, 1.6)));
+  put('s1head',    v1 * eo(prog(t, 1.1, 2.1)), 0, lerp(40, 0, eo(prog(t, 1.1, 2.1))));
+  put('s1sub',     v1 * eo(prog(t, 2.4, 3.4)), 0, lerp(24, 0, eo(prog(t, 2.4, 3.4))));
+
+  put('cornerLogo', vis(t, 6.2, 50.8, .6, .6));
+
+  // ── app window: quote, then (after the phone) the calendar
+  const wq = vis(t, ...S.quote, .8, .6), ww = vis(t, ...S.work, .8, .6);
+  const inQ = eo(prog(t, S.quote[0], S.quote[0] + 1.2)), inW = eo(prog(t, S.work[0], S.work[0] + 1.2));
+  const isCal = t >= 29;
+  const winIn = isCal ? inW : inQ;
+  put('win', Math.max(wq, ww), lerp(120, 0, winIn), 0, lerp(.94, 1, winIn));
+  put('lQuote', isCal ? 0 : 1); put('lCal', isCal ? 1 : 0);
+  $('navEst').classList.toggle('on', !isCal); $('navCal').classList.toggle('on', isCal);
+  $('url').textContent = isCal ? 'app.connectedworkos.com/admin/calendar?m=2026-11' : 'app.connectedworkos.com/admin/estimates/1042';
+
+  // quote build-up
+  document.querySelectorAll('#qRows tr').forEach((tr, i) => { const k = eo(prog(t, 7.4 + i * .55, 8.1 + i * .55)); put(tr, k, lerp(40, 0, k)); });
+  put('qfoot', eo(prog(t, 7.0, 7.8)));
+  const kt = eo(prog(t, 9.8, 11.2));
+  $('tSub').textContent = money(SUB * kt); $('tTax').textContent = money(TAX * kt);
+  $('tTot').textContent = money(TOT * kt); $('tDep').textContent = money(DEP * kt);
+  const kp = eo(prog(t, 11.8, 13.6));
+  $('pGp').textContent = money(GP * kp);
+  $('pMg').textContent = Math.round(59 * kp) + '%';
+  $('pBar').style.width = (59 * kp) + '%';
+  const hl = pulse(t, 11.6, 14.6);
+  $('boxProfit').style.borderColor = hl > .05 ? `rgba(43,142,222,${.3 + .7 * hl})` : 'var(--rule-dark)';
+  $('boxProfit').style.boxShadow = `0 0 0 ${4 * hl}px rgba(43,212,232,.25)`;
+  const sent = t >= 15.4;
+  $('sendTxt').textContent = sent ? 'Sent to Dana' : 'Send to customer';
+  $('sendBtn').style.background = sent ? 'var(--ok)' : 'var(--bp-600)';
+  $('sendBtn').querySelector('i').className = sent ? 'bi bi-check-lg' : 'bi bi-send';
+  put('sendBtn', 1, 0, 0, 1 + .06 * pulse(t, 14.6, 15.4));
+
+  put('copyQuote', vis(t, 6.6, 16.8, .8, .6), lerp(-30, 0, eo(prog(t, 6.6, 7.6))));
+  put('qs1', 1 - prog(t, 11.2, 11.8)); put('qs2', prog(t, 11.6, 12.2), 0, lerp(16, 0, eo(prog(t, 11.6, 12.2))));
+
+  // ── phone: sign, then pay
+  const vp = vis(t, ...S.sign, .8, .6);
+  const phIn = eo(prog(t, S.sign[0], S.sign[0] + 1.2));
+  put('phone', vp, 0, lerp(80, 0, phIn));
+  const toPay = eio(prog(t, 23.8, 24.5));
+  put('scrQuote', 1, -450 * toPay); put('scrPay', 1, 450 * (1 - toPay));
+  document.querySelectorAll('#scrQuote .ph-li').forEach((li, i) => { const k = eo(prog(t, 18.2 + i * .25, 18.8 + i * .25)); put(li, k, lerp(24, 0, k)); });
+  const tick = t >= 20.4;
+  $('cbx').style.background = tick ? 'var(--bp-600)' : '#fff';
+  $('cbx').style.borderColor = tick ? 'var(--bp-600)' : 'var(--rule-dark)';
+  put($('cbx').querySelector('i'), tick ? 1 : 0, 0, 0, tick ? lerp(.4, 1, eo(prog(t, 20.4, 20.7))) : 1);
+  const nm = typed('Dana Whitfield', prog(t, 21.0, 22.8));
+  const caretOn = t > 20.9 && t < 23.2 && Math.floor(t * 2.5) % 2 === 0;
+  $('sig').innerHTML = (nm ? nm : (t < 20.9 ? '<span class="ph">Type your full name to sign</span>' : '')) + (caretOn ? '<span class="caret"></span>' : '');
+  put('accBtn', 1, 0, 0, 1 - .05 * pulse(t, 23.1, 23.6));
+  $('cardNo').textContent  = typed('4242 4242 4242 4242', prog(t, 24.7, 25.7));
+  $('cardExp').textContent = typed('12 / 28', prog(t, 25.7, 26.0));
+  $('cardCvc').textContent = typed('123', prog(t, 26.0, 26.2));
+  put('payBtn', 1, 0, 0, 1 - .05 * pulse(t, 26.4, 26.9));
+  const pd = eo(prog(t, 26.9, 27.4));
+  put('paid', pd);
+  put($('paid').querySelector('.ring'), 1, 0, 0, lerp(.5, 1, eo(prog(t, 27.0, 27.6))));
+
+  put('copySign', vis(t, 17.4, 29.8, .8, .6), lerp(-30, 0, eo(prog(t, 17.4, 18.4))));
+  put('ss1', 1 - prog(t, 23.4, 24.0)); put('ss2', prog(t, 23.8, 24.4), 0, lerp(16, 0, eo(prog(t, 23.8, 24.4))));
+  const sc = eo(prog(t, 23.6, 24.2)); put('sigChip', sc, lerp(-24, 0, sc));
+  const dc = eo(prog(t, 27.3, 27.9)); put('depChip', dc, lerp(-24, 0, dc), 0, 1 + .05 * pulse(t, 27.9, 28.7));
+
+  // ── calendar + job panel
+  const nk = eo(prog(t, 31.6, 32.4));
+  put('evNew', nk, 0, lerp(-30, 0, nk), 1 + .12 * pulse(t, 32.2, 33.0));
+  $('evNew').style.boxShadow = `0 0 0 ${6 * pulse(t, 32.2, 33.6)}px rgba(43,212,232,.35)`;
+  const jp = eo(prog(t, 33.8, 34.8));
+  put('jobPanel', jp, lerp(60, 0, jp));
+  const done = t >= 36.6;
+  $('jpStatus').className = 'pill ' + (done ? 'done' : 'sch');
+  $('jpStatus').style.color = done ? 'var(--ok)' : 'var(--bp-600)';
+  $('jpStatus').innerHTML = done ? '<i class="bi bi-check-lg"></i> Done' : 'Scheduled';
+  put('jpStatus', 1, 0, 0, 1 + .15 * pulse(t, 36.4, 37.0));
+  const ib = eo(prog(t, 37.4, 38.2));
+  $('invBlock').style.maxHeight = (ib * 120) + 'px'; $('invBlock').style.opacity = ib;
+  $('invBlock').style.paddingTop = $('invBlock').style.paddingBottom = (12 * ib) + 'px';
+  $('invBlock').style.marginTop = (12 * ib) + 'px';
+  $('invBlock').style.background = `rgba(255,176,32,${.10 + .22 * pulse(t, 38.0, 39.6)})`;
+  const wb = eo(prog(t, 39.6, 40.3));
+  $('warBlock').style.maxHeight = (wb * 60) + 'px'; $('warBlock').style.opacity = wb;
+  $('warBlock').style.paddingTop = $('warBlock').style.paddingBottom = (10 * wb) + 'px';
+
+  put('copyWork', vis(t, 30.4, 42.8, .8, .6), lerp(-30, 0, eo(prog(t, 30.4, 31.4))));
+  put('ws1', 1 - prog(t, 36.2, 36.8)); put('ws2', prog(t, 36.6, 37.2), 0, lerp(16, 0, eo(prog(t, 36.6, 37.2))));
+
+  // ── books
+  const vb = vis(t, ...S.books, .7, .6);
+  $('sBooks').style.opacity = vb; $('sBooks').style.visibility = vb ? 'visible' : 'hidden';
+  put('copyBooks', vb, lerp(-30, 0, eo(prog(t, 43.2, 44.2))));
+  const ka = eo(prog(t, 43.6, 44.6)); put('bkA', ka, 0, lerp(40, 0, ka));
+  const kb = eo(prog(t, 44.2, 45.2)); put('bkB', kb, 0, lerp(40, 0, kb));
+  put('conduit', eo(prog(t, 45.0, 45.6)));
+  put('conduitLbl', eo(prog(t, 45.2, 45.8)));
+  const fl = eio(prog(t, 45.6, 46.8));
+  $('pulse').style.top = (330 + 140 * fl) + 'px';
+  put('pulse', t < 45.5 ? 0 : (t < 46.8 ? 1 : 1 - prog(t, 46.8, 47.1)));
+  const kn = eo(prog(t, 46.8, 47.4));
+  $('bkNew').style.maxHeight = (kn * 100) + 'px'; $('bkNew').style.opacity = kn;
+  $('bkNew').style.paddingTop = $('bkNew').style.paddingBottom = (16 * kn) + 'px';
+  $('bkNew').style.background = `rgba(10,125,79,${.08 + .14 * pulse(t, 47.0, 48.6)})`;
+
+  // ── end card
+  const v6 = vis(t, ...S.end, .7, .01);
+  $('sEnd').style.opacity = v6; $('sEnd').style.visibility = v6 ? 'visible' : 'hidden';
+  put('eLogo', eo(prog(t, 51.2, 52.2)), 0, lerp(24, 0, eo(prog(t, 51.2, 52.2))));
+  put('eHead', eo(prog(t, 51.8, 52.8)), 0, lerp(30, 0, eo(prog(t, 51.8, 52.8))));
+  put('ePlan', eo(prog(t, 52.8, 53.6)));
+  put('eCta', eo(prog(t, 53.6, 54.4)), 0, 0, lerp(.9, 1, eo(prog(t, 53.6, 54.4))) + .02 * Math.sin(Math.max(0, t - 54.4) * 3.5));
+  put('eNote', eo(prog(t, 54.4, 55.2)));
+
+  // chapter bar (starts at 0/17/30/43, as in _tourVideo.js)
+  const chaps = [[0, 17], [17, 30], [30, 43], [43, 51]];
+  put('chapters', vis(t, 6.4, 50.8, .6, .6));
+  chaps.forEach(([a, b], i) => {
+    $('ch' + i).querySelector('.tr div').style.width = (100 * prog(t, Math.max(a, 6.2), b)) + '%';
+    $('ch' + i).classList.toggle('on', t >= a && t < b);
+  });
+}
+window.renderAt = renderAt;
+window.DURATION = DURATION;
+
+function fit() { const s = Math.min(innerWidth / 1920, innerHeight / 1080); $('stage').style.transform = `scale(${s})`; }
+addEventListener('resize', fit); fit();
+
+const qs = new URLSearchParams(location.search);
+window.ready = document.fonts.ready.then(() => new Promise(r => setTimeout(r, 300)));
+if (qs.has('t')) { window.ready.then(() => renderAt(+qs.get('t'))); }
+else if (!qs.has('capture')) {
+  let t0 = null;
+  const loop = ts => { if (t0 === null) t0 = ts; renderAt((ts - t0) / 1000); requestAnimationFrame(loop); };
+  window.ready.then(() => requestAnimationFrame(loop));
+} else { renderAt(0); }
+</script>
+</body>
+</html>

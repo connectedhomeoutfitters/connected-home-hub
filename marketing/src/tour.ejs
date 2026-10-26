@@ -1,0 +1,107 @@
+<%# The watch page for the 60-second tour. Google only puts a video in video results when it
+    is the page's main content, which the home page hero is not — so the VideoObject (set as
+    this page's jsonld in _pages.js) and the sitemap's video entry live here. Everything about
+    the video comes from _tourVideo.js. %>
+<div class="field field--fade">
+  <section class="pagehead pagehead--tour">
+    <div class="wrap">
+      <p class="eyebrow">Product tour</p>
+      <h1>See it in <em>60 seconds.</em></h1>
+      <p class="lede pagehead__lede">
+        One job, start to paid: the quote, the signature, the deposit, the work, the final
+        invoice — and the payment landing in your books. The video is silent with captions;
+        the full transcript is below.
+      </p>
+
+      <figure class="tourvid tourvid--watch">
+        <video id="tour-video" controls muted playsinline preload="metadata"
+               width="1280" height="720" poster="<%= tourVideo.poster %>"
+               aria-describedby="tour-transcript">
+          <source src="<%= tourVideo.src %>" type="video/mp4">
+        </video>
+      </figure>
+
+      <nav class="chapters" aria-label="Chapters">
+        <% tourVideo.chapters.forEach(function (c) { %>
+          <button type="button" class="chapters__btn" data-start="<%= c.start %>">
+            <span class="chapters__time"><%= tourVideo.stamp(c.start) %></span>
+            <span class="chapters__label"><%= c.label %></span>
+          </button>
+        <% }); %>
+      </nav>
+    </div>
+  </section>
+</div>
+
+<section class="band band--paper" id="tour-transcript">
+  <div class="wrap">
+    <div class="band__head">
+      <p class="eyebrow eyebrow--dark">Transcript</p>
+      <h2>Everything the video says</h2>
+    </div>
+    <div class="transcript">
+      <% tourVideo.chapters.forEach(function (c) { %>
+        <div class="transcript__part">
+          <h3>
+            <button type="button" class="transcript__seek" data-start="<%= c.start %>" aria-label="Play from <%= tourVideo.stamp(c.start) %>">
+              &#9654; <%= tourVideo.stamp(c.start) %>
+            </button>
+            <%= c.label %>
+          </h3>
+          <% c.lines.forEach(function (line) { %><p><%= line %></p><% }); %>
+        </div>
+      <% }); %>
+    </div>
+    <p class="transcript__more">
+      <a href="/how-it-works">See each document a customer gets, step by step &rarr;</a>
+      <% if (tourVideo.youtubeUrl) { %>
+        &nbsp;·&nbsp; <a href="<%= tourVideo.youtubeUrl %>" target="_blank" rel="noopener">Watch on YouTube &rarr;</a>
+      <% } %>
+    </p>
+  </div>
+</section>
+
+<%- include('_cta') %>
+
+<script>
+// Chapters + ?t=NN deep links (the JSON-LD Clip urls), current-chapter highlight, and the same
+// GA video events as the home page hero.
+(function () {
+  var video = document.getElementById('tour-video');
+  if (!video) return;
+  var chapterBtns = Array.prototype.slice.call(document.querySelectorAll('.chapters__btn'));
+  var starts = chapterBtns.map(function (b) { return +b.dataset.start; });
+
+  function seek(sec) {
+    var go = function () { video.currentTime = sec; video.play().catch(function () {}); };
+    video.readyState >= 1 ? go() : video.addEventListener('loadedmetadata', go, { once: true });
+  }
+  document.querySelectorAll('[data-start]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      seek(+btn.dataset.start);
+      if (btn.classList.contains('transcript__seek')) video.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  });
+
+  var t = parseInt(new URLSearchParams(location.search).get('t'), 10);
+  if (t > 0 && t < <%= tourVideo.durationSec %>) seek(t);
+
+  var sent = {};
+  function track(name, params) {
+    if (sent[name] || typeof window.gtag !== 'function') return;
+    sent[name] = true;
+    window.gtag('event', name, Object.assign({ video_title: 'WorkOS 60s tour', page: 'tour' }, params));
+  }
+  video.addEventListener('timeupdate', function () {
+    var current = 0;
+    starts.forEach(function (s, i) { if (video.currentTime >= s) current = i; });
+    chapterBtns.forEach(function (b, i) { b.classList.toggle('is-active', i === current); });
+    var d = video.duration;
+    if (!d) return;
+    var pct = video.currentTime / d;
+    if (video.currentTime > 0.5) track('video_start', {});
+    if (pct >= 0.5) track('video_progress', { video_percent: 50 });
+    if (pct >= 0.95) track('video_complete', { video_percent: 100 });
+  });
+})();
+</script>

@@ -14,6 +14,31 @@
         <a class="btn btn--ghost" href="#start">Book a walkthrough</a>
       </div>
       <p class="hero__note">Your Stripe or Square account · Your bank · No card data touches us</p>
+
+      <%# The 60s tour: silent, captioned, muted autoplay loop on desktop. Phones and
+          reduced-motion visitors get the poster and a play button instead, since 16:9
+          captions are unreadable at phone width. Source is tools/explainer-video/ — edit
+          explainer.html and re-run render.js; never edit the MP4. %>
+      <figure class="tourvid" id="tour">
+        <video id="hero-video" muted loop playsinline preload="metadata"
+               width="1280" height="720" poster="<%= tourVideo.poster %>"
+               aria-label="<%= tourVideo.description %>">
+          <source src="<%= tourVideo.src %>" type="video/mp4">
+        </video>
+        <button type="button" class="tourvid__play" id="hero-video-play" hidden>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg>
+          Watch the 60-second tour
+        </button>
+        <button type="button" class="tourvid__ctl tourvid__ctl--fs" id="hero-video-fs" aria-label="Watch fullscreen">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 6V1.5H6M10 1.5h4.5V6M14.5 10v4.5H10M6 14.5H1.5V10" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+        </button>
+        <button type="button" class="tourvid__ctl" id="hero-video-toggle" aria-label="Pause video"></button>
+      </figure>
+      <details class="tourvid__transcript">
+        <summary>Read the transcript</summary>
+        <% tourVideo.chapters.forEach(function (c) { c.lines.forEach(function (line) { %><p><%= line %></p><% }); }); %>
+        <p><a href="/tour">Watch with chapters &rarr;</a></p>
+      </details>
     </div>
   </section>
 </div>
@@ -219,3 +244,70 @@
 </section>
 
 <%- include('_cta') %>
+
+<script>
+// Hero tour — autoplay unless the visitor prefers reduced motion, a pause/play toggle
+// (anything that moves for >5s needs one), and GA progress events. On a phone the 16:9
+// captions are too small to read inline, so it does not autoplay there: the play button
+// opens it fullscreen instead, where it can be watched in landscape.
+(function () {
+  var video  = document.getElementById('hero-video');
+  var toggle = document.getElementById('hero-video-toggle');
+  var big    = document.getElementById('hero-video-play');
+  var fsBtn  = document.getElementById('hero-video-fs');
+  if (!video || !toggle || !big || !fsBtn) return;
+  var phone   = window.matchMedia('(max-width: 768px)').matches;
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var PAUSE = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 2.5h2.5v11H4.5zM9 2.5h2.5v11H9z" fill="currentColor"/></svg>';
+  var PLAY  = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg>';
+
+  function sync() {
+    var playing = !video.paused;
+    toggle.innerHTML = playing ? PAUSE : PLAY;
+    toggle.setAttribute('aria-label', playing ? 'Pause video' : 'Play video');
+  }
+  video.addEventListener('play', function () { big.hidden = true; toggle.hidden = fsBtn.hidden = false; sync(); });
+  video.addEventListener('pause', sync);
+  toggle.addEventListener('click', function () { video.paused ? video.play() : video.pause(); });
+
+  function fullscreen() {
+    if (video.requestFullscreen) {
+      video.requestFullscreen().then(function () {
+        if (screen.orientation && screen.orientation.lock) return screen.orientation.lock('landscape');
+      }).catch(function () {});
+    } else if (video.webkitEnterFullscreen) {
+      video.webkitEnterFullscreen();   // iOS Safari: fullscreen only exists on the video element
+    }
+  }
+  fsBtn.addEventListener('click', function () { video.play().catch(function () {}); fullscreen(); });
+  big.addEventListener('click', function () {
+    video.play().catch(function () {});
+    if (phone) fullscreen();
+  });
+
+  if (phone || reduced) {
+    big.hidden = false;
+    toggle.hidden = fsBtn.hidden = true;
+  } else {
+    video.play().catch(function () { big.hidden = false; toggle.hidden = fsBtn.hidden = true; });
+  }
+  sync();
+
+  // video_start / video_progress (50%) / video_complete — once each per page view. The video
+  // loops, so 'ended' never fires; completion is the first pass near the end.
+  var sent = {};
+  function track(name, params) {
+    if (sent[name] || typeof window.gtag !== 'function') return;
+    sent[name] = true;
+    window.gtag('event', name, Object.assign({ video_title: 'WorkOS 60s tour', page: 'home' }, params));
+  }
+  video.addEventListener('timeupdate', function () {
+    var d = video.duration;
+    if (!d) return;
+    var pct = video.currentTime / d;
+    if (video.currentTime > 0.5) track('video_start', {});
+    if (pct >= 0.5) track('video_progress', { video_percent: 50 });
+    if (pct >= 0.95) track('video_complete', { video_percent: 100 });
+  });
+})();
+</script>

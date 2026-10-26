@@ -17,6 +17,8 @@
 <meta property="og:title" content="ConnectedWorkOS — job, quote and payment software for small service businesses">
 <meta property="og:description" content="ConnectedWorkOS runs the whole job for lawn care, repair, HVAC, plumbing, cleaning and other small service businesses: quotes with e-signature, card deposits, scheduling, job costing and final invoices. Every payment you collect posts straight into your books.">
 
+
+
 <meta property="og:image" content="https://connectedworkos.com/img/og-card.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -65,6 +67,8 @@
     </a>
     <nav class="masthead__links" aria-label="Primary">
       
+        <a href="/tour">Tour</a>
+      
         <a href="/how-it-works">How it works</a>
       
         <a href="/getting-paid">Getting paid</a>
@@ -92,6 +96,28 @@
         <a class="btn btn--ghost" href="#start">Book a walkthrough</a>
       </div>
       <p class="hero__note">Your Stripe or Square account · Your bank · No card data touches us</p>
+
+      
+      <figure class="tourvid" id="tour">
+        <video id="hero-video" muted loop playsinline preload="metadata"
+               width="1280" height="720" poster="/video/workos-tour-poster.jpg"
+               aria-label="A 60-second tour of ConnectedWorkOS for small service businesses: a quote priced from your own list with the margin showing, signed online, a card deposit into your own Stripe or Square account, the job scheduled and the balance invoiced automatically, and every payment posted into Connected Home Ledger.">
+          <source src="/video/workos-tour-720.mp4" type="video/mp4">
+        </video>
+        <button type="button" class="tourvid__play" id="hero-video-play" hidden>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg>
+          Watch the 60-second tour
+        </button>
+        <button type="button" class="tourvid__ctl tourvid__ctl--fs" id="hero-video-fs" aria-label="Watch fullscreen">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 6V1.5H6M10 1.5h4.5V6M14.5 10v4.5H10M6 14.5H1.5V10" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+        </button>
+        <button type="button" class="tourvid__ctl" id="hero-video-toggle" aria-label="Pause video"></button>
+      </figure>
+      <details class="tourvid__transcript">
+        <summary>Read the transcript</summary>
+        <p>ConnectedWorkOS: every job, start to paid. Quote it, get it signed, take the deposit, do the work, bill the balance.</p><p>The quote, priced from your own list: materials, labour and subcontracted work from your price list — or start from a job you’ve quoted before.</p><p>Cost sits beside price on every line, so you see the margin before you send it.</p><p>Signed online, deposit paid. Your customer opens a link — no account, no app, no password.</p><p>They sign, pay the deposit by card, and it lands in your own Stripe or Square account. The signature is kept with the time and the address it came from.</p><p>Scheduled, done, billed. The job lands on the calendar and on the crew’s list, with the material list ready for the truck.</p><p>Mark it done and the balance invoices itself — net of the deposit. Nobody forgets the last invoice, and the warranty is on record.</p><p>Your books fill themselves in. Every payment posts to Connected Home Ledger as business income — dated, categorised and net of refunds. Nothing to retype.</p><p>ConnectedWorkOS is included with the Connected Home Ledger Business+ plan, at $29 a month or $290 a year. Your own Stripe or Square account, and no cut of your jobs. Start with Connected Home Ledger.</p>
+        <p><a href="/tour">Watch with chapters &rarr;</a></p>
+      </details>
     </div>
   </section>
 </div>
@@ -316,11 +342,79 @@
 </div>
 
 
+<script>
+// Hero tour — autoplay unless the visitor prefers reduced motion, a pause/play toggle
+// (anything that moves for >5s needs one), and GA progress events. On a phone the 16:9
+// captions are too small to read inline, so it does not autoplay there: the play button
+// opens it fullscreen instead, where it can be watched in landscape.
+(function () {
+  var video  = document.getElementById('hero-video');
+  var toggle = document.getElementById('hero-video-toggle');
+  var big    = document.getElementById('hero-video-play');
+  var fsBtn  = document.getElementById('hero-video-fs');
+  if (!video || !toggle || !big || !fsBtn) return;
+  var phone   = window.matchMedia('(max-width: 768px)').matches;
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var PAUSE = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 2.5h2.5v11H4.5zM9 2.5h2.5v11H9z" fill="currentColor"/></svg>';
+  var PLAY  = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg>';
+
+  function sync() {
+    var playing = !video.paused;
+    toggle.innerHTML = playing ? PAUSE : PLAY;
+    toggle.setAttribute('aria-label', playing ? 'Pause video' : 'Play video');
+  }
+  video.addEventListener('play', function () { big.hidden = true; toggle.hidden = fsBtn.hidden = false; sync(); });
+  video.addEventListener('pause', sync);
+  toggle.addEventListener('click', function () { video.paused ? video.play() : video.pause(); });
+
+  function fullscreen() {
+    if (video.requestFullscreen) {
+      video.requestFullscreen().then(function () {
+        if (screen.orientation && screen.orientation.lock) return screen.orientation.lock('landscape');
+      }).catch(function () {});
+    } else if (video.webkitEnterFullscreen) {
+      video.webkitEnterFullscreen();   // iOS Safari: fullscreen only exists on the video element
+    }
+  }
+  fsBtn.addEventListener('click', function () { video.play().catch(function () {}); fullscreen(); });
+  big.addEventListener('click', function () {
+    video.play().catch(function () {});
+    if (phone) fullscreen();
+  });
+
+  if (phone || reduced) {
+    big.hidden = false;
+    toggle.hidden = fsBtn.hidden = true;
+  } else {
+    video.play().catch(function () { big.hidden = false; toggle.hidden = fsBtn.hidden = true; });
+  }
+  sync();
+
+  // video_start / video_progress (50%) / video_complete — once each per page view. The video
+  // loops, so 'ended' never fires; completion is the first pass near the end.
+  var sent = {};
+  function track(name, params) {
+    if (sent[name] || typeof window.gtag !== 'function') return;
+    sent[name] = true;
+    window.gtag('event', name, Object.assign({ video_title: 'WorkOS 60s tour', page: 'home' }, params));
+  }
+  video.addEventListener('timeupdate', function () {
+    var d = video.duration;
+    if (!d) return;
+    var pct = video.currentTime / d;
+    if (video.currentTime > 0.5) track('video_start', {});
+    if (pct >= 0.5) track('video_progress', { video_percent: 50 });
+    if (pct >= 0.95) track('video_complete', { video_percent: 100 });
+  });
+})();
+</script>
+
 
 <footer class="foot">
   <div class="wrap foot__row">
     <span>&copy; <span id="yr">2026</span> Connected Home Outfitters LLC</span>
     <span class="foot__nav">
+      <a href="/tour">Tour</a> ·
       <a href="/how-it-works">How it works</a> ·
       <a href="/getting-paid">Getting paid</a> ·
       <a href="/faq">FAQ</a> ·

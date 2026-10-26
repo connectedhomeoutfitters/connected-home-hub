@@ -1,0 +1,37 @@
+TITLE
+ConnectedWorkOS in 60 Seconds | Quotes, Deposits & Invoicing for Service Businesses
+
+DESCRIPTION
+A 60-second tour of ConnectedWorkOS - every job, start to paid, for lawn care, HVAC, plumbing, cleaning and other small service businesses.
+
+- See how it works: https://connectedworkos.com/?utm_source=youtube&utm_medium=video&utm_campaign=tour
+- Watch with transcript: https://connectedworkos.com/tour
+- Start with Connected Home Ledger: https://connectedhomeledger.com/?utm_source=youtube&utm_medium=video&utm_campaign=workos-tour
+
+Chapters:
+0:00 The quote
+0:17 Signed & paid
+0:30 The work
+0:43 Your books
+
+Transcript:
+
+ConnectedWorkOS: every job, start to paid. Quote it, get it signed, take the deposit, do the work, bill the balance.
+
+The quote, priced from your own list: materials, labour and subcontracted work from your price list - or start from a job you've quoted before.
+
+Cost sits beside price on every line, so you see the margin before you send it.
+
+Signed online, deposit paid. Your customer opens a link - no account, no app, no password.
+
+They sign, pay the deposit by card, and it lands in your own Stripe or Square account. The signature is kept with the time and the address it came from.
+
+Scheduled, done, billed. The job lands on the calendar and on the crew's list, with the material list ready for the truck.
+
+Mark it done and the balance invoices itself - net of the deposit. Nobody forgets the last invoice, and the warranty is on record.
+
+Your books fill themselves in. Every payment posts to Connected Home Ledger as business income - dated, categorised and net of refunds. Nothing to retype.
+
+ConnectedWorkOS is included with the Connected Home Ledger Business+ plan, at $29 a month or $290 a year. Your own Stripe or Square account, and no cut of your jobs. Start with Connected Home Ledger.
+
+#smallbusiness #fieldservice #contractors #invoicing #lawncare

@@ -35,6 +35,10 @@ const paths = {
     // app, so the NAS test instance has no use for it. See marketing/README.md.
     "!marketing/**",
     "!marketing",
+    // Dev-only tooling (the tour video's source animation and render script, plus its
+    // ~9 MB 1080p master). Nothing the running app needs. See marketing/README.md.
+    "!tools/**",
+    "!tools",
   ],
 };
 

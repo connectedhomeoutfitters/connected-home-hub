@@ -3,7 +3,11 @@
 // forgotten in the sitemap.
 //
 // `nav` is the label in the header; omit it to keep a page out of the nav (it still gets
-// built and listed in the sitemap).
+// built and listed in the sitemap). `video` adds a <video:video> entry to that page's
+// sitemap URL — only on the page where the video is the main content, which is what Google
+// requires before it will show a video in video results.
+
+const tourVideo = require('./_tourVideo');
 
 module.exports = [
   {
@@ -14,6 +18,20 @@ module.exports = [
       'ConnectedWorkOS runs the whole job for lawn care, repair, HVAC, plumbing, cleaning and other small service businesses: quotes with e-signature, card deposits, scheduling, job costing and final invoices. Every payment you collect posts straight into your books.',
     priority: '1.0',
     changefreq: 'weekly',
+  },
+  {
+    slug: 'tour',
+    url: '/tour',
+    nav: 'Tour',
+    title: 'See ConnectedWorkOS in 60 seconds — product tour',
+    description:
+      'Watch a 60-second tour of ConnectedWorkOS: a quote priced from your own list, signed online, a card deposit into your own Stripe or Square account, the balance invoiced when the job is done, and every payment posted to your books.',
+    ogTitle: 'ConnectedWorkOS in 60 seconds',
+    ogImage: tourVideo.poster,
+    jsonld: tourVideo.jsonld(),
+    video: tourVideo,
+    priority: '0.8',
+    changefreq: 'monthly',
   },
   {
     slug: 'how-it-works',

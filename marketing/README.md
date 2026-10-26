@@ -27,10 +27,28 @@ Consequences worth knowing:
 |---|---|
 | `index.html` | The whole page. Single file, semantic sections, JSON-LD for search. |
 | `styles.css` | All styling. Design tokens are at the top in `:root`. |
+| `video/` | The tour video and its poster — see "The tour video" below. |
 | `img/logo.png` | Same ConnectedWorkOS mark the app uses as its default logo. |
 | `img/favicon.png` | 256px app icon, generic fallback. |
 | `img/favicon-32.png` | 32px — what a browser tab actually renders on a 2× display. |
 | `img/apple-touch-icon.png` | 180px, iOS home screen. |
+
+## The tour video
+
+A 60-second silent, captioned product tour plays in the home page hero (muted autoplay
+loop on desktop; poster + play button on phones and for reduced-motion visitors) and on
+its own watch page, `/tour` (chapters, `?t=NN` deep links, transcript, `VideoObject`
+JSON-LD, and the sitemap's `<video:video>` entry — Google only lists a video in video
+results on a page where it is the main content).
+
+- **`src/_tourVideo.js`** is the one copy of the title, chapters and transcript. The video
+  has no audio, so that transcript is all a crawler or screen reader gets from it.
+- **Source animation:** `tools/explainer-video/explainer.html`, rendered by `render.js`
+  into `video/workos-tour-720.mp4` + `video/workos-tour-poster.jpg` (and a gitignored
+  1080p master for YouTube; `youtube.txt` has the description). Never edit the MP4 — edit
+  the HTML and re-render, then update `_tourVideo.js` to match. A price change (Business+
+  is quoted on the end card) means a re-render.
+- The play button is white, not amber — amber means money (see below).
 
 ## Design notes
 
