@@ -26,6 +26,13 @@ const GA_ID = 'G-V465R82EGV';
 
 const pages = require('./src/_pages.js');
 const tourVideo = require('./src/_tourVideo.js');
+
+// nginx lets browsers cache styles.css for an hour, and the HTML revalidates every time — so
+// a deploy that adds markup AND the CSS for it showed the new markup with the old stylesheet
+// (the tour video's buttons rendered as bare white squares). The stylesheet link carries a
+// hash of its contents, so any CSS change is a new URL and can never be served stale.
+const CSS_VERSION = require('crypto').createHash('sha1')
+  .update(fs.readFileSync(path.join(OUT, 'styles.css'))).digest('hex').slice(0, 10);
 const layout = path.join(SRC, '_layout.ejs');
 
 function build() {
@@ -41,7 +48,7 @@ function build() {
     }
 
     const body = ejs.render(fs.readFileSync(src, 'utf8'), { page, pages, nav, ORIGIN, GA_ID, tourVideo }, { filename: src });
-    const html = ejs.render(fs.readFileSync(layout, 'utf8'), { page, pages, nav, ORIGIN, GA_ID, tourVideo, body }, { filename: layout });
+    const html = ejs.render(fs.readFileSync(layout, 'utf8'), { page, pages, nav, ORIGIN, GA_ID, tourVideo, CSS_VERSION, body }, { filename: layout });
 
     fs.writeFileSync(path.join(OUT, `${page.slug}.html`), html);
     written++;
