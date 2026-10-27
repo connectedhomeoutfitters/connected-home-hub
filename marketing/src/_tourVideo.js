@@ -24,9 +24,9 @@ const tour = {
   watchUrl:    `${ORIGIN}/tour`,
   contentUrl:  `${ORIGIN}/video/workos-tour-720.mp4`,
   thumbnailUrl: `${ORIGIN}/video/workos-tour-poster.jpg`,
-  // Set once the master is uploaded (tools/explainer-video/youtube.txt has the description);
-  // the watch page shows a "Watch on YouTube" link only when this is set.
-  youtubeUrl:  null,
+  // The 1080p master (tools/explainer-video/youtube.txt has the description); the watch page
+  // shows a "Watch on YouTube" link only when this is set.
+  youtubeUrl:  'https://youtu.be/14wlOGAkwCw',
 
   chapters: [
     {
